@@ -291,13 +291,58 @@ The `shared/` directory contains common utilities:
   - `Milestone` - Milestone
   
 - **errors.rs** - Common error types
-  - `Error` - Centralized error variants (NotInitialized, Unauthorized, ProjectNotActive, etc.)
+  - 1: NotInitialized
+  - 2: AlreadyInitialized
+  - 3: Unauthorized
+  - 4: InvalidInput
+  - 5: NotFound
+  - 100: ProjectNotActive
+  - 101: ProjectAlreadyExists
+  - 102: FundingGoalNotReached
+  - 103: DeadlinePassed
+  - 104: InvalidProjectStatus
+  - 200: InsufficientEscrowBalance
+  - 201: MilestoneNotApproved
+  - 202: InvalidMilestoneStatus
+  - 203: NotAValidator
+  - 204: AlreadyVoted
+  - 300: InsufficientFunds
+  - 301: InvalidDistribution
+  - 302: NoClaimableAmount
+  - 303: DistributionFailed
+  - 400: SubscriptionNotActive
+  - 401: InvalidSubscriptionPeriod
+  - 402: SubscriptionExists
+  - 403: WithdrawalLocked
+  - 500: ReputationTooLow
+  - 501: InvalidReputationScore
+  - 502: BadgeNotEarned
+  - 600: ProposalNotActive
+  - 601: InsufficientVotingPower
+  - 602: ProposalAlreadyExecuted
+  - 603: QuorumNotReached
+  - 1000: InvalidFundingGoal
+  - 1001: InvalidDeadline
+  - 1002: ProjectNotFound
+  - 1003: ContributionTooLow
   
 - **events.rs** - Event definitions
-  - `PROJECT_CREATED`, `PROJECT_FUNDED`, `CONTRIBUTION_MADE`, `REFUND_ISSUED`
-  - `PROFIT_DISTRIBUTED`, `DIVIDEND_CLAIMED`
-  - `PROPOSAL_CREATED`, `VOTE_CAST`, `PROPOSAL_EXECUTED`
-  - `REPUTATION_UPDATED`, `BADGE_EARNED`
+  - PROJECT_CREATED     ("proj_new")
+  - PROJECT_FUNDED      ("proj_fund")
+  - PROJECT_COMPLETED   ("proj_done")
+  - PROJECT_FAILED      ("proj_fail")
+  - CONTRIBUTION_MADE   ("contrib")
+  - REFUND_ISSUED       ("refund")
+  - FUNDS_LOCKED        ("lock")
+  - FUNDS_RELEASED      ("release")
+  - MILESTONE_COMPLETED ("milestone")
+  - PROFIT_DISTRIBUTED  ("profit")
+  - DIVIDEND_CLAIMED    ("claim")
+  - PROPOSAL_CREATED    ("proposal")
+  - VOTE_CAST           ("vote")
+  - PROPOSAL_EXECUTED   ("execute")
+  - REPUTATION_UPDATED  ("rep_up")
+  - BADGE_EARNED        ("badge")
   
 - **utils.rs** - Helper functions
   
