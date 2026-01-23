@@ -1,4 +1,4 @@
-use soroban_sdk::{contracttype, Address, String};
+use soroban_sdk::{contracttype, Address, String, Vec};
 
 /// Common timestamp type
 pub type Timestamp = u64;
@@ -37,4 +37,38 @@ pub struct UserProfile {
     pub projects_funded: u32,
     pub total_contributed: Amount,
     pub verified: bool,
+}
+
+#[contracttype]
+#[derive(Clone)]
+pub struct EscrowInfo {
+    pub project_id: u64,
+    pub creator: Address,
+    pub token: Address,
+    pub total_deposited: Amount,
+    pub released_amount: Amount,
+    pub validators: Vec<Address>,
+}
+
+#[contracttype]
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub enum MilestoneStatus {
+    Pending = 0,      // Created, awaiting submission
+    Submitted = 1,    // Submitted with proof, awaiting validator votes
+    Approved = 2,     // Approved by majority, funds released
+    Rejected = 3,     // Rejected by majority
+}
+
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct Milestone {
+    pub id: u64,
+    pub project_id: u64,
+    pub description: String,
+    pub amount: Amount,
+    pub status: MilestoneStatus,
+    pub proof_hash: String,
+    pub approval_count: u32,
+    pub rejection_count: u32,
+    pub created_at: Timestamp,
 }

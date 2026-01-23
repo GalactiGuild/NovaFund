@@ -5,8 +5,9 @@ use shared::{
     types::{EscrowInfo, Milestone, MilestoneStatus, Amount},
     errors::Error,
     events::*,
-    constants::{MILESTONE_APPROVAL_THRESHOLD, MIN_VALIDATORS},
+    constants::{ESCROW_INITIALIZED, MILESTONE_APPROVED, MILESTONE_CREATED, MILESTONE_REJECTED, MILESTONE_SUBMITTED, MILESTONE_APPROVAL_THRESHOLD, MIN_VALIDATORS},
 };
+
 
 mod storage;
 mod validation;

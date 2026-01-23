@@ -1,4 +1,5 @@
 /// Platform constants
+use soroban_sdk::{Symbol, symbol_short};
 
 /// Default platform fee (2.5%)
 pub const DEFAULT_PLATFORM_FEE: u32 = 250;
@@ -37,3 +38,11 @@ pub const GOVERNANCE_QUORUM: u32 = 2000;
 
 /// Voting period duration (7 days in seconds)
 pub const VOTING_PERIOD: u64 = 604800;
+
+pub const ESCROW_INITIALIZED: Symbol = symbol_short!("esc_init");
+pub const FUNDS_LOCKED: Symbol = symbol_short!("f_lock");
+pub const MILESTONE_CREATED: Symbol = symbol_short!("mile_cr");
+pub const MILESTONE_SUBMITTED: Symbol = symbol_short!("mile_sub");
+pub const MILESTONE_APPROVED: Symbol = symbol_short!("mile_apr");
+pub const MILESTONE_REJECTED: Symbol = symbol_short!("mile_rej");
+pub const FUNDS_RELEASED: Symbol = symbol_short!("fund_rel");
