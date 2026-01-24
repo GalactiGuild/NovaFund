@@ -9,6 +9,20 @@ export default function Home() {
         <p className="mt-2 text-muted-foreground">
           The decentralized micro-investment platform on Stellar.
         </p>
+        <div className="mt-6 space-x-4">
+          <a
+            href="/dashboard"
+            className="inline-block bg-purple-700 text-white px-6 py-3 rounded-lg font-semibold hover:bg-purple-600 transition-colors"
+          >
+            View Dashboard
+          </a>
+          <a
+            href="/explore"
+            className="inline-block bg-gray-800 text-white px-6 py-3 rounded-lg font-semibold hover:bg-gray-700 transition-colors"
+          >
+            Explore Projects
+          </a>
+        </div>
       </section>
     </main>
   );
