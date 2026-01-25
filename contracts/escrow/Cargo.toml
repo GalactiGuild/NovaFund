@@ -6,6 +6,7 @@ license.workspace = true
 
 [dependencies]
 soroban-sdk = { workspace = true }
+soroban-token-sdk = { workspace = true }
 shared = { path = "../shared" }
 
 [dev-dependencies]

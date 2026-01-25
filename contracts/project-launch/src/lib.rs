@@ -1,13 +1,13 @@
 #![no_std]
 
 use soroban_sdk::{
-    contract, contracterror, contractimpl, contracttype, Address, Bytes, Env, Vec,
+    contract, contracterror, contractimpl, contracttype, token::TokenClient, Address, Bytes, Env,
 };
 
 use shared::{
+    constants::{MAX_PROJECT_DURATION, MIN_CONTRIBUTION, MIN_FUNDING_GOAL, MIN_PROJECT_DURATION},
     errors::Error,
     events::{CONTRIBUTION_MADE, PROJECT_CREATED},
-    constants::{MIN_FUNDING_GOAL, MIN_PROJECT_DURATION, MAX_PROJECT_DURATION, MIN_CONTRIBUTION},
     utils::verify_future_timestamp,
 };
 
@@ -44,14 +44,7 @@ pub enum DataKey {
     Admin = 0,
     NextProjectId = 1,
     Project = 2,
-}
-
-/// Contribution tracking
-#[contracttype]
-pub struct Contribution {
-    pub contributor: Address,
-    pub amount: i128,
-    pub timestamp: u64,
+    ContributionAmount = 3, // (DataKey::ContributionAmount, project_id, contributor) -> i128
 }
 
 #[contract]
@@ -93,6 +86,7 @@ impl ProjectLaunch {
         token: Address,
         metadata_hash: Bytes,
     ) -> Result<u64, ProjectLaunchError> {
+        creator.require_auth();
         // Validate funding goal
         if funding_goal < MIN_FUNDING_GOAL {
             return Err(ProjectLaunchError::InvalidFundingGoal);
@@ -101,7 +95,7 @@ impl ProjectLaunch {
         // Validate deadline
         let current_time = env.ledger().timestamp();
         let duration = deadline.saturating_sub(current_time);
-        
+
         if duration < MIN_PROJECT_DURATION || duration > MAX_PROJECT_DURATION {
             return Err(ProjectLaunchError::InvalidDeadline);
         }
@@ -155,6 +149,7 @@ impl ProjectLaunch {
         contributor: Address,
         amount: i128,
     ) -> Result<(), ProjectLaunchError> {
+        contributor.require_auth();
         // Validate contribution amount
         if amount < MIN_CONTRIBUTION {
             return Err(ProjectLaunchError::ContributionTooLow);
@@ -183,24 +178,22 @@ impl ProjectLaunch {
             .instance()
             .set(&(DataKey::Project, project_id), &project);
 
-        // Store contribution record
-        let contribution = Contribution {
-            contributor: contributor.clone(),
-            amount,
-            timestamp: current_time,
-        };
-        
-        let contribution_key = (DataKey::Project, project_id);
-        let mut contributions: Vec<Contribution> = env
+        // Perform token transfer
+        let token_client = TokenClient::new(&env, &project.token);
+        token_client.transfer(&contributor, &env.current_contract_address(), &amount);
+
+        // 1. Store aggregated individual contribution (Scalable O(1))
+        let contribution_key = (DataKey::ContributionAmount, project_id, contributor.clone());
+        let current_contribution: i128 = env
             .storage()
             .persistent()
             .get(&contribution_key)
-            .unwrap_or_else(|| Vec::new(&env));
-        
-        contributions.push_back(contribution);
+            .unwrap_or(0);
+
+        let new_contribution = current_contribution.checked_add(amount).unwrap();
         env.storage()
             .persistent()
-            .set(&contribution_key, &contributions);
+            .set(&contribution_key, &new_contribution);
 
         // Emit event
         env.events().publish(
@@ -219,13 +212,10 @@ impl ProjectLaunch {
             .ok_or(ProjectLaunchError::ProjectNotFound)
     }
 
-    /// Get project contributions
-    pub fn get_contributions(env: Env, project_id: u64) -> Result<Vec<Contribution>, ProjectLaunchError> {
-        let contribution_key = (DataKey::Project, project_id);
-        env.storage()
-            .persistent()
-            .get(&contribution_key)
-            .ok_or(ProjectLaunchError::ProjectNotFound)
+    /// Get individual contribution amount for a user
+    pub fn get_user_contribution(env: Env, project_id: u64, contributor: Address) -> i128 {
+        let key = (DataKey::ContributionAmount, project_id, contributor);
+        env.storage().persistent().get(&key).unwrap_or(0)
     }
 
     /// Get next project ID (for testing purposes)
@@ -250,7 +240,11 @@ impl ProjectLaunch {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use soroban_sdk::{testutils::{Address as TestAddress, Ledger}, Address, Bytes};
+    use soroban_sdk::token::StellarAssetClient;
+    use soroban_sdk::{
+        testutils::{Address as TestAddress, Ledger},
+        Address, Bytes,
+    };
 
     #[test]
     fn test_initialize() {
@@ -262,6 +256,7 @@ mod tests {
 
         // Test successful initialization
         assert!(!client.is_initialized());
+        env.mock_all_auths();
         client.initialize(&admin);
         assert!(client.is_initialized());
         assert_eq!(client.get_admin(), Some(admin));
@@ -278,6 +273,7 @@ mod tests {
         let token = Address::generate(&env);
         let metadata_hash = Bytes::from_slice(&env, b"QmHash123");
 
+        env.mock_all_auths();
         client.initialize(&admin);
 
         // Set up time
@@ -327,10 +323,17 @@ mod tests {
         let admin = Address::generate(&env);
         let creator = Address::generate(&env);
         let contributor = Address::generate(&env);
-        let token = Address::generate(&env);
+
+        // Register a token contract
+        let token = env.register_stellar_asset_contract(admin.clone());
+        let token_admin = StellarAssetClient::new(&env, &token);
         let metadata_hash = Bytes::from_slice(&env, b"QmHash123");
 
+        env.mock_all_auths();
         client.initialize(&admin);
+
+        // Mint tokens to contributor
+        token_admin.mint(&contributor, &1000000000);
 
         // Create project
         env.ledger().set_timestamp(1000000);
@@ -346,6 +349,19 @@ mod tests {
         // Test successful contribution
         client.contribute(&project_id, &contributor, &MIN_CONTRIBUTION);
 
+        // Verify contribution amount
+        assert_eq!(
+            client.get_user_contribution(&project_id, &contributor),
+            MIN_CONTRIBUTION
+        );
+
+        // Test multiple contributions from same user
+        client.contribute(&project_id, &contributor, &MIN_CONTRIBUTION);
+        assert_eq!(
+            client.get_user_contribution(&project_id, &contributor),
+            MIN_CONTRIBUTION * 2
+        );
+
         // Test contribution too low
         let result = client.try_contribute(&project_id, &contributor, &(MIN_CONTRIBUTION - 1));
         assert!(result.is_err());
@@ -358,5 +374,31 @@ mod tests {
         env.ledger().set_timestamp(deadline + 1);
         let result = client.try_contribute(&project_id, &contributor, &MIN_CONTRIBUTION);
         assert!(result.is_err());
+    }
+
+    #[test]
+    #[should_panic] // Since require_auth() will fail without mocking or proper signature
+    fn test_create_project_unauthorized() {
+        let env = Env::default();
+        let contract_id = env.register_contract(None, ProjectLaunch);
+        let client = ProjectLaunchClient::new(&env, &contract_id);
+
+        let admin = Address::generate(&env);
+        let creator = Address::generate(&env);
+        let token = Address::generate(&env);
+        let metadata_hash = Bytes::from_slice(&env, b"QmHash123");
+
+        client.initialize(&admin);
+        env.ledger().set_timestamp(1000000);
+        let deadline = 1000000 + MIN_PROJECT_DURATION + 86400;
+
+        // Call without mocking auth for 'creator'
+        client.create_project(
+            &creator,
+            &MIN_FUNDING_GOAL,
+            &deadline,
+            &token,
+            &metadata_hash,
+        );
     }
 }
