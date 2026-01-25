@@ -25,5 +25,6 @@ pub const VOTE_CAST: Symbol = symbol_short!("vote");
 pub const PROPOSAL_EXECUTED: Symbol = symbol_short!("execute");
 
 // Reputation events
+pub const USER_REGISTERED: Symbol = symbol_short!("user_reg");
 pub const REPUTATION_UPDATED: Symbol = symbol_short!("rep_up");
 pub const BADGE_EARNED: Symbol = symbol_short!("badge");

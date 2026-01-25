@@ -1,6 +1,7 @@
 # Rust / Cargo
-/target/
-**/target
+target/
+**/target/
+**/*.rs.bk
 *.pdb
 Cargo.lock
 
@@ -23,6 +24,7 @@ Cargo.lock
 
 # Node / Frontend
 node_modules/
+.next/
 dist/
 build/
 *.log
