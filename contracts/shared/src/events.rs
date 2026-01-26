@@ -11,9 +11,15 @@ pub const CONTRIBUTION_MADE: Symbol = symbol_short!("contrib");
 pub const REFUND_ISSUED: Symbol = symbol_short!("refund");
 
 // Escrow events
+pub const ESCROW_INITIALIZED: Symbol = symbol_short!("esc_init");
 pub const FUNDS_LOCKED: Symbol = symbol_short!("lock");
 pub const FUNDS_RELEASED: Symbol = symbol_short!("release");
+pub const MILESTONE_CREATED: Symbol = symbol_short!("m_create");
+pub const MILESTONE_SUBMITTED: Symbol = symbol_short!("m_submit");
+pub const MILESTONE_APPROVED: Symbol = symbol_short!("m_apprv");
+pub const MILESTONE_REJECTED: Symbol = symbol_short!("m_reject");
 pub const MILESTONE_COMPLETED: Symbol = symbol_short!("milestone");
+pub const VALIDATORS_UPDATED: Symbol = symbol_short!("v_update");
 
 // Distribution events
 pub const PROFIT_DISTRIBUTED: Symbol = symbol_short!("profit");
@@ -25,5 +31,11 @@ pub const VOTE_CAST: Symbol = symbol_short!("vote");
 pub const PROPOSAL_EXECUTED: Symbol = symbol_short!("execute");
 
 // Reputation events
+pub const USER_REGISTERED: Symbol = symbol_short!("user_reg");
 pub const REPUTATION_UPDATED: Symbol = symbol_short!("rep_up");
 pub const BADGE_EARNED: Symbol = symbol_short!("badge");
+
+// Multi-party payment events
+pub const PAYMENT_SETUP: Symbol = symbol_short!("pay_setup");
+pub const PAYMENT_RECEIVED: Symbol = symbol_short!("pay_recv");
+pub const PAYMENT_WITHDRAWN: Symbol = symbol_short!("pay_withd");

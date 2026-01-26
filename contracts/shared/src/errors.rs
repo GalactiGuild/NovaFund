@@ -41,6 +41,9 @@ pub enum Error {
     ReputationTooLow = 500,
     InvalidReputationScore = 501,
     BadgeNotEarned = 502,
+    UserAlreadyRegistered = 503,
+    BadgeAlreadyAwarded = 504,
+    UserNotRegistered = 505,
 
     // Governance errors (600-699)
     ProposalNotActive = 600,

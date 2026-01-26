@@ -1,12 +1,31 @@
-use soroban_sdk::{Env, Address};
-use shared::types::{EscrowInfo, Milestone, Amount};
 use shared::errors::Error;
+use shared::types::{Amount, EscrowInfo, Milestone};
+use soroban_sdk::{Address, Env};
 
 /// Storage keys for escrow data structures
 const ESCROW_PREFIX: &str = "escrow";
 const MILESTONE_PREFIX: &str = "milestone";
 const MILESTONE_COUNTER_PREFIX: &str = "m_counter";
 const VALIDATOR_VOTE_PREFIX: &str = "v_vote";
+const ADMIN_KEY: &str = "admin";
+
+/// Store platform admin
+pub fn set_admin(env: &Env, admin: &Address) {
+    env.storage().instance().set(&ADMIN_KEY, admin);
+}
+
+/// Retrieve platform admin
+pub fn get_admin(env: &Env) -> Result<Address, Error> {
+    env.storage()
+        .instance()
+        .get::<&str, Address>(&ADMIN_KEY)
+        .ok_or(Error::NotInitialized)
+}
+
+/// Check if admin is set
+pub fn has_admin(env: &Env) -> bool {
+    env.storage().instance().has(&ADMIN_KEY)
+}
 
 /// Store escrow information
 pub fn set_escrow(env: &Env, project_id: u64, escrow: &EscrowInfo) {
@@ -26,28 +45,17 @@ pub fn get_escrow(env: &Env, project_id: u64) -> Result<EscrowInfo, Error> {
 /// Check if escrow exists
 pub fn escrow_exists(env: &Env, project_id: u64) -> bool {
     let key = (ESCROW_PREFIX, project_id);
-    env.storage()
-        .persistent()
-        .has(&key)
+    env.storage().persistent().has(&key)
 }
 
 /// Store milestone information
-pub fn set_milestone(
-    env: &Env,
-    project_id: u64,
-    milestone_id: u64,
-    milestone: &Milestone,
-) {
+pub fn set_milestone(env: &Env, project_id: u64, milestone_id: u64, milestone: &Milestone) {
     let key = (MILESTONE_PREFIX, project_id, milestone_id);
     env.storage().persistent().set(&key, milestone);
 }
 
 /// Retrieve milestone information
-pub fn get_milestone(
-    env: &Env,
-    project_id: u64,
-    milestone_id: u64,
-) -> Result<Milestone, Error> {
+pub fn get_milestone(env: &Env, project_id: u64, milestone_id: u64) -> Result<Milestone, Error> {
     let key = (MILESTONE_PREFIX, project_id, milestone_id);
     env.storage()
         .persistent()
@@ -90,9 +98,7 @@ pub fn has_validator_voted(
     validator: &Address,
 ) -> Result<bool, Error> {
     let key = (VALIDATOR_VOTE_PREFIX, project_id, milestone_id, validator);
-    Ok(env.storage()
-        .persistent()
-        .has(&key))
+    Ok(env.storage().persistent().has(&key))
 }
 
 /// Clear all validator votes for a milestone (used when resubmitting)
@@ -140,4 +146,3 @@ pub fn get_total_milestone_amount(env: &Env, project_id: u64) -> Result<Amount, 
 
     Ok(total)
 }
-

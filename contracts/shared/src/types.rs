@@ -9,13 +9,16 @@ pub type Amount = i128;
 /// Common percentage type (in basis points, 10000 = 100%)
 pub type BasisPoints = u32;
 
+/// Hash type (SHA-256)
+pub type Hash = BytesN<32>;
+
 /// Platform fee configuration
 #[contracttype]
 #[derive(Clone)]
 pub struct FeeConfig {
-    pub platform_fee: BasisPoints,  // Platform fee in basis points
-    pub creator_fee: BasisPoints,    // Creator fee in basis points
-    pub fee_recipient: Address,      // Address to receive fees
+    pub platform_fee: BasisPoints, // Platform fee in basis points
+    pub creator_fee: BasisPoints,  // Creator fee in basis points
+    pub fee_recipient: Address,    // Address to receive fees
 }
 
 /// Token information
@@ -71,4 +74,40 @@ pub struct Milestone {
     pub approval_count: u32,
     pub rejection_count: u32,
     pub created_at: Timestamp,
+}
+/// Proposal status
+#[contracttype]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[repr(u32)]
+pub enum ProposalStatus {
+    Active = 0,
+    Approved = 1,
+    Rejected = 2,
+    Executed = 3,
+}
+
+/// Voting options
+#[contracttype]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[repr(u32)]
+pub enum VoteOption {
+    Abstain = 0,
+    Yes = 1,
+    No = 2,
+}
+
+/// Governance proposal structure
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct Proposal {
+    pub id: u64,
+    pub creator: Address,
+    pub title: String,
+    pub description_hash: Hash,
+    pub status: ProposalStatus,
+    pub votes_for: i128,
+    pub votes_against: i128,
+    pub votes_abstain: i128,
+    pub start_time: Timestamp,
+    pub end_time: Timestamp,
 }

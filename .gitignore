@@ -1,7 +1,6 @@
 # Rust / Cargo
-target/
-**/target/
-**/*.rs.bk
+/target/
+/contracts/target/
 *.pdb
 Cargo.lock
 
@@ -24,9 +23,9 @@ Cargo.lock
 
 # Node / Frontend
 node_modules/
-.next/
 dist/
 build/
+.next/
 *.log
 npm-debug.log*
 yarn-debug.log*
@@ -47,3 +46,28 @@ coverage/
 *.tmp
 *.temp
 .cache/
+
+# Ignore model files
+/models/
+
+# Miscellaneous
+*.bak
+*.orig
+*.swp
+*.swo
+*.class
+*.jar
+*.war
+*.ear
+*.iml
+*.hprof
+*.log
+*.pid
+*.seed
+*.tgz
+*.gz
+*.zip
+*.tar
+*.tar.gz
+*.rar
+*.7z

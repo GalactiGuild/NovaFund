@@ -113,7 +113,7 @@ soroban contract invoke \
 - `create_project(creator, funding_goal, deadline, token, metadata_hash)` - Create new funding campaign
 - `contribute(project_id, contributor, amount)` - Add funds to project
 - `get_project(project_id)` - Retrieve project details
-- `get_contributions(project_id)` - Get all contributions for a project
+- `get_user_contribution(project_id, contributor)` - Get total contribution for a specific user
 
 **Usage Examples**:
 
@@ -166,7 +166,8 @@ soroban contract invoke \
 - Projects start with `Active` status
 - Contributions only accepted before deadline
 - Events emitted for project creation and contributions
-- Contribution history tracked permanently
+- Contribution amount per user tracked in O(1) storage
+- Full contribution history available via events/indexers
 - Project IDs increment sequentially from 0
 
 **State Management**:
@@ -185,6 +186,7 @@ soroban contract invoke \
 - `approve_milestone()` - Validators approve milestone
 - `release_funds()` - Automated release upon approval
 - `request_refund()` - Request funds back if milestones fail
+- `update_validators(new_validators)` - Update the list of approved validators (Admin only)
 
 **State Management**:
 - Escrow balance
@@ -194,14 +196,15 @@ soroban contract invoke \
 
 ### 3. Profit Distribution Contract
 
-**Purpose**: Automatically distribute returns to investors proportionally
+**Purpose**: Automatically distribute returns to investors proportionally using an O(1) scalability pattern.
 
 **Key Functions**:
-- `register_investors()` - Record investment shares
-- `deposit_profits()` - Add profits for distribution
-- `distribute()` - Trigger automatic payout
-- `claim_dividends()` - Manual claim by investor
-- `get_share()` - Query investor's share
+- `initialize(admin)` - Initialize contract with admin address
+- `set_token(project_id, token)` - Register the token used for project profits
+- `register_investors(project_id, investors)` - Record investment shares (Map of address to basis points)
+- `deposit_profits(project_id, depositor, amount)` - Add profits for distribution (O(1) update)
+- `claim_dividends(project_id, investor)` - Manual claim of pending dividends by investor
+- `get_investor_share(project_id, investor)` - Query investor's current share and pending claimable amount
 
 **State Management**:
 - Investor registry with percentages
@@ -211,14 +214,14 @@ soroban contract invoke \
 
 ### 4. Subscription Pool Contract
 
-**Purpose**: Manage recurring investment contributions and pool allocations
+**Purpose**: Manage recurring investment contributions and pool allocations.
 
 **Key Functions**:
-- `create_pool()` - Initialize new investment pool
-- `subscribe()` - Join pool with recurring amount
-- `process_deposits()` - Collect scheduled contributions
-- `rebalance()` - Adjust portfolio allocation
-- `withdraw()` - Exit pool with payout calculation
+- `initialize(admin)` - Initialize contract with admin address
+- `subscribe(subscriber, token, amount_per_period, period_seconds)` - Create or update a subscription
+- `deposit(subscriber)` - Process a recurring deposit (transfers funds if period has passed)
+- `withdraw(subscriber, amount)` - Withdraw funds from the subscription balance
+- `get_subscription(subscriber)` - Query subscription details and balance
 
 **State Management**:
 - Subscriber list with schedules
@@ -389,7 +392,7 @@ All contracts are optimized for minimal transaction costs:
 
 ## 🤝 Contributing
 
-See main [CONTRIBUTING.md](../CONTRIBUTING.md) for guidelines.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ## 📄 License
 

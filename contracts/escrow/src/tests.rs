@@ -1,14 +1,12 @@
 #![cfg(test)]
 
 mod tests {
+    use crate::{EscrowContract, EscrowContractClient};
+    use shared::types::MilestoneStatus;
     use soroban_sdk::{
         testutils::{Address as _, Ledger},
-        Address, Env, String as SorobanString, Vec,
+        Address, BytesN, Env, Vec,
     };
-    use shared::types::{EscrowInfo, Milestone, MilestoneStatus};
-    use shared::errors::Error;
-
-    use crate::{EscrowContract, EscrowContractClient};
 
     fn create_test_env() -> (Env, Address, Address, Address, Vec<Address>) {
         let env = Env::default();
@@ -40,6 +38,8 @@ mod tests {
 
         let result = client.initialize(&1, &creator, &token, &validators);
 
+        env.mock_all_auths();
+        client.initialize(&1, &creator, &token, &validators);
 
         // Verify escrow was created
         let escrow = client.get_escrow(&1);
@@ -132,6 +132,7 @@ mod tests {
         assert_eq!(milestone.project_id, 1);
         assert_eq!(milestone.amount, 500);
         assert_eq!(milestone.status, MilestoneStatus::Pending);
+        assert_eq!(milestone.description_hash, description_hash);
     }
 
     #[test]
@@ -368,4 +369,3 @@ mod tests {
         assert_eq!(escrow1.project_id, 1);
     }
 }
-
