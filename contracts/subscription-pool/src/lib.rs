@@ -1,24 +1,48 @@
 #![no_std]
 use soroban_sdk::{
-    contract, contracterror, contractimpl, contracttype, token::TokenClient, Address, Env,
+    contract, contracterror, contractimpl, contracttype, symbol_short, 
+    token, Address, Env, String, Vec, Symbol
 };
+
+const MIN_SUBSCRIPTION: i128 = 100;
+
+#[contracttype]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[repr(u32)]
+pub enum SubscriptionPeriod {
+    Weekly = 604800,
+    Monthly = 2592000,
+    Quarterly = 7776000,
+}
 
 #[contracttype]
 #[derive(Clone)]
 pub enum DataKey {
     Admin,
-    Subscription(Address), // subscriber -> SubscriptionInfo
+    PoolCounter,
+    Pool(u64),                     // pool_id -> Pool
+    Subscription(u64, Address),    // (pool_id, subscriber) -> Subscription
+    SubscribersList(u64),          // pool_id -> Vec<Address>
 }
 
 #[contracttype]
 #[derive(Clone, Debug)]
-pub struct SubscriptionInfo {
-    pub subscriber: Address,
+pub struct Pool {
+    pub pool_id: u64,
+    pub name: String,
     pub token: Address,
-    pub amount_per_period: i128,
-    pub period_seconds: u64,
-    pub last_deposit: u64,
-    pub total_deposited: i128,
+    pub total_balance: i128,
+    pub subscriber_count: u32,
+}
+
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct Subscription {
+    pub subscriber: Address,
+    pub pool_id: u64,
+    pub amount: i128,
+    pub period: SubscriptionPeriod,
+    pub last_payment: u64,
 }
 
 #[contracterror]
@@ -27,11 +51,10 @@ pub struct SubscriptionInfo {
 pub enum Error {
     NotInitialized = 1,
     AlreadyInitialized = 2,
-    Unauthorized = 3,
     InvalidAmount = 4,
     InsufficientBalance = 5,
-    PeriodNotPassed = 6,
-    SubscriptionNotFound = 7,
+    PoolNotFound = 7,
+    SubscriptionNotFound = 8,
 }
 
 #[contract]
@@ -43,140 +66,132 @@ impl SubscriptionPool {
         if env.storage().instance().has(&DataKey::Admin) {
             return Err(Error::AlreadyInitialized);
         }
-        admin.require_auth();
         env.storage().instance().set(&DataKey::Admin, &admin);
+        env.storage().instance().set(&DataKey::PoolCounter, &0u64);
         Ok(())
+    }
+
+    pub fn create_pool(env: Env, name: String, token: Address) -> u64 {
+        let mut count: u64 = env.storage().instance().get(&DataKey::PoolCounter).unwrap_or(0);
+        count += 1;
+
+        let pool = Pool {
+            pool_id: count,
+            name,
+            token,
+            total_balance: 0,
+            subscriber_count: 0,
+        };
+
+        env.storage().persistent().set(&DataKey::Pool(count), &pool);
+        env.storage().instance().set(&DataKey::PoolCounter, &count);
+        env.events().publish((symbol_short!("pool_cre"), count), pool.name);
+        count
     }
 
     pub fn subscribe(
         env: Env,
+        pool_id: u64,
         subscriber: Address,
-        token: Address,
-        amount_per_period: i128,
-        period_seconds: u64,
+        amount: i128,
+        period: SubscriptionPeriod,
     ) -> Result<(), Error> {
         subscriber.require_auth();
-        if amount_per_period <= 0 {
+        if amount < MIN_SUBSCRIPTION {
             return Err(Error::InvalidAmount);
         }
 
-        let sub = SubscriptionInfo {
-            subscriber: subscriber.clone(),
-            token,
-            amount_per_period,
-            period_seconds,
-            last_deposit: 0,
-            total_deposited: 0,
-        };
+        let pool_key = DataKey::Pool(pool_id);
+        let mut pool: Pool = env.storage().persistent().get(&pool_key).ok_or(Error::PoolNotFound)?;
 
-        env.storage()
-            .persistent()
-            .set(&DataKey::Subscription(subscriber), &sub);
-        Ok(())
-    }
-
-    pub fn deposit(env: Env, subscriber: Address) -> Result<(), Error> {
-        subscriber.require_auth();
-        let mut sub: SubscriptionInfo = env
-            .storage()
-            .persistent()
-            .get(&DataKey::Subscription(subscriber.clone()))
-            .ok_or(Error::SubscriptionNotFound)?;
-
-        let current_time = env.ledger().timestamp();
-        if sub.last_deposit != 0 && current_time < sub.last_deposit + sub.period_seconds {
-            return Err(Error::PeriodNotPassed);
+        let sub_key = DataKey::Subscription(pool_id, subscriber.clone());
+        if env.storage().persistent().has(&sub_key) {
+            return Err(Error::AlreadyInitialized);
         }
 
-        // Transfer tokens
-        let token_client = TokenClient::new(&env, &sub.token);
-        token_client.transfer(
-            &subscriber,
-            &env.current_contract_address(),
-            &sub.amount_per_period,
-        );
+        let sub = Subscription {
+            subscriber: subscriber.clone(),
+            pool_id,
+            amount,
+            period,
+            last_payment: 0, 
+        };
 
-        sub.last_deposit = current_time;
-        sub.total_deposited += sub.amount_per_period;
+        let list_key = DataKey::SubscribersList(pool_id);
+        let mut subscribers: Vec<Address> = env.storage().persistent().get(&list_key).unwrap_or(Vec::new(&env));
+        subscribers.push_back(subscriber.clone());
+        
+        pool.subscriber_count += 1;
+        
+        env.storage().persistent().set(&sub_key, &sub);
+        env.storage().persistent().set(&list_key, &subscribers);
+        env.storage().persistent().set(&pool_key, &pool);
 
-        env.storage()
-            .persistent()
-            .set(&DataKey::Subscription(subscriber), &sub);
+        env.events().publish((symbol_short!("subscr"), pool_id), subscriber);
         Ok(())
     }
 
-    pub fn withdraw(env: Env, subscriber: Address, amount: i128) -> Result<(), Error> {
-        subscriber.require_auth();
-        let mut sub: SubscriptionInfo = env
-            .storage()
-            .persistent()
-            .get(&DataKey::Subscription(subscriber.clone()))
-            .ok_or(Error::SubscriptionNotFound)?;
+    pub fn process_deposits(env: Env, pool_id: u64) -> Result<(), Error> {
+        let pool_key = DataKey::Pool(pool_id);
+        let mut pool: Pool = env.storage().persistent().get(&pool_key).ok_or(Error::PoolNotFound)?;
+        let token_client = token::Client::new(&env, &pool.token);
+        
+        let list_key = DataKey::SubscribersList(pool_id);
+        let subscribers: Vec<Address> = env.storage().persistent().get(&list_key).unwrap_or(Vec::new(&env));
+        let current_time = env.ledger().timestamp();
 
-        if amount <= 0 || amount > sub.total_deposited {
+        for subscriber_addr in subscribers.iter() {
+            let sub_key = DataKey::Subscription(pool_id, subscriber_addr.clone());
+            let mut sub: Subscription = env.storage().persistent().get(&sub_key).unwrap();
+
+            let elapsed = current_time >= (sub.last_payment + (sub.period as u32 as u64));
+            
+            if sub.last_payment == 0 || elapsed {
+                // Transfer from user to contract
+                token_client.transfer(&sub.subscriber, &env.current_contract_address(), &sub.amount);
+                
+                sub.last_payment = current_time;
+                pool.total_balance += sub.amount;
+
+                env.storage().persistent().set(&sub_key, &sub);
+                env.events().publish((symbol_short!("deposit"), pool_id), subscriber_addr);
+            }
+        }
+
+        env.storage().persistent().set(&pool_key, &pool);
+        Ok(())
+    }
+
+    pub fn withdraw(env: Env, pool_id: u64, subscriber: Address, amount: i128) -> Result<(), Error> {
+        subscriber.require_auth();
+        
+        let pool_key = DataKey::Pool(pool_id);
+        let mut pool: Pool = env.storage().persistent().get(&pool_key).ok_or(Error::PoolNotFound)?;
+
+        if amount <= 0 || amount > pool.total_balance {
             return Err(Error::InsufficientBalance);
         }
 
-        let token_client = TokenClient::new(&env, &sub.token);
+        let token_client = token::Client::new(&env, &pool.token);
         token_client.transfer(&env.current_contract_address(), &subscriber, &amount);
 
-        sub.total_deposited -= amount;
-        env.storage()
-            .persistent()
-            .set(&DataKey::Subscription(subscriber), &sub);
+        pool.total_balance -= amount;
+        env.storage().persistent().set(&pool_key, &pool);
+
+        env.events().publish((symbol_short!("withdraw"), pool_id), subscriber);
         Ok(())
     }
 
-    pub fn get_subscription(env: Env, subscriber: Address) -> Result<SubscriptionInfo, Error> {
+    pub fn get_pool(env: Env, pool_id: u64) -> Result<Pool, Error> {
+        env.storage().persistent().get(&DataKey::Pool(pool_id)).ok_or(Error::PoolNotFound)
+    }
+
+    pub fn get_subscription(env: Env, pool_id: u64, subscriber: Address) -> Result<Subscription, Error> {
         env.storage()
             .persistent()
-            .get(&DataKey::Subscription(subscriber))
+            .get(&DataKey::Subscription(pool_id, subscriber))
             .ok_or(Error::SubscriptionNotFound)
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use soroban_sdk::testutils::{Address as _, Ledger};
-    use soroban_sdk::token::StellarAssetClient;
-
-    #[test]
-    fn test_subscription_flow() {
-        let env = Env::default();
-        env.mock_all_auths();
-
-        let contract_id = env.register_contract(None, SubscriptionPool);
-        let client = SubscriptionPoolClient::new(&env, &contract_id);
-
-        let admin = Address::generate(&env);
-        client.initialize(&admin);
-
-        let subscriber = Address::generate(&env);
-        let token = env.register_stellar_asset_contract(admin.clone());
-        let token_admin = StellarAssetClient::new(&env, &token);
-        token_admin.mint(&subscriber, &1000);
-
-        // Subscribe: $100 every 86400s (1 day)
-        client.subscribe(&subscriber, &token, &100, &86400);
-
-        // First deposit
-        env.ledger().set_timestamp(100000);
-        client.deposit(&subscriber);
-        assert_eq!(client.get_subscription(&subscriber).total_deposited, 100);
-
-        // Try deposit too soon
-        env.ledger().set_timestamp(150000); // Only 50k passed
-        let result = client.try_deposit(&subscriber);
-        assert!(result.is_err());
-
-        // Deposit after period
-        env.ledger().set_timestamp(200000); // 100k passed
-        client.deposit(&subscriber);
-        assert_eq!(client.get_subscription(&subscriber).total_deposited, 200);
-
-        // Withdraw
-        client.withdraw(&subscriber, &150);
-        assert_eq!(client.get_subscription(&subscriber).total_deposited, 50);
-    }
-}
+mod test;
