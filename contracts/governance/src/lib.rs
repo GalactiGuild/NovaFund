@@ -1,23 +1,20 @@
 #![no_std]
 
 use shared::{
-    constants::{GOVERNANCE_QUORUM, VOTING_PERIOD},
+    constants::GOVERNANCE_QUORUM,
     errors::Error,
     events::{PROPOSAL_CREATED, PROPOSAL_EXECUTED, VOTE_CAST},
-    types::{Hash, Proposal, ProposalStatus, VoteOption},
+    types::Proposal,
 };
-use soroban_sdk::{
-    contract, contracterror, contractimpl, contracttype, token::TokenClient, Address, Env, String,
-};
+use soroban_sdk::{contract, contractimpl, contracttype, Address, Bytes, Env};
 
 #[contracttype]
 #[derive(Clone)]
 pub enum DataKey {
-    Admin,
-    GovToken,
     NextProposalId,
     Proposal(u64),
-    Vote(u64, Address), // (proposal_id, voter) -> VoteOption
+    HasVoted(u64, Address),
+    TotalVoters,
 }
 
 #[contract]
@@ -28,30 +25,45 @@ mod tests;
 
 #[contractimpl]
 impl GovernanceContract {
-    /// Initialize the governance contract
-    pub fn initialize(env: Env, admin: Address, gov_token: Address) -> Result<(), Error> {
-        if env.storage().instance().has(&DataKey::Admin) {
-            return Err(Error::AlreadyInitialized);
-        }
+    pub fn initialize(env: Env, admin: Address, total_voters: u32) -> Result<(), Error> {
         admin.require_auth();
 
-        env.storage().instance().set(&DataKey::Admin, &admin);
-        env.storage().instance().set(&DataKey::GovToken, &gov_token);
+        if env.storage().instance().has(&DataKey::TotalVoters) {
+            return Err(Error::InvalidInput);
+        }
+
+        if total_voters == 0 {
+            return Err(Error::InvalidInput);
+        }
+
         env.storage()
             .instance()
-            .set(&DataKey::NextProposalId, &0u64);
+            .set(&DataKey::TotalVoters, &total_voters);
 
         Ok(())
     }
 
-    /// Create a new proposal
     pub fn create_proposal(
         env: Env,
         creator: Address,
-        title: String,
-        description_hash: Hash,
+        payload_ref: Bytes,
+        start_time: u64,
+        end_time: u64,
     ) -> Result<u64, Error> {
         creator.require_auth();
+
+        let current_time = env.ledger().timestamp();
+
+        if end_time <= start_time {
+            return Err(Error::InvalidInput);
+        }
+
+        if start_time < current_time {
+            return Err(Error::InvalidInput);
+        }
+        if payload_ref.len() == 0 {
+            return Err(Error::InvalidInput);
+        }
 
         let proposal_id: u64 = env
             .storage()
@@ -59,20 +71,15 @@ impl GovernanceContract {
             .get(&DataKey::NextProposalId)
             .unwrap_or(0);
 
-        let start_time = env.ledger().timestamp();
-        let end_time = start_time + VOTING_PERIOD;
-
         let proposal = Proposal {
             id: proposal_id,
             creator: creator.clone(),
-            title: title.clone(),
-            description_hash,
-            status: ProposalStatus::Active,
-            votes_for: 0,
-            votes_against: 0,
-            votes_abstain: 0,
+            payload_ref: payload_ref.clone(),
             start_time,
             end_time,
+            yes_votes: 0,
+            no_votes: 0,
+            executed: false,
         };
 
         env.storage()
@@ -82,19 +89,14 @@ impl GovernanceContract {
             .instance()
             .set(&DataKey::NextProposalId, &(proposal_id + 1));
 
+        // Emit proposal created event
         env.events()
-            .publish((PROPOSAL_CREATED,), (proposal_id, creator, title));
+            .publish((PROPOSAL_CREATED,), (proposal_id, creator, payload_ref));
 
         Ok(proposal_id)
     }
 
-    /// Cast a vote on a proposal
-    pub fn vote(
-        env: Env,
-        voter: Address,
-        proposal_id: u64,
-        option: VoteOption,
-    ) -> Result<(), Error> {
+    pub fn vote(env: Env, proposal_id: u64, voter: Address, support: bool) -> Result<(), Error> {
         voter.require_auth();
 
         let mut proposal: Proposal = env
@@ -104,84 +106,106 @@ impl GovernanceContract {
             .ok_or(Error::NotFound)?;
 
         let current_time = env.ledger().timestamp();
-        if current_time > proposal.end_time || proposal.status != ProposalStatus::Active {
-            return Err(Error::InvalidInput); // Voting ended or proposal not active
+
+        if proposal.executed {
+            return Err(Error::ProposalAlreadyExecuted);
         }
 
-        let vote_key = DataKey::Vote(proposal_id, voter.clone());
-        if env.storage().persistent().has(&vote_key) {
+        if current_time < proposal.start_time || current_time > proposal.end_time {
+            return Err(Error::InvalidInput);
+        }
+
+        let vote_key = DataKey::HasVoted(proposal_id, voter.clone());
+        if env.storage().instance().has(&vote_key) {
             return Err(Error::AlreadyVoted);
         }
 
-        // Calculate voting power based on GovToken balance
-        let gov_token: Address = env.storage().instance().get(&DataKey::GovToken).unwrap();
-        let token_client = TokenClient::new(&env, &gov_token);
-        let weight = token_client.balance(&voter);
-
-        if weight <= 0 {
-            return Err(Error::Unauthorized);
-        }
-
-        match option {
-            VoteOption::Yes => proposal.votes_for += weight,
-            VoteOption::No => proposal.votes_against += weight,
-            VoteOption::Abstain => proposal.votes_abstain += weight,
+        if support {
+            proposal.yes_votes += 1;
+        } else {
+            proposal.no_votes += 1;
         }
 
         env.storage()
             .instance()
             .set(&DataKey::Proposal(proposal_id), &proposal);
-        env.storage().persistent().set(&vote_key, &option);
 
+        env.storage().instance().set(&vote_key, &true);
+
+        // Emit vote cast event
         env.events()
-            .publish((VOTE_CAST,), (proposal_id, voter, option as u32, weight));
+            .publish((VOTE_CAST,), (proposal_id, voter, support));
 
         Ok(())
     }
 
-    /// Execute a proposal if it passed
-    pub fn execute_proposal(env: Env, proposal_id: u64) -> Result<(), Error> {
+    pub fn finalize(env: Env, proposal_id: u64) -> Result<(), Error> {
         let mut proposal: Proposal = env
             .storage()
             .instance()
             .get(&DataKey::Proposal(proposal_id))
             .ok_or(Error::NotFound)?;
 
-        if proposal.status != ProposalStatus::Active {
+        let current_time = env.ledger().timestamp();
+
+        if current_time <= proposal.end_time {
             return Err(Error::InvalidInput);
         }
 
-        let current_time = env.ledger().timestamp();
-        if current_time <= proposal.end_time {
-            return Err(Error::InvalidInput); // Voting period not ended
+        if proposal.executed {
+            return Err(Error::ProposalAlreadyExecuted);
         }
 
-        let total_votes = proposal.votes_for + proposal.votes_against + proposal.votes_abstain;
+        let total_votes = proposal.yes_votes + proposal.no_votes;
 
-        // Check quorum (simplified: based on total votes vs total supply would be better,
-        // but let's assume total_votes > 0 for now or use a constant)
-        if total_votes == 0 {
-            proposal.status = ProposalStatus::Rejected;
-        } else if proposal.votes_for > proposal.votes_against {
-            proposal.status = ProposalStatus::Approved;
-            // In a real system, this might trigger an external contract call
+        let total_voters: u32 = env
+            .storage()
+            .instance()
+            .get(&DataKey::TotalVoters)
+            .unwrap_or(100);
+
+        // Calculate minimum votes needed for quorum
+        // GOVERNANCE_QUORUM is in basis points (e.g., 2000 = 20%)
+        // Formula: (total_voters * GOVERNANCE_QUORUM) / 10000
+        let min_votes_needed = (total_voters as u64 * GOVERNANCE_QUORUM as u64) / 10000;
+
+        if (total_votes as u64) < min_votes_needed {
+            return Err(Error::QuorumNotReached);
+        }
+
+        if proposal.yes_votes > proposal.no_votes {
+            proposal.executed = true;
         } else {
-            proposal.status = ProposalStatus::Rejected;
+            proposal.executed = false;
         }
 
         env.storage()
             .instance()
             .set(&DataKey::Proposal(proposal_id), &proposal);
 
+        // Emit execution event
         env.events()
-            .publish((PROPOSAL_EXECUTED,), (proposal_id, proposal.status as u32));
+            .publish((PROPOSAL_EXECUTED,), (proposal_id, proposal.executed));
 
         Ok(())
     }
 
-    pub fn get_proposal(env: Env, proposal_id: u64) -> Option<Proposal> {
+    pub fn get_proposal(env: Env, proposal_id: u64) -> Result<Proposal, Error> {
         env.storage()
             .instance()
             .get(&DataKey::Proposal(proposal_id))
+            .ok_or(Error::NotFound)
+    }
+
+    pub fn has_voted(env: Env, proposal_id: u64, voter: Address) -> bool {
+        let vote_key = DataKey::HasVoted(proposal_id, voter);
+        env.storage().instance().has(&vote_key)
+    }
+
+    pub fn get_total_voters(env: Env) -> u32 {
+        env.storage()
+            .instance()
+            .get(&DataKey::TotalVoters)
+            .unwrap_or(0)
     }
 }
