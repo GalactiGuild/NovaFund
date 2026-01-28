@@ -98,18 +98,16 @@ pub enum VoteOption {
     No = 2,
 }
 
-/// Governance proposal structure
+/// Governance proposal structure (MVP)
 #[contracttype]
 #[derive(Clone, Debug)]
 pub struct Proposal {
     pub id: u64,
     pub creator: Address,
-    pub title: String,
-    pub description_hash: Hash,
-    pub status: ProposalStatus,
-    pub votes_for: i128,
-    pub votes_against: i128,
-    pub votes_abstain: i128,
+    pub payload_ref: soroban_sdk::Bytes, // Reference to proposal details (e.g., IPFS hash, JSON pointer)
     pub start_time: Timestamp,
     pub end_time: Timestamp,
+    pub yes_votes: u32,  // Simple vote count (1-address-1-vote)
+    pub no_votes: u32,   // Simple vote count (1-address-1-vote)
+    pub executed: bool,  // Execution status
 }
