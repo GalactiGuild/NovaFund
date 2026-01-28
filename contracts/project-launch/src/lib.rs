@@ -140,6 +140,7 @@ impl ProjectLaunch {
         if amount < MIN_CONTRIBUTION {
             return Err(Error::ContributionTooLow);
         }
+        contributor.require_auth();
 
         // Get project
         let mut project: Project = env
@@ -226,11 +227,21 @@ impl ProjectLaunch {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use soroban_sdk::token::StellarAssetClient;
     use soroban_sdk::{
         testutils::{Address as TestAddress, Ledger},
-        Address, Bytes,
+        token, Address, Bytes,
     };
+
+    fn create_token_contract<'a>(
+        e: &'a Env,
+        admin: &Address,
+    ) -> (Address, token::Client<'a>, token::StellarAssetClient<'a>) {
+        let token_id = e.register_stellar_asset_contract_v2(admin.clone());
+        let token = token_id.address();
+        let token_client = token::Client::new(e, &token);
+        let token_admin_client = token::StellarAssetClient::new(e, &token);
+        (token, token_client, token_admin_client)
+    }
 
     #[test]
     fn test_initialize() {
@@ -314,16 +325,13 @@ mod tests {
         let creator = Address::generate(&env);
         let contributor = Address::generate(&env);
 
+        // Initialize
+        client.initialize(&admin.clone());
+
         // Register a token contract
-        let token = env.register_stellar_asset_contract(admin.clone());
-        let token_admin = StellarAssetClient::new(&env, &token);
+        let token_admin = Address::generate(&env);
+        let (token, token_client, token_admin_client) = create_token_contract(&env, &token_admin);
         let metadata_hash = Bytes::from_slice(&env, b"QmHash123");
-
-        env.mock_all_auths();
-        client.initialize(&admin);
-
-        // Mint tokens to contributor
-        token_admin.mint(&contributor, &1000000000);
 
         // Create project
         env.ledger().set_timestamp(1000000);
@@ -336,8 +344,18 @@ mod tests {
             &metadata_hash,
         );
 
+        // Mint tokens to contributor
+        env.mock_all_auths();
+        token_admin_client.mint(&contributor, &100_0000000);
+
+        assert_eq!(token_client.balance(&contributor), 100_0000000);
+        assert_eq!(token_client.balance(&client.address), 0);
+
         // Test successful contribution
         client.contribute(&project_id, &contributor, &MIN_CONTRIBUTION);
+
+        assert_eq!(token_client.balance(&contributor), 90_0000000);
+        assert_eq!(token_client.balance(&client.address), 10_0000000);
 
         // Verify contribution amount
         assert_eq!(
