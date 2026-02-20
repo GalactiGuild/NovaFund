@@ -3,6 +3,7 @@
 use soroban_sdk::{
     contract, contracterror, contractimpl, contracttype, token::TokenClient, Address, Bytes, Env,
     Vec,
+    contract, contractimpl, contracttype, token::TokenClient, Address, Bytes, Env,
 };
 
 use shared::{
@@ -10,6 +11,7 @@ use shared::{
     errors::Error,
     events::{BATCH_COMPLETED, BATCH_ITEM_FAILED, CONTRIBUTION_MADE, PROJECT_CREATED},
     types::BatchResult,
+    events::{CONTRIBUTION_MADE, PROJECT_CREATED, PROJECT_FAILED, REFUND_ISSUED},
     utils::verify_future_timestamp,
 };
 
@@ -46,7 +48,9 @@ pub enum DataKey {
     Admin = 0,
     NextProjectId = 1,
     Project = 2,
-    ContributionAmount = 3, // (DataKey::ContributionAmount, project_id, contributor) -> i128
+    ContributionAmount = 3,        // (DataKey::ContributionAmount, project_id, contributor) -> i128
+    RefundProcessed = 4,           // (DataKey::RefundProcessed, project_id, contributor) -> bool
+    ProjectFailureProcessed = 5,   // (DataKey::ProjectFailureProcessed, project_id) -> bool
 }
 
 #[contract]
@@ -521,4 +525,327 @@ mod tests {
             &metadata_hash,
         );
     }
+
+    #[test]
+    fn test_mark_project_failed_insufficient_funding() {
+        let env = Env::default();
+        env.mock_all_auths();
+
+        let contract_id = env.register_contract(None, ProjectLaunch);
+        let client = ProjectLaunchClient::new(&env, &contract_id);
+
+        let admin = Address::generate(&env);
+        let creator = Address::generate(&env);
+        let contributor = Address::generate(&env);
+
+        // Initialize
+        client.initialize(&admin.clone());
+
+        // Register token
+        let token_admin = Address::generate(&env);
+        let (token, token_client, token_admin_client) = create_token_contract(&env, &token_admin);
+        let metadata_hash = Bytes::from_slice(&env, b"QmHash123");
+
+        // Create project
+        env.ledger().set_timestamp(1000000);
+        let deadline = 1000000 + MIN_PROJECT_DURATION + 86400;
+        let project_id = client.create_project(
+            &creator,
+            &MIN_FUNDING_GOAL,
+            &deadline,
+            &token,
+            &metadata_hash,
+        );
+
+        // Mint tokens and contribute less than goal
+        token_admin_client.mint(&contributor, &50_0000000);
+        client.contribute(&project_id, &contributor, &MIN_CONTRIBUTION);
+
+        let project = client.get_project(&project_id);
+        assert_eq!(project.status, ProjectStatus::Active);
+        assert!(!client.is_failure_processed(&project_id));
+
+        // Try to mark as failed before deadline - should fail
+        let result = client.try_mark_project_failed(&project_id);
+        assert!(result.is_err());
+
+        // Move past deadline
+        env.ledger().set_timestamp(deadline + 1);
+
+        // Mark project as failed
+        let result = client.try_mark_project_failed(&project_id);
+        assert!(result.is_ok());
+        assert!(client.is_failure_processed(&project_id));
+
+        let project = client.get_project(&project_id);
+        assert_eq!(project.status, ProjectStatus::Failed);
+
+        // Try to mark as failed again - should fail
+        let result = client.try_mark_project_failed(&project_id);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_mark_project_completed_when_funded() {
+        let env = Env::default();
+        env.mock_all_auths();
+
+        let contract_id = env.register_contract(None, ProjectLaunch);
+        let client = ProjectLaunchClient::new(&env, &contract_id);
+
+        let admin = Address::generate(&env);
+        let creator = Address::generate(&env);
+        let contributor = Address::generate(&env);
+
+        // Initialize
+        client.initialize(&admin.clone());
+
+        // Register token
+        let token_admin = Address::generate(&env);
+        let (token, _token_client, token_admin_client) = create_token_contract(&env, &token_admin);
+        let metadata_hash = Bytes::from_slice(&env, b"QmHash123");
+
+        // Create project with funding goal of 1000 XLM
+        env.ledger().set_timestamp(1000000);
+        let deadline = 1000000 + MIN_PROJECT_DURATION + 86400;
+        let project_id = client.create_project(
+            &creator,
+            &MIN_FUNDING_GOAL,
+            &deadline,
+            &token,
+            &metadata_hash,
+        );
+
+        // Mint tokens and contribute full amount (meets goal)
+        let mint_amount = MIN_FUNDING_GOAL + 100_0000000;
+        token_admin_client.mint(&contributor, &mint_amount);
+        client.contribute(&project_id, &contributor, &MIN_FUNDING_GOAL);
+
+        // Move past deadline
+        env.ledger().set_timestamp(deadline + 1);
+
+        // Mark project status
+        client.mark_project_failed(&project_id);
+
+        // Should be completed since goal was met
+        let project = client.get_project(&project_id);
+        assert_eq!(project.status, ProjectStatus::Completed);
+    }
+
+    #[test]
+    fn test_refund_single_contributor() {
+        let env = Env::default();
+        env.mock_all_auths();
+
+        let contract_id = env.register_contract(None, ProjectLaunch);
+        let client = ProjectLaunchClient::new(&env, &contract_id);
+
+        let admin = Address::generate(&env);
+        let creator = Address::generate(&env);
+        let contributor = Address::generate(&env);
+
+        // Initialize
+        client.initialize(&admin.clone());
+
+        // Register token
+        let token_admin = Address::generate(&env);
+        let (token, token_client, token_admin_client) = create_token_contract(&env, &token_admin);
+        let metadata_hash = Bytes::from_slice(&env, b"QmHash123");
+
+        // Create project
+        env.ledger().set_timestamp(1000000);
+        let deadline = 1000000 + MIN_PROJECT_DURATION + 86400;
+        let project_id = client.create_project(
+            &creator,
+            &MIN_FUNDING_GOAL,
+            &deadline,
+            &token,
+            &metadata_hash,
+        );
+
+        // Mint tokens and contribute
+        token_admin_client.mint(&contributor, &50_0000000);
+        client.contribute(&project_id, &contributor, &MIN_CONTRIBUTION);
+
+        let initial_balance = token_client.balance(&contributor);
+        assert_eq!(initial_balance, 40_0000000); // 50 - 10
+
+        // Move past deadline and mark as failed
+        env.ledger().set_timestamp(deadline + 1);
+        client.mark_project_failed(&project_id);
+
+        // Refund contributor
+        let refund_amount = client.refund_contributor(&project_id, &contributor);
+        assert_eq!(refund_amount, MIN_CONTRIBUTION);
+
+        // Verify tokens were returned
+        let new_balance = token_client.balance(&contributor);
+        assert_eq!(new_balance, 50_0000000); // Initial 50 restored
+
+        // Verify refund was recorded
+        assert!(client.is_refunded(&project_id, &contributor));
+
+        // Try to refund again - should fail
+        let result = client.try_refund_contributor(&project_id, &contributor);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_refund_multiple_contributors() {
+        let env = Env::default();
+        env.mock_all_auths();
+
+        let contract_id = env.register_contract(None, ProjectLaunch);
+        let client = ProjectLaunchClient::new(&env, &contract_id);
+
+        let admin = Address::generate(&env);
+        let creator = Address::generate(&env);
+        let contributor1 = Address::generate(&env);
+        let contributor2 = Address::generate(&env);
+
+        // Initialize
+        client.initialize(&admin.clone());
+
+        // Register token
+        let token_admin = Address::generate(&env);
+        let (token, token_client, token_admin_client) = create_token_contract(&env, &token_admin);
+        let metadata_hash = Bytes::from_slice(&env, b"QmHash123");
+
+        // Create project
+        env.ledger().set_timestamp(1000000);
+        let deadline = 1000000 + MIN_PROJECT_DURATION + 86400;
+        let project_id = client.create_project(
+            &creator,
+            &MIN_FUNDING_GOAL,
+            &deadline,
+            &token,
+            &metadata_hash,
+        );
+
+        // Mint and contribute from multiple users
+        token_admin_client.mint(&contributor1, &100_0000000);
+        token_admin_client.mint(&contributor2, &100_0000000);
+
+        let contrib1_amount = MIN_CONTRIBUTION;
+        let contrib2_amount = MIN_CONTRIBUTION * 2;
+
+        client.contribute(&project_id, &contributor1, &contrib1_amount);
+        client.contribute(&project_id, &contributor2, &contrib2_amount);
+
+        assert_eq!(
+            token_client.balance(&contributor1),
+            100_0000000 - contrib1_amount
+        );
+        assert_eq!(
+            token_client.balance(&contributor2),
+            100_0000000 - contrib2_amount
+        );
+
+        // Move past deadline and mark as failed
+        env.ledger().set_timestamp(deadline + 1);
+        client.mark_project_failed(&project_id);
+
+        // Refund both contributors
+        let refund1 = client.refund_contributor(&project_id, &contributor1);
+        let refund2 = client.refund_contributor(&project_id, &contributor2);
+
+        assert_eq!(refund1, contrib1_amount);
+        assert_eq!(refund2, contrib2_amount);
+
+        // Verify balances
+        assert_eq!(token_client.balance(&contributor1), 100_0000000);
+        assert_eq!(token_client.balance(&contributor2), 100_0000000);
+
+        // Both should be marked as refunded
+        assert!(client.is_refunded(&project_id, &contributor1));
+        assert!(client.is_refunded(&project_id, &contributor2));
+    }
+
+    #[test]
+    fn test_refund_no_contribution() {
+        let env = Env::default();
+        env.mock_all_auths();
+
+        let contract_id = env.register_contract(None, ProjectLaunch);
+        let client = ProjectLaunchClient::new(&env, &contract_id);
+
+        let admin = Address::generate(&env);
+        let creator = Address::generate(&env);
+        let contributor = Address::generate(&env);
+
+        // Initialize
+        client.initialize(&admin.clone());
+
+        // Register token
+        let token_admin = Address::generate(&env);
+        let (token, _token_client, _token_admin_client) = create_token_contract(&env, &token_admin);
+        let metadata_hash = Bytes::from_slice(&env, b"QmHash123");
+
+        // Create project
+        env.ledger().set_timestamp(1000000);
+        let deadline = 1000000 + MIN_PROJECT_DURATION + 86400;
+        let project_id = client.create_project(
+            &creator,
+            &MIN_FUNDING_GOAL,
+            &deadline,
+            &token,
+            &metadata_hash,
+        );
+
+        // Move past deadline and mark as failed
+        env.ledger().set_timestamp(deadline + 1);
+        client.mark_project_failed(&project_id);
+
+        // Try to refund someone with no contribution - should fail
+        let result = client.try_refund_contributor(&project_id, &contributor);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_refund_only_for_failed_projects() {
+        let env = Env::default();
+        env.mock_all_auths();
+
+        let contract_id = env.register_contract(None, ProjectLaunch);
+        let client = ProjectLaunchClient::new(&env, &contract_id);
+
+        let admin = Address::generate(&env);
+        let creator = Address::generate(&env);
+        let contributor = Address::generate(&env);
+
+        // Initialize
+        client.initialize(&admin.clone());
+
+        // Register token
+        let token_admin = Address::generate(&env);
+        let (token, _token_client, token_admin_client) = create_token_contract(&env, &token_admin);
+        let metadata_hash = Bytes::from_slice(&env, b"QmHash123");
+
+        // Create project
+        env.ledger().set_timestamp(1000000);
+        let deadline = 1000000 + MIN_PROJECT_DURATION + 86400;
+        let project_id = client.create_project(
+            &creator,
+            &MIN_FUNDING_GOAL,
+            &deadline,
+            &token,
+            &metadata_hash,
+        );
+
+        // Mint and contribute
+        token_admin_client.mint(&contributor, &50_0000000);
+        client.contribute(&project_id, &contributor, &MIN_CONTRIBUTION);
+
+        // Try to refund while project active - should fail
+        let result = client.try_refund_contributor(&project_id, &contributor);
+        assert!(result.is_err());
+
+        // Move past deadline but don't mark as failed
+        env.ledger().set_timestamp(deadline + 1);
+
+        // Still can't refund without marking failed
+        let result = client.try_refund_contributor(&project_id, &contributor);
+        assert!(result.is_err());
+    }
 }
+
