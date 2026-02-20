@@ -4,6 +4,8 @@ use soroban_sdk::{
     contract, contracterror, contractimpl, contracttype, token::TokenClient, Address, Bytes, Env,
 };
 
+use shared::upgradeable::*;
+
 use shared::{
     constants::{MAX_PROJECT_DURATION, MIN_CONTRIBUTION, MIN_FUNDING_GOAL, MIN_PROJECT_DURATION},
     errors::Error,
@@ -52,6 +54,10 @@ pub struct ProjectLaunch;
 
 #[contractimpl]
 impl ProjectLaunch {
+
+    pub fn initialize(env: Env, governance: Address, ...) {
+    initialize_upgrade(&env, governance);
+
     /// Initialize the contract with an admin address
     pub fn initialize(env: Env, admin: Address) -> Result<(), Error> {
         if env.storage().instance().has(&DataKey::Admin) {

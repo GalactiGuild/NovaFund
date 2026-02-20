@@ -9,10 +9,13 @@ use shared::{
     events::*,
     types::{Amount, EscrowInfo, Hash, Milestone, MilestoneStatus},
 };
+use shared::upgradeable::*;
+initialize_upgrade(&env, governance_address);
 use soroban_sdk::{contract, contractimpl, token::TokenClient, Address, BytesN, Env, Vec};
 
 mod storage;
 mod validation;
+
 
 #[cfg(test)]
 mod tests;
