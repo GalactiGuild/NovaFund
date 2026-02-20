@@ -63,3 +63,7 @@ pub const RELAYER_ADDED: Symbol = symbol_short!("rel_add");
 pub const RELAYER_REMOVED: Symbol = symbol_short!("rel_rem");
 pub const BRIDGE_TX_CONFIRMED: Symbol = symbol_short!("tx_conf");
 pub const BRIDGE_TX_FAILED: Symbol = symbol_short!("tx_fail");
+
+// Batch operation events
+pub const BATCH_COMPLETED: Symbol = symbol_short!("batch_ok");
+pub const BATCH_ITEM_FAILED: Symbol = symbol_short!("batch_fl");

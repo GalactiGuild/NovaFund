@@ -2,12 +2,14 @@
 
 use soroban_sdk::{
     contract, contracterror, contractimpl, contracttype, token::TokenClient, Address, Bytes, Env,
+    Vec,
 };
 
 use shared::{
-    constants::{MAX_PROJECT_DURATION, MIN_CONTRIBUTION, MIN_FUNDING_GOAL, MIN_PROJECT_DURATION},
+    constants::{MAX_BATCH_SIZE, MAX_PROJECT_DURATION, MIN_CONTRIBUTION, MIN_FUNDING_GOAL, MIN_PROJECT_DURATION},
     errors::Error,
-    events::{CONTRIBUTION_MADE, PROJECT_CREATED},
+    events::{BATCH_COMPLETED, BATCH_ITEM_FAILED, CONTRIBUTION_MADE, PROJECT_CREATED},
+    types::BatchResult,
     utils::verify_future_timestamp,
 };
 
@@ -221,6 +223,116 @@ impl ProjectLaunch {
     /// Get contract admin
     pub fn get_admin(env: Env) -> Option<Address> {
         env.storage().instance().get(&DataKey::Admin)
+    }
+
+    // ==================== Batch Operations ====================
+
+    /// Contribute to multiple projects in a single call
+    ///
+    /// # Arguments
+    /// * `contributions` - Vec of (project_id, amount) tuples
+    /// * `contributor` - Address of the contributor
+    pub fn batch_contribute(
+        env: Env,
+        contributions: Vec<(u64, i128)>,
+        contributor: Address,
+    ) -> Result<BatchResult, Error> {
+        let count = contributions.len() as u32;
+        if count == 0 {
+            return Err(Error::BatchEmpty);
+        }
+        if count > MAX_BATCH_SIZE {
+            return Err(Error::BatchLimitExceeded);
+        }
+
+        // Authenticate contributor once
+        contributor.require_auth();
+
+        let current_time = env.ledger().timestamp();
+        let mut successful: u32 = 0;
+        let mut failed: u32 = 0;
+
+        for i in 0..contributions.len() {
+            let (project_id, amount) = contributions.get(i).unwrap();
+
+            // Validate minimum contribution
+            if amount < MIN_CONTRIBUTION {
+                failed += 1;
+                env.events()
+                    .publish((BATCH_ITEM_FAILED,), project_id);
+                continue;
+            }
+
+            // Get project - skip if not found
+            let mut project: Project = match env
+                .storage()
+                .instance()
+                .get(&(DataKey::Project, project_id))
+            {
+                Some(p) => p,
+                None => {
+                    failed += 1;
+                    env.events()
+                        .publish((BATCH_ITEM_FAILED,), project_id);
+                    continue;
+                }
+            };
+
+            // Skip if not active
+            if project.status != ProjectStatus::Active {
+                failed += 1;
+                env.events()
+                    .publish((BATCH_ITEM_FAILED,), project_id);
+                continue;
+            }
+
+            // Skip if past deadline
+            if current_time >= project.deadline {
+                failed += 1;
+                env.events()
+                    .publish((BATCH_ITEM_FAILED,), project_id);
+                continue;
+            }
+
+            // Update project totals
+            project.total_raised += amount;
+            env.storage()
+                .instance()
+                .set(&(DataKey::Project, project_id), &project);
+
+            // Perform token transfer
+            let token_client = TokenClient::new(&env, &project.token);
+            token_client.transfer(&contributor, &env.current_contract_address(), &amount);
+
+            // Store aggregated contribution
+            let contribution_key =
+                (DataKey::ContributionAmount, project_id, contributor.clone());
+            let current_contribution: i128 = env
+                .storage()
+                .persistent()
+                .get(&contribution_key)
+                .unwrap_or(0);
+
+            let new_contribution = current_contribution.checked_add(amount).unwrap();
+            env.storage()
+                .persistent()
+                .set(&contribution_key, &new_contribution);
+
+            env.events().publish(
+                (CONTRIBUTION_MADE,),
+                (project_id, contributor.clone(), amount, project.total_raised),
+            );
+            successful += 1;
+        }
+
+        env.events()
+            .publish((BATCH_COMPLETED,), (successful, failed));
+
+        Ok(BatchResult {
+            total: count,
+            successful,
+            failed,
+        })
     }
 }
 

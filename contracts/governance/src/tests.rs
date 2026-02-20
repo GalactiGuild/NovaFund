@@ -456,3 +456,86 @@ fn test_has_voted_helper() {
     assert_eq!(client.has_voted(&proposal_id, &voter), true);
     assert_eq!(client.has_voted(&proposal_id, &non_voter), false);
 }
+
+// ==================== Batch Operation Tests ====================
+
+#[test]
+fn test_batch_vote_success() {
+    let (env, client, admin, creator, _) = setup_test_env();
+    initialize_contract(&client, &admin, 100);
+
+    // Create 3 proposals
+    let p1 = create_test_proposal(&env, &client, &creator, 0, 1000);
+    let p2 = create_test_proposal(&env, &client, &creator, 0, 1000);
+    let p3 = create_test_proposal(&env, &client, &creator, 0, 1000);
+
+    let voter = Address::generate(&env);
+    env.mock_all_auths();
+
+    // Batch vote on all 3
+    let mut votes = Vec::new(&env);
+    votes.push_back((p1, true));
+    votes.push_back((p2, false));
+    votes.push_back((p3, true));
+
+    let result = client.batch_vote(&votes, &voter);
+    assert_eq!(result.total, 3);
+    assert_eq!(result.successful, 3);
+    assert_eq!(result.failed, 0);
+
+    // Verify votes were recorded
+    assert!(client.has_voted(&p1, &voter));
+    assert!(client.has_voted(&p2, &voter));
+    assert!(client.has_voted(&p3, &voter));
+
+    let prop1 = client.get_proposal(&p1);
+    assert_eq!(prop1.yes_votes, 1);
+    let prop2 = client.get_proposal(&p2);
+    assert_eq!(prop2.no_votes, 1);
+}
+
+#[test]
+fn test_batch_vote_partial_failure() {
+    let (env, client, admin, creator, _) = setup_test_env();
+    initialize_contract(&client, &admin, 100);
+
+    // Create 2 proposals
+    let p1 = create_test_proposal(&env, &client, &creator, 0, 1000);
+    let p2 = create_test_proposal(&env, &client, &creator, 0, 1000);
+
+    let voter = Address::generate(&env);
+    env.mock_all_auths();
+
+    // Vote on p1 individually first
+    client.vote(&p1, &voter, &true);
+
+    // Batch vote: p1 should fail (already voted), p2 should succeed, 999 should fail (not found)
+    let mut votes = Vec::new(&env);
+    votes.push_back((p1, true));  // already voted
+    votes.push_back((p2, false)); // should succeed
+    votes.push_back((999, true)); // doesn't exist
+
+    let result = client.batch_vote(&votes, &voter);
+    assert_eq!(result.total, 3);
+    assert_eq!(result.successful, 1);
+    assert_eq!(result.failed, 2);
+
+    // p2 vote should have been recorded
+    assert!(client.has_voted(&p2, &voter));
+    let prop2 = client.get_proposal(&p2);
+    assert_eq!(prop2.no_votes, 1);
+}
+
+#[test]
+fn test_batch_vote_empty() {
+    let (env, client, admin, _, _) = setup_test_env();
+    initialize_contract(&client, &admin, 100);
+
+    let voter = Address::generate(&env);
+    env.mock_all_auths();
+
+    let votes: Vec<(u64, bool)> = Vec::new(&env);
+    let result = client.try_batch_vote(&votes, &voter);
+    assert!(result.is_err());
+}
+

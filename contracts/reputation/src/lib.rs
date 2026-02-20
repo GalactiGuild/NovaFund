@@ -1,8 +1,11 @@
 #![no_std]
 
-use shared::constants::{REPUTATION_MAX, REPUTATION_MIN, REPUTATION_START};
+use shared::constants::{MAX_BATCH_SIZE, REPUTATION_MAX, REPUTATION_MIN, REPUTATION_START};
 use shared::errors::Error;
-use shared::events::{BADGE_EARNED, REPUTATION_UPDATED, USER_REGISTERED};
+use shared::events::{
+    BADGE_EARNED, BATCH_COMPLETED, BATCH_ITEM_FAILED, REPUTATION_UPDATED, USER_REGISTERED,
+};
+use shared::types::BatchResult;
 use soroban_sdk::{contract, contractimpl, contracttype, Address, Env, Vec};
 
 /// Storage keys for the reputation contract
@@ -252,6 +255,136 @@ impl ReputationContract {
             }
         }
         false
+    }
+
+    // ==================== Batch Operations ====================
+
+    /// Update reputation scores for multiple users in one call (admin only)
+    ///
+    /// # Arguments
+    /// * `updates` - Vec of (user_address, delta) tuples
+    pub fn batch_update_scores(
+        env: Env,
+        updates: Vec<(Address, i128)>,
+    ) -> Result<BatchResult, Error> {
+        let count = updates.len() as u32;
+        if count == 0 {
+            return Err(Error::BatchEmpty);
+        }
+        if count > MAX_BATCH_SIZE {
+            return Err(Error::BatchLimitExceeded);
+        }
+
+        // Check initialization and auth once
+        Self::require_initialized(&env)?;
+        let admin = Self::get_admin(&env)?;
+        admin.require_auth();
+
+        let mut successful: u32 = 0;
+        let mut failed: u32 = 0;
+
+        for i in 0..updates.len() {
+            let (user, delta) = updates.get(i).unwrap();
+
+            // Get existing profile - skip if not registered
+            let mut profile = match Self::get_profile_internal(&env, &user) {
+                Ok(p) => p,
+                Err(_) => {
+                    failed += 1;
+                    env.events()
+                        .publish((BATCH_ITEM_FAILED,), user.clone());
+                    continue;
+                }
+            };
+
+            // Calculate and clamp score
+            let new_score = profile.score.saturating_add(delta);
+            let clamped_score = new_score.max(REPUTATION_MIN).min(REPUTATION_MAX);
+
+            profile.score = clamped_score;
+            env.storage()
+                .persistent()
+                .set(&DataKey::Profile(user.clone()), &profile);
+
+            env.events()
+                .publish((REPUTATION_UPDATED,), (user, clamped_score));
+            successful += 1;
+        }
+
+        env.events()
+            .publish((BATCH_COMPLETED,), (successful, failed));
+
+        Ok(BatchResult {
+            total: count,
+            successful,
+            failed,
+        })
+    }
+
+    /// Award badges to multiple users in one call (admin only)
+    ///
+    /// # Arguments
+    /// * `awards` - Vec of (user_address, badge_type) tuples
+    pub fn batch_award_badges(
+        env: Env,
+        awards: Vec<(Address, BadgeType)>,
+    ) -> Result<BatchResult, Error> {
+        let count = awards.len() as u32;
+        if count == 0 {
+            return Err(Error::BatchEmpty);
+        }
+        if count > MAX_BATCH_SIZE {
+            return Err(Error::BatchLimitExceeded);
+        }
+
+        // Check initialization and auth once
+        Self::require_initialized(&env)?;
+        let admin = Self::get_admin(&env)?;
+        admin.require_auth();
+
+        let mut successful: u32 = 0;
+        let mut failed: u32 = 0;
+
+        for i in 0..awards.len() {
+            let (user, badge) = awards.get(i).unwrap();
+
+            // Get existing profile - skip if not registered
+            let mut profile = match Self::get_profile_internal(&env, &user) {
+                Ok(p) => p,
+                Err(_) => {
+                    failed += 1;
+                    env.events()
+                        .publish((BATCH_ITEM_FAILED,), user.clone());
+                    continue;
+                }
+            };
+
+            // Skip if badge already awarded
+            if Self::has_badge(&profile.badges, badge) {
+                failed += 1;
+                env.events()
+                    .publish((BATCH_ITEM_FAILED,), user.clone());
+                continue;
+            }
+
+            profile.badges.push_back(badge);
+            env.storage()
+                .persistent()
+                .set(&DataKey::Profile(user.clone()), &profile);
+
+            env.events()
+                .publish((BADGE_EARNED,), (user, badge as u32));
+            successful += 1;
+        }
+
+        env.events()
+            .publish((BATCH_COMPLETED,), (successful, failed));
+
+        Ok(BatchResult {
+            total: count,
+            successful,
+            failed,
+        })
     }
 }
 
@@ -509,5 +642,101 @@ mod tests {
 
         let profile = client.get_profile(&user);
         assert_eq!(profile.badges.len(), 1);
+    }
+
+    // ==================== Batch Operation Tests ====================
+
+    #[test]
+    fn test_batch_update_scores() {
+        let (env, admin, client, _) = setup_env();
+        client.initialize(&admin);
+
+        let user1 = Address::generate(&env);
+        let user2 = Address::generate(&env);
+        let user3 = Address::generate(&env);
+        client.register_user(&user1);
+        client.register_user(&user2);
+        client.register_user(&user3);
+
+        let mut updates = Vec::new(&env);
+        updates.push_back((user1.clone(), 50_i128));
+        updates.push_back((user2.clone(), -30_i128));
+        updates.push_back((user3.clone(), 100_i128));
+
+        let result = client.batch_update_scores(&updates);
+        assert_eq!(result.total, 3);
+        assert_eq!(result.successful, 3);
+        assert_eq!(result.failed, 0);
+
+        assert_eq!(client.get_profile(&user1).score, REPUTATION_START + 50);
+        assert_eq!(client.get_profile(&user2).score, REPUTATION_START - 30);
+        assert_eq!(client.get_profile(&user3).score, REPUTATION_START + 100);
+    }
+
+    #[test]
+    fn test_batch_update_scores_partial_failure() {
+        let (env, admin, client, user) = setup_env();
+        client.initialize(&admin);
+        client.register_user(&user);
+
+        let unregistered = Address::generate(&env);
+
+        let mut updates = Vec::new(&env);
+        updates.push_back((user.clone(), 50_i128));
+        updates.push_back((unregistered.clone(), 100_i128)); // not registered
+
+        let result = client.batch_update_scores(&updates);
+        assert_eq!(result.total, 2);
+        assert_eq!(result.successful, 1);
+        assert_eq!(result.failed, 1);
+
+        assert_eq!(client.get_profile(&user).score, REPUTATION_START + 50);
+    }
+
+    #[test]
+    fn test_batch_award_badges() {
+        let (env, admin, client, _) = setup_env();
+        client.initialize(&admin);
+
+        let user1 = Address::generate(&env);
+        let user2 = Address::generate(&env);
+        client.register_user(&user1);
+        client.register_user(&user2);
+
+        let mut awards = Vec::new(&env);
+        awards.push_back((user1.clone(), BadgeType::Contributor));
+        awards.push_back((user2.clone(), BadgeType::EarlyAdopter));
+
+        let result = client.batch_award_badges(&awards);
+        assert_eq!(result.total, 2);
+        assert_eq!(result.successful, 2);
+        assert_eq!(result.failed, 0);
+
+        assert_eq!(client.get_profile(&user1).badges.len(), 1);
+        assert_eq!(client.get_profile(&user2).badges.len(), 1);
+    }
+
+    #[test]
+    fn test_batch_award_badges_partial_failure() {
+        let (env, admin, client, user) = setup_env();
+        client.initialize(&admin);
+        client.register_user(&user);
+
+        // Award a badge first
+        client.award_badge(&user, &BadgeType::Contributor);
+
+        let user2 = Address::generate(&env);
+        client.register_user(&user2);
+
+        let mut awards = Vec::new(&env);
+        awards.push_back((user.clone(), BadgeType::Contributor)); // duplicate - should fail
+        awards.push_back((user2.clone(), BadgeType::TopInvestor)); // should succeed
+
+        let result = client.batch_award_badges(&awards);
+        assert_eq!(result.total, 2);
+        assert_eq!(result.successful, 1);
+        assert_eq!(result.failed, 1);
+
+        assert_eq!(client.get_profile(&user2).badges.len(), 1);
     }
 }

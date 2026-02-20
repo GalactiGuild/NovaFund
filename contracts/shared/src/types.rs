@@ -21,6 +21,15 @@ pub struct FeeConfig {
     pub fee_recipient: Address,    // Address to receive fees
 }
 
+/// Result of a batch operation
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct BatchResult {
+    pub total: u32,      // Total items in the batch
+    pub successful: u32, // Number of items processed successfully
+    pub failed: u32,     // Number of items that failed validation
+}
+
 /// Token information
 #[contracttype]
 #[derive(Clone)]

@@ -13,4 +13,6 @@ pub enum ContractError {
     AlreadyClaimed = 7,
     Unauthorized = 8,
     InvalidAmount = 9,
+    BatchLimitExceeded = 10,
+    BatchEmpty = 11,
 }

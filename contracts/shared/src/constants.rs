@@ -46,3 +46,6 @@ pub const MILESTONE_SUBMITTED: Symbol = symbol_short!("mile_sub");
 pub const MILESTONE_APPROVED: Symbol = symbol_short!("mile_apr");
 pub const MILESTONE_REJECTED: Symbol = symbol_short!("mile_rej");
 pub const FUNDS_RELEASED: Symbol = symbol_short!("fund_rel");
+
+/// Maximum number of items in a batch operation
+pub const MAX_BATCH_SIZE: u32 = 20;
