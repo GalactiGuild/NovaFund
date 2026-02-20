@@ -39,3 +39,12 @@ pub const BADGE_EARNED: Symbol = symbol_short!("badge");
 pub const PAYMENT_SETUP: Symbol = symbol_short!("pay_setup");
 pub const PAYMENT_RECEIVED: Symbol = symbol_short!("pay_recv");
 pub const PAYMENT_WITHDRAWN: Symbol = symbol_short!("pay_withd");
+
+// Subscription events
+pub const SUBSCRIPTION_CREATED: Symbol = symbol_short!("subscr");
+pub const SUBSCRIPTION_CANCELLED: Symbol = symbol_short!("sub_cancl");
+pub const SUBSCRIPTION_MODIFIED: Symbol = symbol_short!("sub_mod");
+pub const SUBSCRIPTION_PAUSED: Symbol = symbol_short!("sub_pause");
+pub const SUBSCRIPTION_RESUMED: Symbol = symbol_short!("sub_resum");
+pub const PAYMENT_FAILED: Symbol = symbol_short!("pay_fail");
+pub const SUBSCRIPTION_PAYMENT: Symbol = symbol_short!("deposit");

@@ -1,10 +1,11 @@
 #![no_std]
 use soroban_sdk::{
     contract, contracterror, contractimpl, contracttype, symbol_short, token, Address, Env, String,
-    Symbol, Vec,
+    Vec,
 };
 
 const MIN_SUBSCRIPTION: i128 = 100;
+const MAX_PAYMENT_FAILURES: u32 = 3;
 
 #[contracttype]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -16,6 +17,15 @@ pub enum SubscriptionPeriod {
 }
 
 #[contracttype]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[repr(u32)]
+pub enum SubscriptionStatus {
+    Active = 0,
+    Cancelled = 1,
+    Paused = 2,
+}
+
+#[contracttype]
 #[derive(Clone)]
 pub enum DataKey {
     Admin,
@@ -23,6 +33,7 @@ pub enum DataKey {
     Pool(u64),                  // pool_id -> Pool
     Subscription(u64, Address), // (pool_id, subscriber) -> Subscription
     SubscribersList(u64),       // pool_id -> Vec<Address>
+    FailedPaymentCount(u64, Address), // (pool_id, subscriber) -> u32
 }
 
 #[contracttype]
@@ -43,6 +54,9 @@ pub struct Subscription {
     pub amount: i128,
     pub period: SubscriptionPeriod,
     pub last_payment: u64,
+    pub next_payment: u64,
+    pub status: SubscriptionStatus,
+    pub failure_count: u32,
 }
 
 #[contracterror]
@@ -55,6 +69,12 @@ pub enum Error {
     InsufficientBalance = 5,
     PoolNotFound = 7,
     SubscriptionNotFound = 8,
+    SubscriptionNotActive = 9,
+    SubscriptionAlreadyCancelled = 10,
+    MaxFailuresReached = 11,
+    InvalidStatus = 12,
+    Unauthorized = 13,
+    PaymentNotDue = 14,
 }
 
 #[contract]
@@ -118,12 +138,16 @@ impl SubscriptionPool {
             return Err(Error::AlreadyInitialized);
         }
 
+        let current_time = env.ledger().timestamp();
         let sub = Subscription {
             subscriber: subscriber.clone(),
             pool_id,
             amount,
             period,
             last_payment: 0,
+            next_payment: current_time,
+            status: SubscriptionStatus::Active,
+            failure_count: 0,
         };
 
         let list_key = DataKey::SubscribersList(pool_id);
@@ -164,28 +188,196 @@ impl SubscriptionPool {
 
         for subscriber_addr in subscribers.iter() {
             let sub_key = DataKey::Subscription(pool_id, subscriber_addr.clone());
-            let mut sub: Subscription = env.storage().persistent().get(&sub_key).unwrap();
+            let mut sub: Subscription = match env.storage().persistent().get(&sub_key) {
+                Some(s) => s,
+                None => continue, // Skip if subscription not found
+            };
 
-            let elapsed = current_time >= (sub.last_payment + (sub.period as u32 as u64));
+            // Skip cancelled subscriptions
+            if sub.status == SubscriptionStatus::Cancelled {
+                continue;
+            }
 
-            if sub.last_payment == 0 || elapsed {
-                // Transfer from user to contract
-                token_client.transfer(
+            // Skip paused subscriptions
+            if sub.status == SubscriptionStatus::Paused {
+                continue;
+            }
+
+            // Check if payment is due
+            let is_due = current_time >= sub.next_payment;
+
+            if is_due {
+                // Check if max failures reached
+                if sub.failure_count >= MAX_PAYMENT_FAILURES {
+                    // Auto-cancel subscription after max failures
+                    sub.status = SubscriptionStatus::Cancelled;
+                    env.storage().persistent().set(&sub_key, &sub);
+                    env.events().publish(
+                        (symbol_short!("sub_cancl"), pool_id, subscriber_addr.clone()),
+                        symbol_short!("max_fail"),
+                    );
+                    continue;
+                }
+
+                // Attempt transfer - handle potential failure
+                let transfer_result = token_client.try_transfer(
                     &sub.subscriber,
                     &env.current_contract_address(),
                     &sub.amount,
                 );
 
-                sub.last_payment = current_time;
-                pool.total_balance += sub.amount;
+                match transfer_result {
+                    Ok(_) => {
+                        // Successful payment
+                        sub.last_payment = current_time;
+                        sub.next_payment = current_time + (sub.period as u32 as u64);
+                        sub.failure_count = 0; // Reset failure count on success
+                        pool.total_balance += sub.amount;
 
-                env.storage().persistent().set(&sub_key, &sub);
-                env.events()
-                    .publish((symbol_short!("deposit"), pool_id), subscriber_addr);
+                        env.storage().persistent().set(&sub_key, &sub);
+                        env.events().publish(
+                            (symbol_short!("deposit"), pool_id),
+                            (subscriber_addr, sub.amount),
+                        );
+                    }
+                    Err(_) => {
+                        // Failed payment - increment failure count
+                        sub.failure_count += 1;
+                        env.storage().persistent().set(&sub_key, &sub);
+                        env.events().publish(
+                            (symbol_short!("pay_fail"), pool_id, subscriber_addr.clone()),
+                            sub.failure_count,
+                        );
+                    }
+                }
             }
         }
 
         env.storage().persistent().set(&pool_key, &pool);
+        Ok(())
+    }
+
+    pub fn cancel_subscription(
+        env: Env,
+        pool_id: u64,
+        subscriber: Address,
+    ) -> Result<(), Error> {
+        subscriber.require_auth();
+
+        let sub_key = DataKey::Subscription(pool_id, subscriber.clone());
+        let mut sub: Subscription = env
+            .storage()
+            .persistent()
+            .get(&sub_key)
+            .ok_or(Error::SubscriptionNotFound)?;
+
+        if sub.status == SubscriptionStatus::Cancelled {
+            return Err(Error::SubscriptionAlreadyCancelled);
+        }
+
+        sub.status = SubscriptionStatus::Cancelled;
+        env.storage().persistent().set(&sub_key, &sub);
+
+        env.events().publish(
+            (symbol_short!("sub_cancl"), pool_id),
+            subscriber,
+        );
+        Ok(())
+    }
+
+    pub fn modify_subscription(
+        env: Env,
+        pool_id: u64,
+        subscriber: Address,
+        new_amount: i128,
+        new_period: SubscriptionPeriod,
+    ) -> Result<(), Error> {
+        subscriber.require_auth();
+
+        if new_amount < MIN_SUBSCRIPTION {
+            return Err(Error::InvalidAmount);
+        }
+
+        let sub_key = DataKey::Subscription(pool_id, subscriber.clone());
+        let mut sub: Subscription = env
+            .storage()
+            .persistent()
+            .get(&sub_key)
+            .ok_or(Error::SubscriptionNotFound)?;
+
+        if sub.status == SubscriptionStatus::Cancelled {
+            return Err(Error::SubscriptionAlreadyCancelled);
+        }
+
+        sub.amount = new_amount;
+        sub.period = new_period;
+        // Reset next payment based on new period from current time
+        sub.next_payment = env.ledger().timestamp() + (new_period as u32 as u64);
+
+        env.storage().persistent().set(&sub_key, &sub);
+
+        env.events().publish(
+            (symbol_short!("sub_mod"), pool_id),
+            (subscriber, new_amount, new_period as u32),
+        );
+        Ok(())
+    }
+
+    pub fn pause_subscription(
+        env: Env,
+        pool_id: u64,
+        subscriber: Address,
+    ) -> Result<(), Error> {
+        subscriber.require_auth();
+
+        let sub_key = DataKey::Subscription(pool_id, subscriber.clone());
+        let mut sub: Subscription = env
+            .storage()
+            .persistent()
+            .get(&sub_key)
+            .ok_or(Error::SubscriptionNotFound)?;
+
+        if sub.status != SubscriptionStatus::Active {
+            return Err(Error::InvalidStatus);
+        }
+
+        sub.status = SubscriptionStatus::Paused;
+        env.storage().persistent().set(&sub_key, &sub);
+
+        env.events().publish(
+            (symbol_short!("sub_pause"), pool_id),
+            subscriber,
+        );
+        Ok(())
+    }
+
+    pub fn resume_subscription(
+        env: Env,
+        pool_id: u64,
+        subscriber: Address,
+    ) -> Result<(), Error> {
+        subscriber.require_auth();
+
+        let sub_key = DataKey::Subscription(pool_id, subscriber.clone());
+        let mut sub: Subscription = env
+            .storage()
+            .persistent()
+            .get(&sub_key)
+            .ok_or(Error::SubscriptionNotFound)?;
+
+        if sub.status != SubscriptionStatus::Paused {
+            return Err(Error::InvalidStatus);
+        }
+
+        sub.status = SubscriptionStatus::Active;
+        // Set next payment from current time to avoid immediate double-charge
+        sub.next_payment = env.ledger().timestamp() + (sub.period as u32 as u64);
+        env.storage().persistent().set(&sub_key, &sub);
+
+        env.events().publish(
+            (symbol_short!("sub_resum"), pool_id),
+            subscriber,
+        );
         Ok(())
     }
 
