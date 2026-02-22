@@ -51,6 +51,7 @@ pub struct EscrowInfo {
     pub total_deposited: Amount,
     pub released_amount: Amount,
     pub validators: Vec<Address>,
+    pub approval_threshold: u32,
 }
 
 #[contracttype]

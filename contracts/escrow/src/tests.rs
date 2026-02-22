@@ -54,6 +54,10 @@ mod tests {
         (admin, creator, token, validators, client)
     }
 
+    /// Default threshold used by all existing tests (67%).
+    const DEFAULT_THRESHOLD: u32 = 6700;
+
+    // ── existing tests (approval_threshold argument added to every initialize call) ──
 
     #[test]
     fn test_initialize_escrow() {
@@ -61,7 +65,7 @@ mod tests {
         let client = create_client(&env);
         env.mock_all_auths();
 
-        client.initialize(&1, &creator, &token, &validators);
+        client.initialize(&1, &creator, &token, &validators, &DEFAULT_THRESHOLD);
 
         let escrow = client.get_escrow(&1);
         assert_eq!(escrow.project_id, 1);
@@ -69,6 +73,7 @@ mod tests {
         assert_eq!(escrow.token, token);
         assert_eq!(escrow.total_deposited, 0);
         assert_eq!(escrow.released_amount, 0);
+        assert_eq!(escrow.approval_threshold, DEFAULT_THRESHOLD);
     }
 
     #[test]
@@ -81,7 +86,7 @@ mod tests {
         validators.push_back(Address::generate(&env));
 
         let client = create_client(&env);
-        let result = client.try_initialize(&1, &creator, &token, &validators);
+        let result = client.try_initialize(&1, &creator, &token, &validators, &DEFAULT_THRESHOLD);
 
         assert!(result.is_err());
     }
@@ -92,9 +97,10 @@ mod tests {
         let client = create_client(&env);
         env.mock_all_auths();
 
-        client.initialize(&1, &creator, &token, &validators);
+        client.initialize(&1, &creator, &token, &validators, &DEFAULT_THRESHOLD);
 
         let result = client.try_initialize(&1, &creator, &token, &validators);
+        let result = client.try_initialize(&1, &creator, &token, &validators, &DEFAULT_THRESHOLD);
         assert!(result.is_err());
     }
 
@@ -104,7 +110,7 @@ mod tests {
         let client = create_client(&env);
         env.mock_all_auths();
 
-        client.initialize(&1, &creator, &token, &validators);
+        client.initialize(&1, &creator, &token, &validators, &DEFAULT_THRESHOLD);
 
         let deposit_amount: i128 = 1000;
         let result = client.try_deposit(&1, &deposit_amount);
@@ -121,7 +127,7 @@ mod tests {
         let client = create_client(&env);
         env.mock_all_auths();
 
-        client.initialize(&1, &creator, &token, &validators);
+        client.initialize(&1, &creator, &token, &validators, &DEFAULT_THRESHOLD);
 
         let result = client.try_deposit(&1, &0);
         assert!(result.is_err());
@@ -136,7 +142,7 @@ mod tests {
         let client = create_client(&env);
 
         env.mock_all_auths();
-        client.initialize(&1, &creator, &token, &validators);
+        client.initialize(&1, &creator, &token, &validators, &DEFAULT_THRESHOLD);
         client.deposit(&1, &1000);
 
         let description_hash = BytesN::from_array(&env, &[1u8; 32]);
@@ -156,7 +162,7 @@ mod tests {
         let client = create_client(&env);
 
         env.mock_all_auths();
-        client.initialize(&1, &creator, &token, &validators);
+        client.initialize(&1, &creator, &token, &validators, &DEFAULT_THRESHOLD);
         client.deposit(&1, &500);
 
         let description_hash = BytesN::from_array(&env, &[2u8; 32]);
@@ -171,7 +177,7 @@ mod tests {
         let client = create_client(&env);
 
         env.mock_all_auths();
-        client.initialize(&1, &creator, &token, &validators);
+        client.initialize(&1, &creator, &token, &validators, &DEFAULT_THRESHOLD);
         client.deposit(&1, &3000);
 
         let desc1 = BytesN::from_array(&env, &[1u8; 32]);
@@ -196,7 +202,7 @@ mod tests {
         let client = create_client(&env);
 
         env.mock_all_auths();
-        client.initialize(&1, &creator, &token, &validators);
+        client.initialize(&1, &creator, &token, &validators, &DEFAULT_THRESHOLD);
         client.deposit(&1, &1000);
 
         let description_hash = BytesN::from_array(&env, &[1u8; 32]);
@@ -217,6 +223,7 @@ mod tests {
         env.mock_all_auths();
 
         client.initialize(&1, &creator, &token, &validators);
+        client.initialize(&1, &creator, &token, &validators, &DEFAULT_THRESHOLD);
         client.deposit(&1, &1000);
 
         let description_hash = BytesN::from_array(&env, &[1u8; 32]);
@@ -237,7 +244,7 @@ mod tests {
         let client = create_client(&env);
         env.mock_all_auths();
 
-        client.initialize(&1, &creator, &token, &validators);
+        client.initialize(&1, &creator, &token, &validators, &DEFAULT_THRESHOLD);
 
         client.deposit(&1, &1000);
         let balance = client.get_available_balance(&1);
@@ -263,7 +270,7 @@ mod tests {
         let client = create_client(&env);
         env.mock_all_auths();
 
-        client.initialize(&1, &creator, &token, &validators);
+        client.initialize(&1, &creator, &token, &validators, &DEFAULT_THRESHOLD);
 
         let result = client.try_get_milestone(&1, &999);
         assert!(result.is_err());
@@ -276,6 +283,7 @@ mod tests {
         env.mock_all_auths();
 
         client.initialize(&1, &creator, &token, &validators);
+        client.initialize(&1, &creator, &token, &validators, &DEFAULT_THRESHOLD);
         client.deposit(&1, &1000);
 
         let description_hash = BytesN::from_array(&env, &[1u8; 32]);
@@ -300,7 +308,7 @@ mod tests {
         let client = create_client(&env);
         env.mock_all_auths();
 
-        client.initialize(&1, &creator, &token, &validators);
+        client.initialize(&1, &creator, &token, &validators, &DEFAULT_THRESHOLD);
 
         client.deposit(&1, &500);
         assert_eq!(client.get_escrow(&1).total_deposited, 500);
@@ -332,6 +340,7 @@ mod tests {
         let client = create_client(&env);
 
         client.initialize(&1, &creator, &token, &validators);
+        client.initialize(&1, &creator, &token, &validators, &DEFAULT_THRESHOLD);
 
         let escrow1 = client.get_escrow(&1);
         assert_eq!(escrow1.project_id, 1);
@@ -495,5 +504,182 @@ mod tests {
         let random = Address::generate(&env);
         let result = client.try_resume(&random);
         assert!(result.is_err(), "non-admin should not be able to resume");
+    }
+}
+    // ── NEW tests for Issue #39: Customizable Validator Thresholds ────────────
+
+    #[test]
+    fn test_initialize_with_low_threshold() {
+        let (env, creator, token, _, validators) = create_test_env();
+        let client = create_client(&env);
+        env.mock_all_auths();
+
+        let result = client.try_initialize(&1, &creator, &token, &validators, &5000);
+        assert!(result.is_err(), "threshold below 51% should be rejected");
+    }
+
+    #[test]
+    fn test_initialize_with_threshold_above_100() {
+        let (env, creator, token, _, validators) = create_test_env();
+        let client = create_client(&env);
+        env.mock_all_auths();
+
+        let result = client.try_initialize(&1, &creator, &token, &validators, &10100);
+        assert!(result.is_err(), "threshold above 100% should be rejected");
+    }
+
+    #[test]
+    fn test_minimum_valid_threshold_accepted() {
+        let (env, creator, token, _, validators) = create_test_env();
+        let client = create_client(&env);
+        env.mock_all_auths();
+
+        let result = client.try_initialize(&1, &creator, &token, &validators, &5100);
+        assert!(result.is_ok(), "5100 basis points (51%) should be accepted");
+    }
+
+    #[test]
+    fn test_maximum_valid_threshold_accepted() {
+        let (env, creator, token, _, validators) = create_test_env();
+        let client = create_client(&env);
+        env.mock_all_auths();
+
+        let result = client.try_initialize(&1, &creator, &token, &validators, &10000);
+        assert!(result.is_ok(), "10000 basis points (100%) should be accepted");
+    }
+
+    #[test]
+    fn test_different_projects_have_independent_thresholds() {
+        let env = Env::default();
+        env.ledger().set_timestamp(1000);
+        env.mock_all_auths();
+
+        let creator = Address::generate(&env);
+        let token = Address::generate(&env);
+
+        let mut validators = Vec::new(&env);
+        validators.push_back(Address::generate(&env));
+        validators.push_back(Address::generate(&env));
+        validators.push_back(Address::generate(&env));
+
+        let client = create_client(&env);
+
+        client.initialize(&1, &creator, &token, &validators, &6700);
+        client.initialize(&2, &creator, &token, &validators, &10000);
+
+        assert_eq!(client.get_escrow(&1).approval_threshold, 6700);
+        assert_eq!(client.get_escrow(&2).approval_threshold, 10000);
+    }
+
+    /// 100% unanimous threshold — all 3 validators must approve.
+    /// Votes 1 and 2 must leave milestone as Submitted; vote 3 triggers Approved.
+    #[test]
+    fn test_custom_threshold_enforced_unanimous() {
+        let env = Env::default();
+        env.ledger().set_timestamp(1000);
+        env.mock_all_auths();
+
+        let creator = Address::generate(&env);
+        let token_admin = Address::generate(&env);
+        let token = env
+            .register_stellar_asset_contract_v2(token_admin.clone())
+            .address();
+
+        let v1 = Address::generate(&env);
+        let v2 = Address::generate(&env);
+        let v3 = Address::generate(&env);
+
+        let mut validators = Vec::new(&env);
+        validators.push_back(v1.clone());
+        validators.push_back(v2.clone());
+        validators.push_back(v3.clone());
+
+        let contract_id = env.register_contract(None, EscrowContract);
+        let client = EscrowContractClient::new(&env, &contract_id);
+
+        soroban_sdk::token::StellarAssetClient::new(&env, &token).mint(&contract_id, &1000);
+
+        client.initialize(&1, &creator, &token, &validators, &10000);
+        client.deposit(&1, &1000);
+
+        let description_hash = BytesN::from_array(&env, &[1u8; 32]);
+        client.create_milestone(&1, &description_hash, &500);
+
+        let proof_hash = BytesN::from_array(&env, &[9u8; 32]);
+        client.submit_milestone(&1, &0, &proof_hash);
+
+        client.vote_milestone(&1, &0, &v1, &true);
+        assert_eq!(
+            client.get_milestone(&1, &0).status,
+            MilestoneStatus::Submitted,
+            "one approval should not be enough with unanimous threshold"
+        );
+
+        client.vote_milestone(&1, &0, &v2, &true);
+        assert_eq!(
+            client.get_milestone(&1, &0).status,
+            MilestoneStatus::Submitted,
+            "two approvals should not be enough with unanimous threshold"
+        );
+
+        client.vote_milestone(&1, &0, &v3, &true);
+        assert_eq!(
+            client.get_milestone(&1, &0).status,
+            MilestoneStatus::Approved,
+            "all three approvals should trigger approval with unanimous threshold"
+        );
+    }
+
+    /// 67% threshold — 2 out of 3 validators are required.
+    /// (3 * 6700) / 10000 = 2 (integer division).
+    /// Vote 1 must leave milestone as Submitted; vote 2 triggers Approved.
+    #[test]
+    fn test_majority_threshold_enforced() {
+        let env = Env::default();
+        env.ledger().set_timestamp(1000);
+        env.mock_all_auths();
+
+        let creator = Address::generate(&env);
+        let token_admin = Address::generate(&env);
+        let token = env
+            .register_stellar_asset_contract_v2(token_admin.clone())
+            .address();
+
+        let v1 = Address::generate(&env);
+        let v2 = Address::generate(&env);
+        let v3 = Address::generate(&env);
+
+        let mut validators = Vec::new(&env);
+        validators.push_back(v1.clone());
+        validators.push_back(v2.clone());
+        validators.push_back(v3.clone());
+
+        let contract_id = env.register_contract(None, EscrowContract);
+        let client = EscrowContractClient::new(&env, &contract_id);
+
+        soroban_sdk::token::StellarAssetClient::new(&env, &token).mint(&contract_id, &1000);
+
+        client.initialize(&1, &creator, &token, &validators, &6700);
+        client.deposit(&1, &1000);
+
+        let description_hash = BytesN::from_array(&env, &[1u8; 32]);
+        client.create_milestone(&1, &description_hash, &500);
+
+        let proof_hash = BytesN::from_array(&env, &[9u8; 32]);
+        client.submit_milestone(&1, &0, &proof_hash);
+
+        client.vote_milestone(&1, &0, &v1, &true);
+        assert_eq!(
+            client.get_milestone(&1, &0).status,
+            MilestoneStatus::Submitted,
+            "one approval should not meet the 67% threshold with 3 validators"
+        );
+
+        client.vote_milestone(&1, &0, &v2, &true);
+        assert_eq!(
+            client.get_milestone(&1, &0).status,
+            MilestoneStatus::Approved,
+            "two approvals should meet the 67% threshold with 3 validators"
+        );
     }
 }

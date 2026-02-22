@@ -9,6 +9,7 @@ use shared::{
     errors::Error,
     events::*,
     types::{Amount, EscrowInfo, Hash, Milestone, MilestoneStatus, PauseState},
+    types::{Amount, EscrowInfo, Hash, Milestone, MilestoneStatus}, MIN_APPROVAL_THRESHOLD, MAX_APPROVAL_THRESHOLD,
 };
 use soroban_sdk::{contract, contractimpl, token::TokenClient, Address, BytesN, Env, Vec};
 
@@ -48,6 +49,12 @@ impl EscrowContract {
     creator: Address,
     token: Address,
     validators: Vec<Address>,
+        env: Env,
+        project_id: u64,
+        creator: Address,
+        token: Address,
+        validators: Vec<Address>,
+        approval_threshold: u32,
     ) -> Result<(), Error> {
         creator.require_auth();
 
@@ -59,6 +66,11 @@ impl EscrowContract {
             return Err(Error::AlreadyInitialized);
         }
 
+        if approval_threshold < MIN_APPROVAL_THRESHOLD || approval_threshold > MAX_APPROVAL_THRESHOLD {
+            return Err(Error::InvalidInput);
+        }
+
+        // Create escrow info
         let escrow = EscrowInfo {
             project_id,
             creator: creator.clone(),
@@ -66,6 +78,7 @@ impl EscrowContract {
             total_deposited: 0,
             released_amount: 0,
             validators,
+            approval_threshold,
         };
 
         set_escrow(&env, project_id, &escrow);
@@ -281,8 +294,10 @@ impl EscrowContract {
 
         // Check if milestone is approved or rejected
         let _total_votes = milestone.approval_count as u32 + milestone.rejection_count as u32;
+        // let required_approvals =
+        //     (escrow.validators.len() as u32 * MILESTONE_APPROVAL_THRESHOLD) / 10000;
         let required_approvals =
-            (escrow.validators.len() as u32 * MILESTONE_APPROVAL_THRESHOLD) / 10000;
+            (escrow.validators.len() as u32 * escrow.approval_threshold) / 10000;
 
         // Check for majority approval
         if milestone.approval_count as u32 >= required_approvals {
