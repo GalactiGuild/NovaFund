@@ -1,10 +1,14 @@
 #![no_std]
 
 use shared::{
-    constants::{MILESTONE_APPROVAL_THRESHOLD, MIN_VALIDATORS},
+    constants::{
+        MIN_VALIDATORS,
+        MILESTONE_APPROVAL_THRESHOLD,
+        RESUME_TIME_DELAY,
+    },
     errors::Error,
     events::*,
-    types::{Amount, EscrowInfo, Hash, Milestone, MilestoneStatus},
+    types::{Amount, EscrowInfo, Hash, Milestone, MilestoneStatus, PauseState},
 };
 use soroban_sdk::{contract, contractimpl, token::TokenClient, Address, BytesN, Env, Vec};
 
@@ -39,25 +43,22 @@ impl EscrowContract {
     /// * `token` - Token address for the escrow
     /// * `validators` - List of validator addresses for milestone approval
     pub fn initialize(
-        env: Env,
-        project_id: u64,
-        creator: Address,
-        token: Address,
-        validators: Vec<Address>,
+    env: Env,
+    project_id: u64,
+    creator: Address,
+    token: Address,
+    validators: Vec<Address>,
     ) -> Result<(), Error> {
         creator.require_auth();
 
-        // Validate inputs
         if (validators.len() as u32) < MIN_VALIDATORS {
             return Err(Error::InvalidInput);
         }
 
-        // Check if escrow already exists
         if escrow_exists(&env, project_id) {
             return Err(Error::AlreadyInitialized);
         }
 
-        // Create escrow info
         let escrow = EscrowInfo {
             project_id,
             creator: creator.clone(),
@@ -67,13 +68,9 @@ impl EscrowContract {
             validators,
         };
 
-        // Store escrow
         set_escrow(&env, project_id, &escrow);
-
-        // Initialize milestone counter
         set_milestone_counter(&env, project_id, 0);
 
-        // Emit event
         env.events()
             .publish((ESCROW_INITIALIZED,), (project_id, creator, token));
 
@@ -88,6 +85,10 @@ impl EscrowContract {
     pub fn deposit(env: Env, project_id: u64, amount: Amount) -> Result<(), Error> {
         // Get escrow
         let mut escrow = get_escrow(&env, project_id)?;
+
+        if is_paused(&env) {
+            return Err(Error::ContractPaused);
+        }
 
         // Validate amount
         if amount <= 0 {
@@ -124,6 +125,10 @@ impl EscrowContract {
         // Get escrow to verify it exists and get creator
         let escrow = get_escrow(&env, project_id)?;
         escrow.creator.require_auth();
+
+        if is_paused(&env) {
+           return Err(Error::ContractPaused);
+        }
 
         // Validate amount
         if amount <= 0 {
@@ -190,6 +195,10 @@ impl EscrowContract {
         // Get milestone
         let mut milestone = get_milestone(&env, project_id, milestone_id)?;
 
+        if is_paused(&env) {
+           return Err(Error::ContractPaused);
+        }
+
         // Validate milestone status
         if milestone.status != MilestoneStatus::Pending {
             return Err(Error::InvalidMilestoneStatus);
@@ -239,6 +248,10 @@ impl EscrowContract {
 
         // Get milestone
         let mut milestone = get_milestone(&env, project_id, milestone_id)?;
+
+        if is_paused(&env) {
+           return Err(Error::ContractPaused);
+        }
 
         // Validate milestone status
         if milestone.status != MilestoneStatus::Submitted {
@@ -390,6 +403,67 @@ impl EscrowContract {
             .publish((VALIDATORS_UPDATED,), (project_id, new_validators));
 
         Ok(())
+    }
+
+    /// Pause the contract — halts all critical operations instantly
+    ///
+    /// # Arguments
+    /// * `admin` - Must be the platform admin
+    pub fn pause(env: Env, admin: Address) -> Result<(), Error> {
+        let stored_admin = get_admin(&env)?;
+        if stored_admin != admin {
+            return Err(Error::Unauthorized);
+        }
+        admin.require_auth();
+
+        let now = env.ledger().timestamp();
+        let state = PauseState {
+            paused: true,
+            paused_at: now,
+            resume_not_before: now + RESUME_TIME_DELAY,
+        };
+
+        set_pause_state(&env, &state);
+
+        env.events().publish((CONTRACT_PAUSED,), (admin, now));
+
+        Ok(())
+    }
+
+    /// Resume the contract — only allowed after the time delay has passed
+    ///
+    /// # Arguments
+    /// * `admin` - Must be the platform admin
+    pub fn resume(env: Env, admin: Address) -> Result<(), Error> {
+        let stored_admin = get_admin(&env)?;
+        if stored_admin != admin {
+            return Err(Error::Unauthorized);
+        }
+        admin.require_auth();
+
+        let state = get_pause_state(&env);
+
+        let now = env.ledger().timestamp();
+        if now < state.resume_not_before {
+            return Err(Error::ResumeTooEarly);
+        }
+
+        let new_state = PauseState {
+            paused: false,
+            paused_at: state.paused_at,
+            resume_not_before: state.resume_not_before,
+        };
+
+        set_pause_state(&env, &new_state);
+
+        env.events().publish((CONTRACT_RESUMED,), (admin, now));
+
+        Ok(())
+    }
+
+    /// Returns whether the contract is currently paused
+    pub fn get_is_paused(env: Env) -> bool {
+        is_paused(&env)
     }
 }
 

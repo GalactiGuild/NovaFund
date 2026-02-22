@@ -215,3 +215,11 @@ pub struct BridgeConfig {
     pub max_gas_price: u64,
     pub emergency_pause_threshold: u32,
 }
+
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct PauseState {
+    pub paused: bool,
+    pub paused_at: u64,
+    pub resume_not_before: u64,
+}

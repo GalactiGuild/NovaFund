@@ -35,3 +35,5 @@ pub const GOVERNANCE_QUORUM: u32 = 2000;
 
 /// Voting period duration (7 days in seconds)
 pub const VOTING_PERIOD: u64 = 604800;
+
+pub const RESUME_TIME_DELAY: u64 = 86400; // 24 hours in seconds

@@ -1,5 +1,5 @@
 use shared::errors::Error;
-use shared::types::{Amount, EscrowInfo, Milestone};
+use shared::types::{Amount, EscrowInfo, Milestone, PauseState};
 use soroban_sdk::{Address, Env};
 
 /// Storage keys for escrow data structures
@@ -8,6 +8,7 @@ const MILESTONE_PREFIX: &str = "milestone";
 const MILESTONE_COUNTER_PREFIX: &str = "m_counter";
 const VALIDATOR_VOTE_PREFIX: &str = "v_vote";
 const ADMIN_KEY: &str = "admin";
+const PAUSE_STATE_KEY: &str = "pause_state";
 
 /// Store platform admin
 pub fn set_admin(env: &Env, admin: &Address) {
@@ -145,4 +146,26 @@ pub fn get_total_milestone_amount(env: &Env, project_id: u64) -> Result<Amount, 
     }
 
     Ok(total)
+}
+
+/// Store the pause state
+pub fn set_pause_state(env: &Env, state: &PauseState) {
+    env.storage().instance().set(&PAUSE_STATE_KEY, state);
+}
+
+/// Retrieve the pause state, defaulting to unpaused if never set
+pub fn get_pause_state(env: &Env) -> PauseState {
+    env.storage()
+        .instance()
+        .get::<&str, PauseState>(&PAUSE_STATE_KEY)
+        .unwrap_or(PauseState {
+            paused: false,
+            paused_at: 0,
+            resume_not_before: 0,
+        })
+}
+
+/// Quick check — returns true if contract is currently paused
+pub fn is_paused(env: &Env) -> bool {
+    get_pause_state(env).paused
 }
