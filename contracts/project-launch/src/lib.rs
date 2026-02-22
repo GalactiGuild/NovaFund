@@ -1,7 +1,7 @@
 #![no_std]
 
 use soroban_sdk::{
-    contract, contractimpl, contracttype, token::TokenClient, Address, Bytes, Env,
+    contract, contractimpl, contracttype, token::TokenClient, Address, Bytes, Env, Vec,
 };
 
 use shared::{
@@ -29,7 +29,7 @@ pub struct Project {
     pub creator: Address,
     pub funding_goal: i128,
     pub deadline: u64,
-    pub token: Address,
+    pub tokens: Vec<Address>,
     pub status: ProjectStatus,
     pub metadata_hash: Bytes,
     pub total_raised: i128,
@@ -44,9 +44,10 @@ pub enum DataKey {
     Admin = 0,
     NextProjectId = 1,
     Project = 2,
-    ContributionAmount = 3,        // (DataKey::ContributionAmount, project_id, contributor) -> i128
-    RefundProcessed = 4,           // (DataKey::RefundProcessed, project_id, contributor) -> bool
+    ContributionAmount = 3,        // (DataKey::ContributionAmount, project_id, contributor, token) -> i128
+    RefundProcessed = 4,           // (DataKey::RefundProcessed, project_id, contributor, token) -> bool
     ProjectFailureProcessed = 5,   // (DataKey::ProjectFailureProcessed, project_id) -> bool
+    TokenRate = 6,                 // (DataKey::TokenRate, token) -> i128
 }
 
 #[contract]
@@ -67,13 +68,29 @@ impl ProjectLaunch {
         Ok(())
     }
 
+    /// Set token exchange rate (admin only, mock oracle)
+    /// Rate represents how much base currency (e.g., USD) 1 unit of token is worth, scaled by 1e7
+    pub fn set_token_rate(env: Env, token: Address, rate: i128) -> Result<(), Error> {
+        let admin: Address = env.storage().instance().get(&DataKey::Admin).ok_or(Error::NotInitialized)?;
+        admin.require_auth();
+        
+        env.storage().instance().set(&(DataKey::TokenRate, token), &rate);
+        Ok(())
+    }
+
+    /// Get token rate
+    pub fn get_token_rate(env: Env, token: Address) -> i128 {
+        // Default 1:1 (assuming 7 decimals, so 10_0000000 represents 1.0)
+        env.storage().instance().get(&(DataKey::TokenRate, token)).unwrap_or(10_0000000)
+    }
+
     /// Create a new funding project
     pub fn create_project(
         env: Env,
         creator: Address,
         funding_goal: i128,
         deadline: u64,
-        token: Address,
+        tokens: Vec<Address>,
         metadata_hash: Bytes,
     ) -> Result<u64, Error> {
         // Validate funding goal
@@ -110,7 +127,7 @@ impl ProjectLaunch {
             creator: creator.clone(),
             funding_goal,
             deadline,
-            token: token.clone(),
+            tokens: tokens.clone(),
             status: ProjectStatus::Active,
             metadata_hash,
             total_raised: 0,
@@ -125,7 +142,7 @@ impl ProjectLaunch {
         // Emit event
         env.events().publish(
             (PROJECT_CREATED,),
-            (project_id, creator, funding_goal, deadline, token),
+            (project_id, creator, funding_goal, deadline, tokens),
         );
 
         Ok(project_id)
@@ -137,6 +154,7 @@ impl ProjectLaunch {
         project_id: u64,
         contributor: Address,
         amount: i128,
+        token: Address,
     ) -> Result<(), Error> {
         // Validate contribution amount
         if amount < MIN_CONTRIBUTION {
@@ -161,18 +179,29 @@ impl ProjectLaunch {
             return Err(Error::DeadlinePassed);
         }
 
+        // Ensure token is accepted by the project
+        let token_supported = project.tokens.iter().any(|t| t == token);
+        if !token_supported {
+            return Err(Error::InvalidInput);
+        }
+
+        // Calculate base currency equivalent using oracle rate
+        // rate is scaled by 10^7, so divide by 10^7
+        let rate = Self::get_token_rate(env.clone(), token.clone());
+        let base_amount = (amount as i128).checked_mul(rate).unwrap() / 10_0000000;
+
         // Update project totals
-        project.total_raised += amount;
+        project.total_raised = project.total_raised.checked_add(base_amount).unwrap();
         env.storage()
             .instance()
             .set(&(DataKey::Project, project_id), &project);
 
         // Perform token transfer
-        let token_client = TokenClient::new(&env, &project.token);
+        let token_client = TokenClient::new(&env, &token);
         token_client.transfer(&contributor, &env.current_contract_address(), &amount);
 
-        // 1. Store aggregated individual contribution (Scalable O(1))
-        let contribution_key = (DataKey::ContributionAmount, project_id, contributor.clone());
+        // 1. Store aggregated individual contribution per token (Scalable O(1))
+        let contribution_key = (DataKey::ContributionAmount, project_id, contributor.clone(), token.clone());
         let current_contribution: i128 = env
             .storage()
             .persistent()
@@ -187,7 +216,7 @@ impl ProjectLaunch {
         // Emit event
         env.events().publish(
             (CONTRIBUTION_MADE,),
-            (project_id, contributor, amount, project.total_raised),
+            (project_id, contributor, amount, project.total_raised, token),
         );
 
         Ok(())
@@ -202,8 +231,8 @@ impl ProjectLaunch {
     }
 
     /// Get individual contribution amount for a user
-    pub fn get_user_contribution(env: Env, project_id: u64, contributor: Address) -> i128 {
-        let key = (DataKey::ContributionAmount, project_id, contributor);
+    pub fn get_user_contribution(env: Env, project_id: u64, contributor: Address, token: Address) -> i128 {
+        let key = (DataKey::ContributionAmount, project_id, contributor, token);
         env.storage().persistent().get(&key).unwrap_or(0)
     }
 
@@ -286,6 +315,7 @@ impl ProjectLaunch {
         env: Env,
         project_id: u64,
         contributor: Address,
+        token: Address,
     ) -> Result<i128, Error> {
         // Get project
         let project: Project = env
@@ -299,14 +329,14 @@ impl ProjectLaunch {
             return Err(Error::ProjectNotActive);
         }
 
-        // Check if refund has already been processed for this contributor
-        let refund_key = (DataKey::RefundProcessed, project_id, contributor.clone());
+        // Check if refund has already been processed for this contributor and token
+        let refund_key = (DataKey::RefundProcessed, project_id, contributor.clone(), token.clone());
         if env.storage().instance().has(&refund_key) {
             return Err(Error::InvalidInput); // Already refunded
         }
 
         // Get contribution amount
-        let contribution_key = (DataKey::ContributionAmount, project_id, contributor.clone());
+        let contribution_key = (DataKey::ContributionAmount, project_id, contributor.clone(), token.clone());
         let contribution_amount: i128 = env
             .storage()
             .persistent()
@@ -318,7 +348,7 @@ impl ProjectLaunch {
         }
 
         // Transfer tokens back to contributor
-        let token_client = TokenClient::new(&env, &project.token);
+        let token_client = TokenClient::new(&env, &token);
         token_client.transfer(
             &env.current_contract_address(),
             &contributor,
@@ -332,14 +362,14 @@ impl ProjectLaunch {
 
         // Emit refund event
         env.events()
-            .publish((REFUND_ISSUED,), (project_id, contributor, contribution_amount));
+            .publish((REFUND_ISSUED,), (project_id, contributor, contribution_amount, token));
 
         Ok(contribution_amount)
     }
 
     /// Check if a contributor has been refunded for a project
-    pub fn is_refunded(env: Env, project_id: u64, contributor: Address) -> bool {
-        let refund_key = (DataKey::RefundProcessed, project_id, contributor);
+    pub fn is_refunded(env: Env, project_id: u64, contributor: Address, token: Address) -> bool {
+        let refund_key = (DataKey::RefundProcessed, project_id, contributor, token);
         env.storage().instance().has(&refund_key)
     }
 
@@ -411,7 +441,7 @@ mod tests {
             &creator,
             &MIN_FUNDING_GOAL,
             &deadline,
-            &token,
+            &soroban_sdk::vec![&env, token.clone()],
             &metadata_hash,
         );
 
@@ -423,7 +453,7 @@ mod tests {
             &creator,
             &(MIN_FUNDING_GOAL - 1),
             &deadline,
-            &token,
+            &soroban_sdk::vec![&env, token.clone()],
             &metadata_hash,
         );
         assert!(result.is_err());
@@ -434,7 +464,7 @@ mod tests {
             &creator,
             &MIN_FUNDING_GOAL,
             &too_soon_deadline,
-            &token,
+            &soroban_sdk::vec![&env, token.clone()],
             &metadata_hash,
         );
         assert!(result.is_err());
@@ -467,7 +497,7 @@ mod tests {
             &creator,
             &MIN_FUNDING_GOAL,
             &deadline,
-            &token,
+            &soroban_sdk::vec![&env, token.clone()],
             &metadata_hash,
         );
 
@@ -479,35 +509,35 @@ mod tests {
         assert_eq!(token_client.balance(&client.address), 0);
 
         // Test successful contribution
-        client.contribute(&project_id, &contributor, &MIN_CONTRIBUTION);
+        client.contribute(&project_id, &contributor, &MIN_CONTRIBUTION, &token);
 
         assert_eq!(token_client.balance(&contributor), 90_0000000);
         assert_eq!(token_client.balance(&client.address), 10_0000000);
 
         // Verify contribution amount
         assert_eq!(
-            client.get_user_contribution(&project_id, &contributor),
+            client.get_user_contribution(&project_id, &contributor, &token),
             MIN_CONTRIBUTION
         );
 
         // Test multiple contributions from same user
-        client.contribute(&project_id, &contributor, &MIN_CONTRIBUTION);
+        client.contribute(&project_id, &contributor, &MIN_CONTRIBUTION, &token);
         assert_eq!(
-            client.get_user_contribution(&project_id, &contributor),
+            client.get_user_contribution(&project_id, &contributor, &token),
             MIN_CONTRIBUTION * 2
         );
 
         // Test contribution too low
-        let result = client.try_contribute(&project_id, &contributor, &(MIN_CONTRIBUTION - 1));
+        let result = client.try_contribute(&project_id, &contributor, &(MIN_CONTRIBUTION - 1), &token);
         assert!(result.is_err());
 
         // Test contribution to non-existent project
-        let result = client.try_contribute(&999, &contributor, &MIN_CONTRIBUTION);
+        let result = client.try_contribute(&999, &contributor, &MIN_CONTRIBUTION, &token);
         assert!(result.is_err());
 
         // Test contribution after deadline
         env.ledger().set_timestamp(deadline + 1);
-        let result = client.try_contribute(&project_id, &contributor, &MIN_CONTRIBUTION);
+        let result = client.try_contribute(&project_id, &contributor, &MIN_CONTRIBUTION, &token);
         assert!(result.is_err());
     }
 
@@ -532,7 +562,7 @@ mod tests {
             &creator,
             &MIN_FUNDING_GOAL,
             &deadline,
-            &token,
+            &soroban_sdk::vec![&env, token.clone()],
             &metadata_hash,
         );
     }
@@ -564,13 +594,13 @@ mod tests {
             &creator,
             &MIN_FUNDING_GOAL,
             &deadline,
-            &token,
+            &soroban_sdk::vec![&env, token.clone()],
             &metadata_hash,
         );
 
         // Mint tokens and contribute less than goal
         token_admin_client.mint(&contributor, &50_0000000);
-        client.contribute(&project_id, &contributor, &MIN_CONTRIBUTION);
+        client.contribute(&project_id, &contributor, &MIN_CONTRIBUTION, &token);
 
         let project = client.get_project(&project_id);
         assert_eq!(project.status, ProjectStatus::Active);
@@ -623,14 +653,14 @@ mod tests {
             &creator,
             &MIN_FUNDING_GOAL,
             &deadline,
-            &token,
+            &soroban_sdk::vec![&env, token.clone()],
             &metadata_hash,
         );
 
         // Mint tokens and contribute full amount (meets goal)
         let mint_amount = MIN_FUNDING_GOAL + 100_0000000;
         token_admin_client.mint(&contributor, &mint_amount);
-        client.contribute(&project_id, &contributor, &MIN_FUNDING_GOAL);
+        client.contribute(&project_id, &contributor, &MIN_FUNDING_GOAL, &token);
 
         // Move past deadline
         env.ledger().set_timestamp(deadline + 1);
@@ -670,13 +700,13 @@ mod tests {
             &creator,
             &MIN_FUNDING_GOAL,
             &deadline,
-            &token,
+            &soroban_sdk::vec![&env, token.clone()],
             &metadata_hash,
         );
 
         // Mint tokens and contribute
         token_admin_client.mint(&contributor, &50_0000000);
-        client.contribute(&project_id, &contributor, &MIN_CONTRIBUTION);
+        client.contribute(&project_id, &contributor, &MIN_CONTRIBUTION, &token);
 
         let initial_balance = token_client.balance(&contributor);
         assert_eq!(initial_balance, 40_0000000); // 50 - 10
@@ -686,7 +716,7 @@ mod tests {
         client.mark_project_failed(&project_id);
 
         // Refund contributor
-        let refund_amount = client.refund_contributor(&project_id, &contributor);
+        let refund_amount = client.refund_contributor(&project_id, &contributor, &token);
         assert_eq!(refund_amount, MIN_CONTRIBUTION);
 
         // Verify tokens were returned
@@ -694,10 +724,10 @@ mod tests {
         assert_eq!(new_balance, 50_0000000); // Initial 50 restored
 
         // Verify refund was recorded
-        assert!(client.is_refunded(&project_id, &contributor));
+        assert!(client.is_refunded(&project_id, &contributor, &token));
 
         // Try to refund again - should fail
-        let result = client.try_refund_contributor(&project_id, &contributor);
+        let result = client.try_refund_contributor(&project_id, &contributor, &token);
         assert!(result.is_err());
     }
 
@@ -729,7 +759,7 @@ mod tests {
             &creator,
             &MIN_FUNDING_GOAL,
             &deadline,
-            &token,
+            &soroban_sdk::vec![&env, token.clone()],
             &metadata_hash,
         );
 
@@ -740,8 +770,8 @@ mod tests {
         let contrib1_amount = MIN_CONTRIBUTION;
         let contrib2_amount = MIN_CONTRIBUTION * 2;
 
-        client.contribute(&project_id, &contributor1, &contrib1_amount);
-        client.contribute(&project_id, &contributor2, &contrib2_amount);
+        client.contribute(&project_id, &contributor1, &contrib1_amount, &token);
+        client.contribute(&project_id, &contributor2, &contrib2_amount, &token);
 
         assert_eq!(
             token_client.balance(&contributor1),
@@ -757,8 +787,8 @@ mod tests {
         client.mark_project_failed(&project_id);
 
         // Refund both contributors
-        let refund1 = client.refund_contributor(&project_id, &contributor1);
-        let refund2 = client.refund_contributor(&project_id, &contributor2);
+        let refund1 = client.refund_contributor(&project_id, &contributor1, &token);
+        let refund2 = client.refund_contributor(&project_id, &contributor2, &token);
 
         assert_eq!(refund1, contrib1_amount);
         assert_eq!(refund2, contrib2_amount);
@@ -768,8 +798,8 @@ mod tests {
         assert_eq!(token_client.balance(&contributor2), 100_0000000);
 
         // Both should be marked as refunded
-        assert!(client.is_refunded(&project_id, &contributor1));
-        assert!(client.is_refunded(&project_id, &contributor2));
+        assert!(client.is_refunded(&project_id, &contributor1, &token));
+        assert!(client.is_refunded(&project_id, &contributor2, &token));
     }
 
     #[test]
@@ -799,7 +829,7 @@ mod tests {
             &creator,
             &MIN_FUNDING_GOAL,
             &deadline,
-            &token,
+            &soroban_sdk::vec![&env, token.clone()],
             &metadata_hash,
         );
 
@@ -808,7 +838,7 @@ mod tests {
         client.mark_project_failed(&project_id);
 
         // Try to refund someone with no contribution - should fail
-        let result = client.try_refund_contributor(&project_id, &contributor);
+        let result = client.try_refund_contributor(&project_id, &contributor, &token);
         assert!(result.is_err());
     }
 
