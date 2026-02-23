@@ -13,7 +13,7 @@ use shared::{
     },
 };
 use soroban_sdk::{
-    contract, contractimpl, token::TokenClient, Address, BytesN, Env, String,
+    contract, contractimpl, token::{TokenClient, StellarAssetClient}, Address, BytesN, Env, String,
 };
 
 mod storage;
@@ -255,9 +255,10 @@ impl CrossChainBridge {
             .ok_or(Error::InvalidInput)?;
         set_wrapped_asset(&env, asset.clone(), &wrapped_asset);
 
-        // In a production environment, this would trigger minting of wrapped tokens
-        // by calling an authorized token contract with proper authentication.
-        // For this implementation, we track the deposits internally.
+        // Mint wrapped tokens directly using TokenAdminClient
+        // We assume the bridge contract is set as the admin of the wrapped asset
+        let token_admin_client = StellarAssetClient::new(&env, &asset);
+        token_admin_client.mint(&recipient, &amount);
 
         env.events().publish(
             (BRIDGE_DEPOSIT,),
@@ -318,10 +319,9 @@ impl CrossChainBridge {
             return Err(Error::InsufficientFunds);
         }
 
-        // Note: Token burning is handled by the token contract
-        // The sender must authorize the burn operation
-        // In production, this would call the token contract's burn function
-        // through proper authorization
+        // Burn the tokens using TokenClient
+        let token_client = TokenClient::new(&env, &asset);
+        token_client.burn(&sender, &amount);
 
         // Create transaction record
         let tx_id = get_transaction_counter(&env)?;

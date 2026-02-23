@@ -185,7 +185,6 @@ fn test_register_wrapped_asset_unsupported_chain() {
 fn test_deposit() {
     let (env, client) = setup_env();
     let admin = Address::generate(&env);
-    let issuer = Address::generate(&env);
     let recipient = Address::generate(&env);
 
     client
@@ -206,6 +205,9 @@ fn test_deposit() {
 
     let original_contract = BytesN::<32>::from_array(&env, &[2u8; 32]);
 
+    let (token_client, _token_admin) = create_token_contract(&env, &client.address);
+    let issuer = token_client.address.clone();
+
     let _asset = client
         .mock_all_auths()
         .register_wrapped_asset(
@@ -217,12 +219,7 @@ fn test_deposit() {
         );
 
     // Create token contract for the wrapped asset (needed for the test to work with balances)
-    let (_token_client, token_admin) = create_token_contract(&env, &issuer);
 
-    // Mint some tokens to the bridge contract for distribution
-    token_admin
-        .mock_all_auths()
-        .mint(&client.address, &1000000);
 
     let source_tx_hash = BytesN::<32>::from_array(&env, &[3u8; 32]);
     let sender = BytesN::<32>::from_array(&env, &[4u8; 32]);
@@ -249,7 +246,6 @@ fn test_deposit() {
 fn test_deposit_paused_bridge() {
     let (env, client) = setup_env();
     let admin = Address::generate(&env);
-    let issuer = Address::generate(&env);
     let recipient = Address::generate(&env);
 
     client
@@ -270,6 +266,9 @@ fn test_deposit_paused_bridge() {
 
     let original_contract = BytesN::<32>::from_array(&env, &[2u8; 32]);
 
+    let (token_client, _token_admin) = create_token_contract(&env, &client.address);
+    let issuer = token_client.address.clone();
+
     let _asset = client
         .mock_all_auths()
         .register_wrapped_asset(
@@ -280,12 +279,7 @@ fn test_deposit_paused_bridge() {
             &18,
         );
 
-    let (_token_client, token_admin) = create_token_contract(&env, &issuer);
 
-    // Mint some tokens to the bridge contract for distribution
-    token_admin
-        .mock_all_auths()
-        .mint(&client.address, &1000000);
 
     // Pause the bridge
     client.mock_all_auths().pause_bridge();
@@ -308,7 +302,6 @@ fn test_deposit_paused_bridge() {
 fn test_deposit_duplicate_transaction() {
     let (env, client) = setup_env();
     let admin = Address::generate(&env);
-    let issuer = Address::generate(&env);
     let recipient = Address::generate(&env);
 
     client
@@ -328,6 +321,9 @@ fn test_deposit_duplicate_transaction() {
         );
 
     let original_contract = BytesN::<32>::from_array(&env, &[2u8; 32]);
+
+    let (token_client, _token_admin) = create_token_contract(&env, &client.address);
+    let issuer = token_client.address.clone();
 
     let _asset = client
         .mock_all_auths()
@@ -438,7 +434,6 @@ fn test_is_chain_supported() {
 fn test_get_transaction_count() {
     let (env, client) = setup_env();
     let admin = Address::generate(&env);
-    let issuer = Address::generate(&env);
     let recipient = Address::generate(&env);
 
     client
@@ -458,6 +453,9 @@ fn test_get_transaction_count() {
         );
 
     let original_contract = BytesN::<32>::from_array(&env, &[2u8; 32]);
+
+    let (token_client, _token_admin) = create_token_contract(&env, &client.address);
+    let issuer = token_client.address.clone();
 
     let _asset = client
         .mock_all_auths()
@@ -495,7 +493,6 @@ fn test_get_transaction_count() {
 fn test_wrapped_asset_total_tracking() {
     let (env, client) = setup_env();
     let admin = Address::generate(&env);
-    let issuer = Address::generate(&env);
     let recipient1 = Address::generate(&env);
     let recipient2 = Address::generate(&env);
 
@@ -516,6 +513,9 @@ fn test_wrapped_asset_total_tracking() {
         );
 
     let original_contract = BytesN::<32>::from_array(&env, &[2u8; 32]);
+
+    let (token_client, _token_admin) = create_token_contract(&env, &client.address);
+    let issuer = token_client.address.clone();
 
     let _asset = client
         .mock_all_auths()

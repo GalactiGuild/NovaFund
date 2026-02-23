@@ -1195,3 +1195,6 @@ mod tests {
     }
 }
 
+
+#[cfg(test)]
+mod cross_chain_integration_test;
