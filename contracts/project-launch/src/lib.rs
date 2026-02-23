@@ -1096,24 +1096,24 @@ mod tests {
             &creator,
             &MIN_FUNDING_GOAL,
             &deadline,
-            &token,
+            &soroban_sdk::vec![&env, token.clone()],
             &metadata_hash,
             &None,
         );
 
         // Mint and contribute
         token_admin_client.mint(&contributor, &50_0000000);
-        client.contribute(&project_id, &contributor, &MIN_CONTRIBUTION);
+        client.contribute(&project_id, &contributor, &MIN_CONTRIBUTION, &token);
 
         // Try to refund while project active - should fail
-        let result = client.try_refund_contributor(&project_id, &contributor);
+        let result = client.try_refund_contributor(&project_id, &contributor, &token);
         assert!(result.is_err());
 
         // Move past deadline but don't mark as failed
         env.ledger().set_timestamp(deadline + 1);
 
         // Still can't refund without marking failed
-        let result = client.try_refund_contributor(&project_id, &contributor);
+        let result = client.try_refund_contributor(&project_id, &contributor, &token);
         assert!(result.is_err());
     }
 
