@@ -1,5 +1,5 @@
 use shared::errors::Error;
-use shared::types::{Amount, EscrowInfo, Milestone, PauseState};
+use shared::types::{Amount, EscrowInfo, Milestone, PauseState, PendingUpgrade};
 use soroban_sdk::{Address, Env};
 
 /// Storage keys for escrow data structures
@@ -148,6 +148,7 @@ pub fn get_total_milestone_amount(env: &Env, project_id: u64) -> Result<Amount, 
 }
 
 const PAUSE_STATE_KEY: &str = "pause_state";
+const PENDING_UPGRADE_KEY: &str = "pending_upgrade";
 
 /// Store the pause state
 pub fn set_pause_state(env: &Env, state: &PauseState) {
@@ -169,4 +170,24 @@ pub fn get_pause_state(env: &Env) -> PauseState {
 /// Quick check — returns true if contract is currently paused
 pub fn is_paused(env: &Env) -> bool {
     get_pause_state(env).paused
+}
+
+/// Store pending upgrade (time-locked)
+pub fn set_pending_upgrade(env: &Env, pending: &PendingUpgrade) {
+    env.storage().instance().set(&PENDING_UPGRADE_KEY, pending);
+}
+
+/// Get pending upgrade, if any
+pub fn get_pending_upgrade(env: &Env) -> Option<PendingUpgrade> {
+    env.storage().instance().get(&PENDING_UPGRADE_KEY)
+}
+
+/// Remove pending upgrade
+pub fn clear_pending_upgrade(env: &Env) {
+    env.storage().instance().remove(&PENDING_UPGRADE_KEY);
+}
+
+/// Check if an upgrade is scheduled
+pub fn has_pending_upgrade(env: &Env) -> bool {
+    env.storage().instance().has(&PENDING_UPGRADE_KEY)
 }

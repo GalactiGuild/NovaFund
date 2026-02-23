@@ -42,6 +42,17 @@ pub struct UserProfile {
     pub verified: bool,
 }
 
+/// Regulatory Jurisdiction
+#[contracttype]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[repr(u32)]
+pub enum Jurisdiction {
+    Global = 0,
+    UnitedStates = 1,
+    EuropeanUnion = 2,
+    UnitedKingdom = 3,
+}
+
 #[contracttype]
 #[derive(Clone)]
 pub struct EscrowInfo {
@@ -223,4 +234,13 @@ pub struct PauseState {
     pub paused: bool,
     pub paused_at: u64,
     pub resume_not_before: u64,
+}
+
+/// Pending contract upgrade (time-locked). Used by ProjectLaunch and Escrow.
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct PendingUpgrade {
+    pub wasm_hash: Hash,
+    /// Ledger timestamp before which execute_upgrade will fail
+    pub execute_not_before: u64,
 }

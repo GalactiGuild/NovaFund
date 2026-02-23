@@ -1,10 +1,11 @@
 #![no_std]
 
 use shared::{
-    constants::{MILESTONE_APPROVAL_THRESHOLD, MIN_VALIDATORS, RESUME_TIME_DELAY,},
+    constants::{MIN_VALIDATORS, RESUME_TIME_DELAY, UPGRADE_TIME_LOCK_SECS},
     errors::Error,
     events::*,
-    types::{Amount, EscrowInfo, Hash, Milestone, MilestoneStatus, PauseState}, MIN_APPROVAL_THRESHOLD, MAX_APPROVAL_THRESHOLD,
+    types::{Amount, EscrowInfo, Hash, Milestone, MilestoneStatus, PauseState, PendingUpgrade},
+    MIN_APPROVAL_THRESHOLD, MAX_APPROVAL_THRESHOLD,
 };
 use soroban_sdk::{contract, contractimpl, token::TokenClient, Address, BytesN, Env, Vec};
 
@@ -477,6 +478,69 @@ impl EscrowContract {
         is_paused(&env)
     }
 
+    // ---------- Upgrade (time-locked, admin only, requires pause) ----------
+    /// Schedule an upgrade. Admin only. Executable after UPGRADE_TIME_LOCK_SECS (48h).
+    pub fn schedule_upgrade(
+        env: Env,
+        admin: Address,
+        new_wasm_hash: BytesN<32>,
+    ) -> Result<(), Error> {
+        let stored_admin = get_admin(&env)?;
+        if stored_admin != admin {
+            return Err(Error::Unauthorized);
+        }
+        admin.require_auth();
+        let now = env.ledger().timestamp();
+        let pending = PendingUpgrade {
+            wasm_hash: new_wasm_hash.clone(),
+            execute_not_before: now + UPGRADE_TIME_LOCK_SECS,
+        };
+        set_pending_upgrade(&env, &pending);
+        env.events()
+            .publish((UPGRADE_SCHEDULED,), (admin, new_wasm_hash, pending.execute_not_before));
+        Ok(())
+    }
+
+    /// Execute a scheduled upgrade. Admin only. Contract must be paused. Only after time-lock.
+    pub fn execute_upgrade(env: Env, admin: Address) -> Result<(), Error> {
+        let stored_admin = get_admin(&env)?;
+        if stored_admin != admin {
+            return Err(Error::Unauthorized);
+        }
+        admin.require_auth();
+        if !is_paused(&env) {
+            return Err(Error::UpgradeRequiresPause);
+        }
+        let pending = get_pending_upgrade(&env).ok_or(Error::UpgradeNotScheduled)?;
+        let now = env.ledger().timestamp();
+        if now < pending.execute_not_before {
+            return Err(Error::UpgradeTooEarly);
+        }
+        env.deployer().update_current_contract_wasm(pending.wasm_hash.clone());
+        clear_pending_upgrade(&env);
+        env.events().publish((UPGRADE_EXECUTED,), (admin, pending.wasm_hash));
+        Ok(())
+    }
+
+    /// Cancel a scheduled upgrade. Admin only.
+    pub fn cancel_upgrade(env: Env, admin: Address) -> Result<(), Error> {
+        let stored_admin = get_admin(&env)?;
+        if stored_admin != admin {
+            return Err(Error::Unauthorized);
+        }
+        admin.require_auth();
+        if !has_pending_upgrade(&env) {
+            return Err(Error::UpgradeNotScheduled);
+        }
+        clear_pending_upgrade(&env);
+        env.events().publish((UPGRADE_CANCELLED,), admin);
+        Ok(())
+    }
+
+    /// Get pending upgrade info, if any.
+    pub fn get_pending_upgrade(env: Env) -> Option<PendingUpgrade> {
+        storage::get_pending_upgrade(&env)
+    }
 }
 
 /// Helper function to release milestone funds

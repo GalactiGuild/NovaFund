@@ -5,10 +5,10 @@ pub const DEFAULT_PLATFORM_FEE: u32 = 250;
 pub const MAX_PLATFORM_FEE: u32 = 1000;
 
 /// Minimum project funding goal
-pub const MIN_FUNDING_GOAL: i128 = 1_000_0000000; // 1,000 XLM (with 7 decimals)
+pub const MIN_FUNDING_GOAL: i128 = 10_000_000_000; // 1,000 XLM (with 7 decimals)
 
 /// Maximum project funding goal
-pub const MAX_FUNDING_GOAL: i128 = 1_000_000_0000000; // 1,000,000 XLM
+pub const MAX_FUNDING_GOAL: i128 = 10_000_000_000_000; // 1,000,000 XLM
 
 /// Minimum project duration (1 day in seconds)
 pub const MIN_PROJECT_DURATION: u64 = 86400;
@@ -37,6 +37,9 @@ pub const GOVERNANCE_QUORUM: u32 = 2000;
 pub const VOTING_PERIOD: u64 = 604800;
 
 // Max & Min threshold consts
-pub const MIN_APPROVAL_THRESHOLD: u32 = 5100;  // 51% minimum
+pub const MIN_APPROVAL_THRESHOLD: u32 = 5100; // 51% minimum
 pub const MAX_APPROVAL_THRESHOLD: u32 = 10000; // 100% maximum
 pub const RESUME_TIME_DELAY: u64 = 86400; // 24 hours in seconds
+
+/// Minimum delay before a scheduled upgrade can be executed (48 hours)
+pub const UPGRADE_TIME_LOCK_SECS: u64 = 172800; // 48 * 3600

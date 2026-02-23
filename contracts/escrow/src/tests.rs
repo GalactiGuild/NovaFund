@@ -677,4 +677,83 @@ mod tests {
         let result = client.try_resume(&random);
         assert!(result.is_err(), "non-admin should not be able to resume");
     }
+
+    // ---------- Upgrade (time-lock, requires pause) ----------
+    #[test]
+    fn test_schedule_upgrade_succeeds() {
+        let env = Env::default();
+        env.ledger().set_timestamp(1000);
+        env.mock_all_auths();
+        let (admin, _, _, _, client) = setup_with_admin(&env);
+
+        let wasm_hash = BytesN::from_array(&env, &[42u8; 32]);
+        let result = client.try_schedule_upgrade(&admin, &wasm_hash);
+        assert!(result.is_ok());
+
+        let pending = client.get_pending_upgrade();
+        assert!(pending.is_some());
+        let p = pending.unwrap();
+        assert_eq!(p.wasm_hash, wasm_hash);
+        assert_eq!(p.execute_not_before, 1000 + shared::UPGRADE_TIME_LOCK_SECS);
+    }
+
+    #[test]
+    fn test_execute_upgrade_too_early_fails() {
+        let env = Env::default();
+        env.ledger().set_timestamp(1000);
+        env.mock_all_auths();
+        let (admin, _, _, _, client) = setup_with_admin(&env);
+
+        let wasm_hash = BytesN::from_array(&env, &[42u8; 32]);
+        client.schedule_upgrade(&admin, &wasm_hash);
+        client.pause(&admin);
+
+        // Only 1 hour later — before 48h time-lock
+        env.ledger().set_timestamp(1000 + 3600);
+        let result = client.try_execute_upgrade(&admin);
+        assert!(result.is_err(), "execute_upgrade should fail before 48h");
+    }
+
+    #[test]
+    fn test_execute_upgrade_without_pause_fails() {
+        let env = Env::default();
+        env.ledger().set_timestamp(1000);
+        env.mock_all_auths();
+        let (admin, _, _, _, client) = setup_with_admin(&env);
+
+        let wasm_hash = BytesN::from_array(&env, &[42u8; 32]);
+        client.schedule_upgrade(&admin, &wasm_hash);
+
+        env.ledger().set_timestamp(1000 + shared::UPGRADE_TIME_LOCK_SECS + 1);
+        let result = client.try_execute_upgrade(&admin);
+        assert!(result.is_err(), "execute_upgrade should fail when not paused");
+    }
+
+    #[test]
+    fn test_cancel_upgrade_clears_pending() {
+        let env = Env::default();
+        env.ledger().set_timestamp(1000);
+        env.mock_all_auths();
+        let (admin, _, _, _, client) = setup_with_admin(&env);
+
+        let wasm_hash = BytesN::from_array(&env, &[42u8; 32]);
+        client.schedule_upgrade(&admin, &wasm_hash);
+        assert!(client.get_pending_upgrade().is_some());
+
+        client.cancel_upgrade(&admin);
+        assert!(client.get_pending_upgrade().is_none());
+    }
+
+    #[test]
+    fn test_only_admin_can_schedule_upgrade() {
+        let env = Env::default();
+        env.ledger().set_timestamp(1000);
+        env.mock_all_auths();
+        let (_, _, _, _, client) = setup_with_admin(&env);
+
+        let wasm_hash = BytesN::from_array(&env, &[42u8; 32]);
+        let random = Address::generate(&env);
+        let result = client.try_schedule_upgrade(&random, &wasm_hash);
+        assert!(result.is_err());
+    }
 }
