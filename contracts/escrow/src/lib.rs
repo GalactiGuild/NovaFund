@@ -4,9 +4,12 @@ use shared::{
     constants::{MILESTONE_APPROVAL_THRESHOLD, MIN_VALIDATORS},
     errors::Error,
     events::*,
-    types::{Amount, EscrowInfo, Hash, Milestone, MilestoneStatus},
+    types::{
+        Amount, Dispute, DisputeResolution, DisputeStatus, EscrowInfo, Hash, JurorInfo, Milestone,
+        MilestoneStatus, VoteCommitment,
+    },
 };
-use soroban_sdk::{contract, contractimpl, token::TokenClient, Address, BytesN, Env, Vec};
+use soroban_sdk::{contract, contractimpl, token::TokenClient, Address, BytesN, Env, IntoVal, Vec};
 
 mod storage;
 mod validation;
@@ -137,7 +140,7 @@ impl EscrowContract {
             .ok_or(Error::InvalidInput)?;
 
         if new_total > escrow.total_deposited {
-            return Err(Error::InsufficientEscrowBalance);
+            return Err(Error::EscrowInsuf);
         }
 
         // Get next milestone ID
@@ -192,7 +195,7 @@ impl EscrowContract {
 
         // Validate milestone status
         if milestone.status != MilestoneStatus::Pending {
-            return Err(Error::InvalidMilestoneStatus);
+            return Err(Error::MilestoneStateInv);
         }
 
         // Update milestone
@@ -242,7 +245,7 @@ impl EscrowContract {
 
         // Validate milestone status
         if milestone.status != MilestoneStatus::Submitted {
-            return Err(Error::InvalidMilestoneStatus);
+            return Err(Error::MilestoneStateInv);
         }
 
         // Check if validator already voted
@@ -391,6 +394,689 @@ impl EscrowContract {
 
         Ok(())
     }
+
+    // ==================== Dispute Resolution System ====================
+
+    /// Configure the global token used for juror staking
+    ///
+    /// # Arguments
+    /// * `env` - Execution environment
+    /// * `token` - Token address
+    ///
+    /// # Errors
+    /// * `Unauthorized` - Caller is not admin
+    pub fn configure_dispute_token(env: Env, token: Address) -> Result<(), Error> {
+        let admin = get_admin(&env)?;
+        admin.require_auth();
+
+        set_juror_token(&env, &token);
+        Ok(())
+    }
+
+    /// Register to be a juror
+    ///
+    /// # Arguments
+    /// * `env` - Execution environment
+    /// * `juror` - Address of the juror
+    /// * `stake_amount` - Amount of tokens to stake
+    ///
+    /// # Errors
+    /// * `InsufficientJurorStake` - Stake is below minimum
+    /// * `AlreadyRegisteredAsJuror` - Juror is already registered
+    pub fn register_as_juror(env: Env, juror: Address, stake_amount: Amount) -> Result<(), Error> {
+        juror.require_auth();
+
+        if stake_amount < shared::constants::MIN_JUROR_STAKE {
+            return Err(Error::JurorStakeL);
+        }
+
+        // Check if already registered
+        if get_juror(&env, &juror).is_ok() {
+            return Err(Error::JurorReg);
+        }
+
+        let token = get_juror_token(&env)?;
+        let token_client = TokenClient::new(&env, &token);
+
+        // Transfer stake from juror to contract
+        token_client.transfer(&juror, &env.current_contract_address(), &stake_amount);
+
+        // Save juror info
+        let juror_info = JurorInfo {
+            address: juror.clone(),
+            staked_amount: stake_amount,
+            active_disputes: 0,
+            successful_votes: 0,
+            missed_votes: 0,
+        };
+        set_juror(&env, &juror, &juror_info);
+
+        // Add to active jurors list
+        let mut active_jurors = get_active_jurors(&env);
+        active_jurors.push_back(juror.clone());
+        set_active_jurors(&env, &active_jurors);
+
+        Ok(())
+    }
+
+    /// Deregister as a juror
+    ///
+    /// # Arguments
+    /// * `env` - Execution environment
+    /// * `juror` - Address of the juror
+    ///
+    /// # Errors
+    /// * `NotAJuror` - Caller is not a registered juror
+    /// * `JurorHasActiveDispute` - Juror is assigned to an active dispute
+    pub fn deregister_as_juror(env: Env, juror: Address) -> Result<(), Error> {
+        juror.require_auth();
+
+        let juror_info = get_juror(&env, &juror)?;
+
+        if juror_info.active_disputes > 0 {
+            return Err(Error::JurorActive);
+        }
+
+        let token = get_juror_token(&env)?;
+        let token_client = TokenClient::new(&env, &token);
+
+        // Transfer stake back to juror
+        token_client.transfer(
+            &env.current_contract_address(),
+            &juror,
+            &juror_info.staked_amount,
+        );
+
+        // Remove from storage
+        remove_juror(&env, &juror);
+
+        // Remove from active jurors list
+        let mut active_jurors = get_active_jurors(&env);
+        if let Some(index) = active_jurors.first_index_of(juror.clone()) {
+            active_jurors.remove(index);
+            set_active_jurors(&env, &active_jurors);
+        }
+
+        Ok(())
+    }
+
+    /// Initiate a dispute on a milestone
+    ///
+    /// # Arguments
+    /// * `env` - Execution environment
+    /// * `project_id` - Project identifier
+    /// * `milestone_id` - Milestone identifier
+    /// * `initiator` - Address initiating the dispute
+    /// * `project_contract` - Contract address for project launch (to verify backers)
+    ///
+    /// # Errors
+    /// * `MilestoneNotContested` - Milestone is not in a contested state
+    /// * `Unauthorized` - Initiator is not creator or valid backer
+    pub fn initiate_dispute(
+        env: Env,
+        project_id: u64,
+        milestone_id: u64,
+        initiator: Address,
+        project_contract: Address,
+    ) -> Result<u64, Error> {
+        initiator.require_auth();
+
+        let escrow = get_escrow(&env, project_id)?;
+        let milestone = get_milestone(&env, project_id, milestone_id)?;
+
+        if milestone.status != MilestoneStatus::Rejected
+            && milestone.status != MilestoneStatus::Submitted
+        {
+            return Err(Error::MstoneContested);
+        }
+
+        // Verify initiator is creator or qualifying funder
+        if initiator != escrow.creator {
+            let args: Vec<soroban_sdk::Val> =
+                soroban_sdk::vec![&env, project_id.into_val(&env), initiator.into_val(&env)];
+            let contribution: Amount = env.invoke_contract(
+                &project_contract,
+                &soroban_sdk::Symbol::new(&env, "get_user_contribution"),
+                args,
+            );
+
+            if contribution < shared::constants::MIN_CONTRIBUTION {
+                return Err(Error::Unauthorized);
+            }
+        }
+
+        let dispute_id = get_next_dispute_id(&env);
+        let dispute = Dispute {
+            id: dispute_id,
+            milestone_id,
+            project_id,
+            initiator: initiator.clone(),
+            status: DisputeStatus::Pending,
+            created_at: env.ledger().timestamp(),
+            resolution: DisputeResolution::NoRes,
+            resolution_payload: 0,
+            appeal_count: 0,
+        };
+
+        set_dispute(&env, dispute_id, &dispute);
+        set_next_dispute_id(&env, dispute_id + 1);
+
+        Ok(dispute_id)
+    }
+
+    /// Select jury for a dispute using verifiable on-chain randomness
+    ///
+    /// # Arguments
+    /// * `env` - Execution environment
+    /// * `dispute_id` - Dispute identifier
+    ///
+    /// # Events
+    /// * `JURY_SELECTED` - Emitted when jury selection completes
+    ///
+    /// # Errors
+    /// * `InvalidInput` - Dispute state invalid or not enough jurors
+    /// * `ConflictOfInterest` - Not enough eligible jurors after excluding conflicts
+    pub fn select_jury(env: Env, dispute_id: u64) -> Result<(), Error> {
+        let mut dispute = get_dispute(&env, dispute_id)?;
+
+        if dispute.status != DisputeStatus::Pending && dispute.status != DisputeStatus::Appealed {
+            return Err(Error::InvalidInput);
+        }
+
+        let jury_size = if dispute.status == DisputeStatus::Appealed {
+            shared::constants::APPEAL_JURY_SIZE
+        } else {
+            shared::constants::JURY_SIZE
+        };
+
+        let active_jurors = get_active_jurors(&env);
+        if active_jurors.len() < jury_size {
+            return Err(Error::InvalidInput); // Not enough jurors
+        }
+
+        let mut selected_jurors = Vec::new(&env);
+        let mut available_jurors = active_jurors.clone();
+
+        let escrow = get_escrow(&env, dispute.project_id)?;
+
+        let existing_jurors = if dispute.appeal_count > 0 {
+            get_juror_assignments(&env, dispute_id).unwrap_or(Vec::new(&env))
+        } else {
+            Vec::new(&env)
+        };
+
+        let prng = env.prng();
+
+        while selected_jurors.len() < jury_size && available_jurors.len() > 0 {
+            let index = prng.gen_range::<u64>(0..available_jurors.len() as u64) as u32;
+            let juror = available_jurors.get(index).unwrap();
+
+            // Conflict of interest exclusion: creator, initiator, and previous jurors
+            if juror != escrow.creator
+                && juror != dispute.initiator
+                && !existing_jurors.contains(&juror)
+            {
+                selected_jurors.push_back(juror.clone());
+            }
+
+            available_jurors.remove(index);
+        }
+
+        if selected_jurors.len() < jury_size {
+            return Err(Error::ConflictInt);
+        }
+
+        // Increment active disputes count for jurors
+        for juror in selected_jurors.iter() {
+            let mut info = get_juror(&env, &juror)?;
+            info.active_disputes += 1;
+            set_juror(&env, &juror, &info);
+        }
+
+        set_juror_assignments(&env, dispute_id, &selected_jurors);
+
+        dispute.status = DisputeStatus::Voting;
+        dispute.created_at = env.ledger().timestamp();
+        set_dispute(&env, dispute_id, &dispute);
+
+        env.events()
+            .publish((JURY_SELECTED,), (dispute_id, selected_jurors));
+
+        Ok(())
+    }
+
+    /// Get the assigned jurors for a dispute
+    pub fn get_juror_assignments(env: Env, dispute_id: u64) -> Result<Vec<Address>, Error> {
+        get_juror_assignments(&env, dispute_id)
+    }
+
+    /// Commit a blinded vote for a dispute
+    ///
+    /// # Arguments
+    /// * `env` - Execution environment
+    /// * `dispute_id` - Dispute identifier
+    /// * `juror` - Address of the juror
+    /// * `commitment_hash` - Blinded hash of vote + salt
+    ///
+    /// # Events
+    /// * `VOTE_COMMITTED` - Emitted when vote is committed
+    ///
+    /// # Errors
+    /// * `VotingPeriodNotActive` - Not in commit phase
+    /// * `NotAJuror` - Juror is not on panel
+    /// * `AlreadyVoted` - Vote already committed
+    pub fn commit_vote(
+        env: Env,
+        dispute_id: u64,
+        juror: Address,
+        commitment_hash: Hash,
+    ) -> Result<(), Error> {
+        juror.require_auth();
+
+        // panic!("CV2");
+        let dispute = get_dispute(&env, dispute_id)?;
+
+        // panic!("CV3");
+        if dispute.status != DisputeStatus::Voting {
+            return Err(Error::VotePeriodNA);
+        }
+
+        let current_time = env.ledger().timestamp();
+        if current_time > dispute.created_at + shared::constants::VOTING_COMMIT_PERIOD {
+            return Err(Error::VotePeriodNA);
+        }
+
+        let assignments = get_juror_assignments(&env, dispute_id)?;
+        if !assignments.contains(&juror) {
+            return Err(Error::NotJuror);
+        }
+
+        if get_dispute_vote(&env, dispute_id, &juror).is_ok() {
+            return Err(Error::AlreadyVoted);
+        }
+
+        let commitment = VoteCommitment {
+            hash: commitment_hash.clone(),
+            revealed: false,
+            vote: DisputeResolution::NoRes,
+            vote_payload: 0,
+        };
+
+        set_dispute_vote(&env, dispute_id, &juror, &commitment);
+
+        env.events().publish((VOTE_COMMITTED,), (dispute_id, juror));
+
+        Ok(())
+    }
+
+    /// Reveal a committed vote
+    ///
+    /// # Arguments
+    /// * `env` - Execution environment
+    /// * `dispute_id` - Dispute identifier
+    /// * `juror` - Address of the juror
+    /// * `vote` - Plaintext vote
+    /// * `salt` - Byte array salt
+    ///
+    /// # Events
+    /// * `VOTE_REVEALED` - Emitted when vote is correctly revealed
+    ///
+    /// # Errors
+    /// * `RevealPeriodNotActive` - Not in reveal phase
+    /// * `AlreadyVoted` - Vote already revealed
+    /// * `InvalidVoteReveal` - Hash mismatch
+    pub fn reveal_vote(
+        env: Env,
+        dispute_id: u64,
+        juror: Address,
+        vote: DisputeResolution,
+        payload: u32,
+        salt: soroban_sdk::Bytes,
+    ) -> Result<(), Error> {
+        juror.require_auth();
+
+        let dispute = get_dispute(&env, dispute_id)?;
+
+        let current_time = env.ledger().timestamp();
+        let commit_end = dispute.created_at + shared::constants::VOTING_COMMIT_PERIOD;
+        let reveal_end = commit_end + shared::constants::VOTING_REVEAL_PERIOD;
+
+        if current_time <= commit_end || current_time > reveal_end {
+            return Err(Error::RevealPeriodNA);
+        }
+
+        let mut commitment = get_dispute_vote(&env, dispute_id, &juror)?;
+
+        if commitment.revealed {
+            return Err(Error::AlreadyVoted);
+        }
+
+        // Construct preimage: variant_index + (optional payload) + salt
+        let mut b = soroban_sdk::Bytes::new(&env);
+        match vote {
+            DisputeResolution::RelFunds => b.push_back(0),
+            DisputeResolution::RefBackers => b.push_back(1),
+            DisputeResolution::PartRel => {
+                b.push_back(2);
+                for byte in payload.to_be_bytes() {
+                    b.push_back(byte);
+                }
+            }
+            DisputeResolution::NoRes => return Err(Error::InvalidInput),
+        }
+        b.append(&salt);
+
+        let expected_hash = env.crypto().sha256(&b);
+
+        if commitment.hash.to_array() != expected_hash.to_array() {
+            return Err(Error::InvalidReveal);
+        }
+
+        commitment.revealed = true;
+        commitment.vote = vote.clone();
+        commitment.vote_payload = payload;
+        set_dispute_vote(&env, dispute_id, &juror, &commitment);
+
+        env.events().publish((VOTE_REVEALED,), (dispute_id, juror));
+
+        Ok(())
+    }
+
+    /// Tally revealed votes, reward majority, slash minority/non-revealers
+    ///
+    /// # Arguments
+    /// * `env` - Execution environment
+    /// * `dispute_id` - Dispute identifier
+    ///
+    /// # Events
+    /// * `DISPUTE_RESOLVED` - Emitted when outcome is tallied
+    /// * `JUROR_SLASHED` - Emitted for each slashed juror
+    /// * `APPEAL_RESOLVED` - Emitted if max appeals reached and enforced
+    ///
+    /// # Errors
+    /// * `VotingPeriodNotActive` - Reveal period not ended
+    pub fn tally_votes(env: Env, dispute_id: u64) -> Result<(), Error> {
+        let mut dispute = get_dispute(&env, dispute_id)?;
+
+        if dispute.status != DisputeStatus::Voting {
+            return Err(Error::VotePeriodNA);
+        }
+
+        let current_time = env.ledger().timestamp();
+        let reveal_end = dispute.created_at
+            + shared::constants::VOTING_COMMIT_PERIOD
+            + shared::constants::VOTING_REVEAL_PERIOD;
+
+        if current_time <= reveal_end {
+            return Err(Error::VotePeriodNA); // Wait for reveal period to end
+        }
+
+        let assignments = get_juror_assignments(&env, dispute_id)?;
+        let mut votes: soroban_sdk::Map<soroban_sdk::Val, u32> = soroban_sdk::Map::new(&env);
+        let mut payloads: soroban_sdk::Map<soroban_sdk::Val, u32> = soroban_sdk::Map::new(&env);
+        let mut winning_vote = DisputeResolution::NoRes;
+        let mut winning_payload: u32 = 0;
+        let mut max_votes: u32 = 0;
+
+        for juror in assignments.iter() {
+            if let Ok(commitment) = get_dispute_vote(&env, dispute_id, &juror) {
+                if commitment.revealed {
+                    let vote = commitment.vote.clone();
+                    let v_val: soroban_sdk::Val = vote.clone().into_val(&env);
+                    let count = votes.get(v_val.clone()).unwrap_or(0);
+                    votes.set(v_val.clone(), count + 1);
+                    payloads.set(v_val.clone(), commitment.vote_payload);
+
+                    if count + 1 > max_votes {
+                        max_votes = count + 1;
+                        winning_vote = vote;
+                        winning_payload = commitment.vote_payload;
+                    }
+                }
+            }
+        }
+
+        // Default to RefBackers if no one voted
+        let mut resolution = winning_vote;
+        if resolution == DisputeResolution::NoRes {
+            resolution = DisputeResolution::RefBackers;
+        }
+        let resolution_payload = winning_payload;
+
+        let mut majority_jurors = Vec::new(&env);
+
+        for juror in assignments.iter() {
+            let mut is_majority = false;
+            if let Ok(commitment) = get_dispute_vote(&env, dispute_id, &juror) {
+                if commitment.revealed {
+                    if commitment.vote == resolution {
+                        is_majority = true;
+                    }
+                }
+            }
+
+            if is_majority {
+                majority_jurors.push_back(juror.clone());
+                let mut info = get_juror(&env, &juror)?;
+                info.successful_votes += 1;
+                info.active_disputes -= 1;
+                set_juror(&env, &juror, &info);
+            } else {
+                let mut info = get_juror(&env, &juror)?;
+                info.missed_votes += 1;
+                info.active_disputes -= 1;
+                set_juror(&env, &juror, &info);
+
+                // Slash 10% of MIN_JUROR_STAKE as a penalty
+                let slash_amount = shared::constants::MIN_JUROR_STAKE / 10;
+                Self::slash_juror(&env, juror.clone(), slash_amount, 0)?;
+            }
+        }
+
+        Self::reward_jurors(&env, &majority_jurors)?;
+
+        dispute.resolution = resolution.clone();
+        dispute.resolution_payload = resolution_payload;
+        dispute.status = DisputeStatus::Resolved;
+        dispute.created_at = env.ledger().timestamp(); // Reset time for appeal window
+        set_dispute(&env, dispute_id, &dispute);
+
+        env.events()
+            .publish((DISPUTE_RESOLVED,), (dispute_id, resolution.clone()));
+
+        // Enforce immediately if max appeals reached
+        if dispute.appeal_count >= shared::constants::MAX_APPEALS as u32 {
+            dispute.status = DisputeStatus::FinalResolved;
+            set_dispute(&env, dispute_id, &dispute);
+            Self::enforce_resolution(&env, &dispute, &resolution)?;
+            env.events()
+                .publish((APPEAL_RESOLVED,), (dispute_id, resolution));
+        }
+
+        Ok(())
+    }
+
+    /// Execute resolution after appeal window closes
+    ///
+    /// # Arguments
+    /// * `env` - Execution environment
+    /// * `dispute_id` - Dispute identifier
+    ///
+    /// # Events
+    /// * `APPEAL_RESOLVED` - Emitted when final enforcement is done
+    ///
+    /// # Errors
+    /// * `InvalidInput` - Dispute not resolved
+    /// * `AppealWindowClosed` - Appeal window still open
+    pub fn execute_resolution(env: Env, dispute_id: u64) -> Result<(), Error> {
+        let mut dispute = get_dispute(&env, dispute_id)?;
+
+        if dispute.status != DisputeStatus::Resolved {
+            return Err(Error::InvalidInput);
+        }
+
+        let current_time = env.ledger().timestamp();
+        if current_time <= dispute.created_at + shared::constants::APPEAL_WINDOW_PERIOD {
+            return Err(Error::AppealWinCl); // Reusing for window still open
+        }
+
+        dispute.status = DisputeStatus::FinalResolved;
+        set_dispute(&env, dispute_id, &dispute);
+
+        let res = dispute.resolution.clone();
+        Self::enforce_resolution(&env, &dispute, &res)?;
+        env.events().publish((APPEAL_RESOLVED,), (dispute_id, res));
+
+        Ok(())
+    }
+
+    // ==================== Internal Helpers ====================
+
+    fn slash_juror(env: &Env, juror: Address, amount: Amount, _reason: u32) -> Result<(), Error> {
+        let mut info = get_juror(env, &juror)?;
+
+        let slashed = if info.staked_amount < amount {
+            info.staked_amount
+        } else {
+            amount
+        };
+
+        info.staked_amount -= slashed;
+        set_juror(env, &juror, &info);
+
+        let pool = get_dispute_fee_pool(env);
+        set_dispute_fee_pool(env, pool + slashed);
+
+        env.events().publish((JUROR_SLASHED,), (juror, slashed));
+        Ok(())
+    }
+
+    fn reward_jurors(env: &Env, majority_jurors: &Vec<Address>) -> Result<(), Error> {
+        let count = majority_jurors.len() as i128;
+        if count == 0 {
+            return Ok(());
+        }
+
+        let pool = get_dispute_fee_pool(env);
+        if pool > 0 {
+            let reward_per_juror = pool / count;
+            for j in majority_jurors.iter() {
+                let mut info = get_juror(env, &j)?;
+                info.staked_amount += reward_per_juror;
+                set_juror(env, &j, &info);
+            }
+            set_dispute_fee_pool(env, pool % count);
+        }
+        Ok(())
+    }
+
+    fn enforce_resolution(
+        env: &Env,
+        dispute: &Dispute,
+        resolution: &DisputeResolution,
+    ) -> Result<(), Error> {
+        let mut escrow = get_escrow(env, dispute.project_id)?;
+        let mut milestone = get_milestone(env, dispute.project_id, dispute.milestone_id)?;
+
+        let amount = milestone.amount;
+        let release_amount;
+
+        match resolution {
+            DisputeResolution::RelFunds => {
+                release_amount = amount;
+                milestone.status = MilestoneStatus::Approved;
+            }
+            DisputeResolution::RefBackers => {
+                release_amount = 0;
+                milestone.status = MilestoneStatus::Rejected;
+            }
+            DisputeResolution::PartRel => {
+                let pct = dispute.resolution_payload;
+                let p = (pct as i128).clamp(0, 10000);
+                release_amount = (amount * p) / 10000;
+                milestone.status = MilestoneStatus::Approved;
+            }
+            _ => {
+                release_amount = 0;
+            }
+        }
+
+        if release_amount > 0 {
+            let virtual_milestone = Milestone {
+                amount: release_amount,
+                ..milestone.clone()
+            };
+            let mut virtual_escrow = escrow.clone();
+            release_milestone_funds(&env, &mut virtual_escrow, &virtual_milestone)?;
+            escrow.released_amount = virtual_escrow.released_amount;
+
+            let token_client = TokenClient::new(&env, &escrow.token);
+            token_client.transfer(
+                &env.current_contract_address(),
+                &escrow.creator,
+                &release_amount,
+            );
+        }
+
+        set_milestone(env, dispute.project_id, dispute.milestone_id, &milestone);
+        set_escrow(env, dispute.project_id, &escrow);
+
+        Ok(())
+    }
+
+    /// File an appeal on a resolved dispute
+    ///
+    /// # Arguments
+    /// * `env` - Execution environment
+    /// * `dispute_id` - Dispute identifier
+    /// * `appellant` - Address filing the appeal
+    ///
+    /// # Events
+    /// * `DISPUTE_APPEALED` - Emitted when an appeal is successfully filed
+    ///
+    /// # Errors
+    /// * `InvalidInput` - Dispute not in resolved state
+    /// * `AppealWindowClosed` - Over time limit
+    /// * `MaxAppealsReached` - Capped out
+    pub fn file_appeal(env: Env, dispute_id: u64, appellant: Address) -> Result<(), Error> {
+        appellant.require_auth();
+
+        let mut dispute = get_dispute(&env, dispute_id)?;
+
+        if dispute.status != DisputeStatus::Resolved {
+            return Err(Error::InvalidInput);
+        }
+
+        let current_time = env.ledger().timestamp();
+        if current_time > dispute.created_at + shared::constants::APPEAL_WINDOW_PERIOD {
+            return Err(Error::AppealWinCl);
+        }
+
+        if dispute.appeal_count >= shared::constants::MAX_APPEALS as u32 {
+            return Err(Error::MaxAppeals);
+        }
+
+        let token = get_juror_token(&env)?;
+        let token_client = TokenClient::new(&env, &token);
+
+        let fee = shared::constants::APPEAL_FEE;
+
+        token_client.transfer(&appellant, &env.current_contract_address(), &fee);
+
+        let pool = get_dispute_fee_pool(&env);
+        set_dispute_fee_pool(&env, pool + fee);
+
+        dispute.appeal_count += 1;
+        dispute.status = DisputeStatus::Appealed;
+        set_dispute(&env, dispute_id, &dispute);
+
+        env.events()
+            .publish((DISPUTE_APPEALED,), (dispute_id, appellant));
+
+        Self::select_jury(env.clone(), dispute_id)?;
+
+        Ok(())
+    }
 }
 
 /// Helper function to release milestone funds
@@ -406,7 +1092,7 @@ fn release_milestone_funds(
         .ok_or(Error::InvalidInput)?;
 
     if new_released > escrow.total_deposited {
-        return Err(Error::InsufficientEscrowBalance);
+        return Err(Error::EscrowInsuf);
     }
 
     escrow.released_amount = new_released;

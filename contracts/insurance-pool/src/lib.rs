@@ -85,11 +85,15 @@ fn read_locked_reserves(env: &Env) -> Amount {
 }
 
 fn write_total_reserves(env: &Env, value: Amount) {
-    env.storage().instance().set(&DataKey::TotalReserves, &value);
+    env.storage()
+        .instance()
+        .set(&DataKey::TotalReserves, &value);
 }
 
 fn write_locked_reserves(env: &Env, value: Amount) {
-    env.storage().instance().set(&DataKey::LockedReserves, &value);
+    env.storage()
+        .instance()
+        .set(&DataKey::LockedReserves, &value);
 }
 
 fn read_project_config(env: &Env, project_id: u64) -> Result<ProjectConfig, Error> {
@@ -167,10 +171,7 @@ impl InsurancePool {
             return Err(Error::InvalidInput);
         }
         let existing = read_project_config(&env, project_id).ok();
-        let total_coverage = existing
-            .as_ref()
-            .map(|c| c.total_coverage)
-            .unwrap_or(0);
+        let total_coverage = existing.as_ref().map(|c| c.total_coverage).unwrap_or(0);
         if total_coverage > max_total_coverage {
             return Err(Error::CoverageLimitExceeded);
         }
@@ -276,19 +277,14 @@ impl InsurancePool {
         Ok(())
     }
 
-    pub fn claim_payout(
-        env: Env,
-        project_id: u64,
-        investor: Address,
-    ) -> Result<Amount, Error> {
+    pub fn claim_payout(env: Env, project_id: u64, investor: Address) -> Result<Amount, Error> {
         let token = read_pool_token(&env)?;
         investor.require_auth();
         let config = read_project_config(&env, project_id)?;
         if !config.failure_marked {
             return Err(Error::ProjectNotEligibleForClaim);
         }
-        let mut position =
-            read_coverage(&env, project_id, &investor).ok_or(Error::NoCoverage)?;
+        let mut position = read_coverage(&env, project_id, &investor).ok_or(Error::NoCoverage)?;
         if position.covered_amount <= 0 {
             return Err(Error::NoCoverage);
         }
@@ -348,11 +344,7 @@ impl InsurancePool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use soroban_sdk::{
-        testutils::Address as TestAddress,
-        token,
-        Address, Env,
-    };
+    use soroban_sdk::{testutils::Address as TestAddress, token, Address, Env};
 
     fn create_token_contract<'a>(
         env: &'a Env,
@@ -398,14 +390,7 @@ mod tests {
         token_admin_client.mint(&funder, &1_000_0000000);
         client.fund_pool(&funder, &800_0000000);
         token_admin_client.mint(&investor, &500_0000000);
-        client.configure_project(
-            &1u64,
-            &200u32,
-            &8000u32,
-            &500_0000000,
-            &800_0000000,
-            &true,
-        );
+        client.configure_project(&1u64, &200u32, &8000u32, &500_0000000, &800_0000000, &true);
         let initial_investor_balance = token_client.balance(&investor);
         client.purchase_coverage(&1u64, &investor, &200_0000000);
         let post_premium_balance = token_client.balance(&investor);

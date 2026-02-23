@@ -1,8 +1,6 @@
 use shared::{
     errors::Error,
-    types::{
-        BridgeConfig, BridgeTransaction, ChainConfig, ChainId, RelayerInfo, WrappedAssetInfo,
-    },
+    types::{BridgeConfig, BridgeTransaction, ChainConfig, ChainId, RelayerInfo, WrappedAssetInfo},
 };
 use soroban_sdk::{contracttype, Address, BytesN, Env};
 
@@ -10,14 +8,14 @@ use soroban_sdk::{contracttype, Address, BytesN, Env};
 #[contracttype]
 #[derive(Clone, Debug)]
 pub enum DataKey {
-    Config,           // Bridge configuration
-    TxCounter,        // Transaction counter
-    ChainConfig(ChainId), // Chain configuration by ChainId
-    WrappedAsset(Address), // Wrapped asset info by asset address
+    Config,                               // Bridge configuration
+    TxCounter,                            // Transaction counter
+    ChainConfig(ChainId),                 // Chain configuration by ChainId
+    WrappedAsset(Address),                // Wrapped asset info by asset address
     AssetByOriginal(ChainId, BytesN<32>), // Asset address by chain and original contract
-    Transaction(u64), // Transaction by ID
-    TxByHash(ChainId, BytesN<32>), // Transaction ID by source hash
-    Relayer(Address), // Relayer info by address
+    Transaction(u64),                     // Transaction by ID
+    TxByHash(ChainId, BytesN<32>),        // Transaction ID by source hash
+    Relayer(Address),                     // Relayer info by address
 }
 
 /// Get bridge configuration
@@ -48,7 +46,9 @@ pub fn get_transaction_counter(env: &Env) -> Result<u64, Error> {
 
 /// Set transaction counter
 pub fn set_transaction_counter(env: &Env, counter: u64) {
-    env.storage().persistent().set(&DataKey::TxCounter, &counter);
+    env.storage()
+        .persistent()
+        .set(&DataKey::TxCounter, &counter);
 }
 
 /// Get chain configuration
@@ -101,12 +101,7 @@ pub fn get_wrapped_asset_by_original(
 }
 
 /// Set asset mapping by original contract
-pub fn set_asset_by_original(
-    env: &Env,
-    chain_id: ChainId,
-    original: &BytesN<32>,
-    asset: &Address,
-) {
+pub fn set_asset_by_original(env: &Env, chain_id: ChainId, original: &BytesN<32>, asset: &Address) {
     env.storage()
         .persistent()
         .set(&DataKey::AssetByOriginal(chain_id, original.clone()), asset);
@@ -140,12 +135,7 @@ pub fn get_transaction_by_source_hash(
 }
 
 /// Set transaction ID by source hash
-pub fn set_transaction_by_source_hash(
-    env: &Env,
-    chain_id: ChainId,
-    hash: &BytesN<32>,
-    tx_id: u64,
-) {
+pub fn set_transaction_by_source_hash(env: &Env, chain_id: ChainId, hash: &BytesN<32>, tx_id: u64) {
     env.storage()
         .persistent()
         .set(&DataKey::TxByHash(chain_id, hash.clone()), &tx_id);

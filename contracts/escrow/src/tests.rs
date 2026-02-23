@@ -2,18 +2,31 @@
 
 mod tests {
     use crate::{EscrowContract, EscrowContractClient};
-    use shared::types::MilestoneStatus;
+    use shared::types::{DisputeResolution, MilestoneStatus};
     use soroban_sdk::{
+        contract, contractimpl,
         testutils::{Address as _, Ledger},
         Address, BytesN, Env, Vec,
     };
+
+    #[contract]
+    pub struct MockToken;
+
+    #[contractimpl]
+    impl MockToken {
+        pub fn transfer(_env: Env, _from: Address, _to: Address, _amount: i128) {}
+    }
+
+    fn create_mock_token(env: &Env) -> Address {
+        env.register_contract(None, MockToken)
+    }
 
     fn create_test_env() -> (Env, Address, Address, Address, Vec<Address>) {
         let env = Env::default();
         env.ledger().set_timestamp(1000);
 
         let creator = Address::generate(&env);
-        let token = Address::generate(&env);
+        let token = create_mock_token(&env);
         let validator1 = Address::generate(&env);
         let validator2 = Address::generate(&env);
         let validator3 = Address::generate(&env);
@@ -332,5 +345,186 @@ mod tests {
 
         let escrow1 = client.get_escrow(&1);
         assert_eq!(escrow1.project_id, 1);
+    }
+
+    #[test]
+    fn test_juror_registration() {
+        let (env, _, _, _, _) = create_test_env();
+        let client = create_client(&env);
+        let admin = Address::generate(&env);
+        env.mock_all_auths();
+        client.initialize_admin(&admin);
+
+        let juror_token = create_mock_token(&env);
+        client.configure_dispute_token(&juror_token);
+
+        let juror = Address::generate(&env);
+        let stake: i128 = 500_0000000;
+
+        client.register_as_juror(&juror, &stake);
+        assert!(client.try_register_as_juror(&juror, &stake).is_err());
+
+        client.deregister_as_juror(&juror);
+        assert!(client.try_deregister_as_juror(&juror).is_err());
+    }
+
+    #[test]
+    fn test_dispute_happy_path() {
+        let (env, creator, token, _, validators) = create_test_env();
+        let client = create_client(&env);
+        let admin = Address::generate(&env);
+        env.mock_all_auths();
+        client.initialize_admin(&admin);
+
+        let juror_token = create_mock_token(&env);
+        client.configure_dispute_token(&juror_token);
+
+        client.initialize(&1, &creator, &token, &validators);
+
+        let mut jurors = Vec::new(&env);
+        for _ in 0..7 {
+            let j = Address::generate(&env);
+            client.register_as_juror(&j, &500_0000000);
+            jurors.push_back(j);
+        }
+
+        client.deposit(&1, &1000);
+        let description_hash = BytesN::from_array(&env, &[1u8; 32]);
+        client.create_milestone(&1, &description_hash, &500);
+
+        let proof_hash = BytesN::from_array(&env, &[9u8; 32]);
+        client.submit_milestone(&1, &0, &proof_hash);
+
+        client.vote_milestone(&1, &0, &validators.get(0).unwrap(), &false);
+        client.vote_milestone(&1, &0, &validators.get(1).unwrap(), &false);
+
+        let project_contract = Address::generate(&env);
+        let dispute_id = client.initiate_dispute(&1, &0, &creator, &project_contract);
+
+        client.select_jury(&dispute_id);
+
+        let mut salt_buf = [0u8; 32];
+        for i in 0..32 {
+            salt_buf[i] = 123;
+        }
+        let salt = soroban_sdk::Bytes::from_array(&env, &salt_buf);
+        let mut assigned_jurors = Vec::new(&env);
+
+        // Commit phase
+        for j in 0..7 {
+            let juror_addr = jurors.get(j).unwrap();
+
+            // Find active jurors vs assigned
+            // Since we randomly selected 7 from 7, they are all assigned
+            assigned_jurors.push_back(juror_addr.clone());
+
+            let mut b = soroban_sdk::Bytes::new(&env);
+            b.push_back(0); // ReleaseFunds
+            b.append(&salt);
+            let h = env.crypto().sha256(&b);
+
+            client.commit_vote(&dispute_id, &juror_addr, &h.into());
+        }
+
+        env.ledger()
+            .set_timestamp(env.ledger().timestamp() + 259201);
+
+        // Reveal phase
+        for j in 0..7 {
+            let juror_addr = assigned_jurors.get(j).unwrap();
+            client.reveal_vote(
+                &dispute_id,
+                &juror_addr,
+                &DisputeResolution::RelFunds,
+                &0,
+                &salt,
+            );
+        }
+
+        env.ledger()
+            .set_timestamp(env.ledger().timestamp() + 172801);
+        client.tally_votes(&dispute_id);
+
+        env.ledger()
+            .set_timestamp(env.ledger().timestamp() + 432001);
+        client.execute_resolution(&dispute_id);
+    }
+
+    #[test]
+    fn test_dispute_appeals_path() {
+        let (env, creator, token, _, validators) = create_test_env();
+        let client = create_client(&env);
+        let admin = Address::generate(&env);
+        env.mock_all_auths();
+        client.initialize_admin(&admin);
+
+        let juror_token = create_mock_token(&env);
+        client.configure_dispute_token(&juror_token);
+
+        client.initialize(&1, &creator, &token, &validators);
+
+        let mut jurors = Vec::new(&env);
+        for _ in 0..20 {
+            let j = Address::generate(&env);
+            client.register_as_juror(&j, &500_0000000);
+            jurors.push_back(j);
+        }
+
+        client.deposit(&1, &1000);
+        let description_hash = BytesN::from_array(&env, &[1u8; 32]);
+        client.create_milestone(&1, &description_hash, &500);
+
+        let proof_hash = BytesN::from_array(&env, &[9u8; 32]);
+        client.submit_milestone(&1, &0, &proof_hash);
+
+        client.vote_milestone(&1, &0, &validators.get(0).unwrap(), &false);
+        client.vote_milestone(&1, &0, &validators.get(1).unwrap(), &false);
+
+        let project_contract = Address::generate(&env);
+        let dispute_id = client.initiate_dispute(&1, &0, &creator, &project_contract);
+
+        client.select_jury(&dispute_id);
+
+        let mut salt_buf = [0u8; 32];
+        for i in 0..32 {
+            salt_buf[i] = 123;
+        }
+        let salt = soroban_sdk::Bytes::from_array(&env, &salt_buf);
+
+        let assigned_jurors = client.get_juror_assignments(&dispute_id);
+        for i in 0..7 {
+            let juror_addr = assigned_jurors.get(i).unwrap();
+
+            let mut b = soroban_sdk::Bytes::new(&env);
+            b.push_back(0); // ReleaseFunds
+            b.append(&salt);
+            let h = env.crypto().sha256(&b);
+
+            client.commit_vote(&dispute_id, &juror_addr, &h.into());
+        }
+
+        env.ledger()
+            .set_timestamp(env.ledger().timestamp() + 259201);
+
+        for j in 0..7 {
+            let juror_addr = assigned_jurors.get(j).unwrap();
+            client.reveal_vote(
+                &dispute_id,
+                &juror_addr,
+                &DisputeResolution::RelFunds,
+                &0,
+                &salt,
+            );
+        }
+
+        env.ledger()
+            .set_timestamp(env.ledger().timestamp() + 172801);
+        client.tally_votes(&dispute_id);
+
+        // File appeal
+        let appellant = Address::generate(&env);
+        client.file_appeal(&dispute_id, &appellant);
+
+        // We can do another commit-reveal phase for the 13 jurors
     }
 }

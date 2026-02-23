@@ -129,9 +129,10 @@ mod test {
     #[test]
     fn test_cancel_subscription_stops_future_deductions() {
         let ctx = TestContext::setup();
-        let pool_id = ctx
-            .contract
-            .create_pool(&String::from_str(&ctx.env, "CancelTest"), &ctx.token.address);
+        let pool_id = ctx.contract.create_pool(
+            &String::from_str(&ctx.env, "CancelTest"),
+            &ctx.token.address,
+        );
 
         ctx.contract
             .subscribe(&pool_id, &ctx.user_1, &1000, &SubscriptionPeriod::Weekly);
@@ -157,9 +158,10 @@ mod test {
     #[should_panic]
     fn test_cancel_already_cancelled_subscription() {
         let ctx = TestContext::setup();
-        let pool_id = ctx
-            .contract
-            .create_pool(&String::from_str(&ctx.env, "CancelTest"), &ctx.token.address);
+        let pool_id = ctx.contract.create_pool(
+            &String::from_str(&ctx.env, "CancelTest"),
+            &ctx.token.address,
+        );
 
         ctx.contract
             .subscribe(&pool_id, &ctx.user_1, &1000, &SubscriptionPeriod::Weekly);
@@ -174,9 +176,10 @@ mod test {
     #[test]
     fn test_modify_subscription_amount_and_period() {
         let ctx = TestContext::setup();
-        let pool_id = ctx
-            .contract
-            .create_pool(&String::from_str(&ctx.env, "ModifyTest"), &ctx.token.address);
+        let pool_id = ctx.contract.create_pool(
+            &String::from_str(&ctx.env, "ModifyTest"),
+            &ctx.token.address,
+        );
 
         ctx.contract
             .subscribe(&pool_id, &ctx.user_1, &500, &SubscriptionPeriod::Weekly);
@@ -186,8 +189,12 @@ mod test {
         assert_eq!(ctx.token.balance(&ctx.user_1), 9500);
 
         // Modify subscription: increase amount and change period
-        ctx.contract
-            .modify_subscription(&pool_id, &ctx.user_1, &1000, &SubscriptionPeriod::Monthly);
+        ctx.contract.modify_subscription(
+            &pool_id,
+            &ctx.user_1,
+            &1000,
+            &SubscriptionPeriod::Monthly,
+        );
 
         // Verify modification
         let sub = ctx.contract.get_subscription(&pool_id, &ctx.user_1);
@@ -209,26 +216,32 @@ mod test {
     #[should_panic]
     fn test_modify_cancelled_subscription() {
         let ctx = TestContext::setup();
-        let pool_id = ctx
-            .contract
-            .create_pool(&String::from_str(&ctx.env, "ModifyTest"), &ctx.token.address);
+        let pool_id = ctx.contract.create_pool(
+            &String::from_str(&ctx.env, "ModifyTest"),
+            &ctx.token.address,
+        );
 
         ctx.contract
             .subscribe(&pool_id, &ctx.user_1, &500, &SubscriptionPeriod::Weekly);
 
         ctx.contract.cancel_subscription(&pool_id, &ctx.user_1);
         // Should panic - cannot modify cancelled subscription
-        ctx.contract
-            .modify_subscription(&pool_id, &ctx.user_1, &1000, &SubscriptionPeriod::Monthly);
+        ctx.contract.modify_subscription(
+            &pool_id,
+            &ctx.user_1,
+            &1000,
+            &SubscriptionPeriod::Monthly,
+        );
     }
 
     #[test]
     #[should_panic]
     fn test_modify_to_invalid_amount() {
         let ctx = TestContext::setup();
-        let pool_id = ctx
-            .contract
-            .create_pool(&String::from_str(&ctx.env, "ModifyTest"), &ctx.token.address);
+        let pool_id = ctx.contract.create_pool(
+            &String::from_str(&ctx.env, "ModifyTest"),
+            &ctx.token.address,
+        );
 
         ctx.contract
             .subscribe(&pool_id, &ctx.user_1, &500, &SubscriptionPeriod::Weekly);
@@ -295,9 +308,10 @@ mod test {
     #[should_panic]
     fn test_resume_active_subscription() {
         let ctx = TestContext::setup();
-        let pool_id = ctx
-            .contract
-            .create_pool(&String::from_str(&ctx.env, "ResumeTest"), &ctx.token.address);
+        let pool_id = ctx.contract.create_pool(
+            &String::from_str(&ctx.env, "ResumeTest"),
+            &ctx.token.address,
+        );
 
         ctx.contract
             .subscribe(&pool_id, &ctx.user_1, &1000, &SubscriptionPeriod::Weekly);
@@ -332,9 +346,10 @@ mod test {
     #[test]
     fn test_multiple_failures_then_success() {
         let ctx = TestContext::setup();
-        let pool_id = ctx
-            .contract
-            .create_pool(&String::from_str(&ctx.env, "FailRecover"), &ctx.token.address);
+        let pool_id = ctx.contract.create_pool(
+            &String::from_str(&ctx.env, "FailRecover"),
+            &ctx.token.address,
+        );
 
         // Subscribe with user who has limited tokens
         let limited_user = Address::generate(&ctx.env);
@@ -392,7 +407,9 @@ mod test {
                 assert_eq!(sub.status, SubscriptionStatus::Active);
                 assert_eq!(sub.failure_count, (i + 1) as u32);
             }
-            ctx.env.ledger().set_timestamp(ctx.env.ledger().timestamp() + 604800);
+            ctx.env
+                .ledger()
+                .set_timestamp(ctx.env.ledger().timestamp() + 604800);
         }
 
         // Subscription should now be auto-cancelled
@@ -436,9 +453,10 @@ mod test {
     #[test]
     fn test_paused_subscription_skipped_in_batch() {
         let ctx = TestContext::setup();
-        let pool_id = ctx
-            .contract
-            .create_pool(&String::from_str(&ctx.env, "PauseBatch"), &ctx.token.address);
+        let pool_id = ctx.contract.create_pool(
+            &String::from_str(&ctx.env, "PauseBatch"),
+            &ctx.token.address,
+        );
 
         ctx.contract
             .subscribe(&pool_id, &ctx.user_1, &1000, &SubscriptionPeriod::Weekly);

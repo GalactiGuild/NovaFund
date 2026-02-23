@@ -1,8 +1,6 @@
 #![no_std]
 
-use soroban_sdk::{
-    contract, contractimpl, contracttype, token::TokenClient, Address, Bytes, Env,
-};
+use soroban_sdk::{contract, contractimpl, contracttype, token::TokenClient, Address, Bytes, Env};
 
 use shared::{
     constants::{MAX_PROJECT_DURATION, MIN_CONTRIBUTION, MIN_FUNDING_GOAL, MIN_PROJECT_DURATION},
@@ -44,9 +42,9 @@ pub enum DataKey {
     Admin = 0,
     NextProjectId = 1,
     Project = 2,
-    ContributionAmount = 3,        // (DataKey::ContributionAmount, project_id, contributor) -> i128
-    RefundProcessed = 4,           // (DataKey::RefundProcessed, project_id, contributor) -> bool
-    ProjectFailureProcessed = 5,   // (DataKey::ProjectFailureProcessed, project_id) -> bool
+    ContributionAmount = 3, // (DataKey::ContributionAmount, project_id, contributor) -> i128
+    RefundProcessed = 4,    // (DataKey::RefundProcessed, project_id, contributor) -> bool
+    ProjectFailureProcessed = 5, // (DataKey::ProjectFailureProcessed, project_id) -> bool
 }
 
 #[contract]
@@ -326,13 +324,13 @@ impl ProjectLaunch {
         );
 
         // Mark refund as processed
-        env.storage()
-            .instance()
-            .set(&refund_key, &true);
+        env.storage().instance().set(&refund_key, &true);
 
         // Emit refund event
-        env.events()
-            .publish((REFUND_ISSUED,), (project_id, contributor, contribution_amount));
+        env.events().publish(
+            (REFUND_ISSUED,),
+            (project_id, contributor, contribution_amount),
+        );
 
         Ok(contribution_amount)
     }
@@ -859,4 +857,3 @@ mod tests {
         assert!(result.is_err());
     }
 }
-

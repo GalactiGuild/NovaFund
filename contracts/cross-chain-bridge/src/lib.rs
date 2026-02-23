@@ -12,9 +12,7 @@ use shared::{
         ChainConfig, ChainId, RelayerInfo, WrappedAssetInfo,
     },
 };
-use soroban_sdk::{
-    contract, contractimpl, token::TokenClient, Address, BytesN, Env, String,
-};
+use soroban_sdk::{contract, contractimpl, token::TokenClient, Address, BytesN, Env, String};
 
 mod storage;
 #[cfg(test)]
@@ -103,10 +101,8 @@ impl CrossChainBridge {
 
         set_chain_config(&env, chain_id, &chain_config);
 
-        env.events().publish(
-            (SUPPORTED_CHAIN_ADDED,),
-            (chain_id as u32, bridge_contract),
-        );
+        env.events()
+            .publish((SUPPORTED_CHAIN_ADDED,), (chain_id as u32, bridge_contract));
 
         Ok(())
     }
@@ -264,8 +260,7 @@ impl CrossChainBridge {
             (tx_id, recipient, asset, amount, source_tx_hash),
         );
 
-        env.events()
-            .publish((BRIDGE_TX_CONFIRMED,), (tx_id, tx_id));
+        env.events().publish((BRIDGE_TX_CONFIRMED,), (tx_id, tx_id));
 
         Ok(tx_id)
     }
