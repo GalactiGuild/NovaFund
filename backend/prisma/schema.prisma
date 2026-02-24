@@ -7,6 +7,7 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 model User {
@@ -114,4 +115,43 @@ enum MilestoneStatus {
   REJECTED
   COMPLETED
   FUNDED
+}
+
+model LedgerCursor {
+  id              String   @id @default(cuid())
+  network         String   @unique
+  lastLedgerSeq   Int      @map("last_ledger_seq")
+  lastLedgerHash  String?  @map("last_ledger_hash")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  @@map("ledger_cursors")
+}
+
+model ProcessedEvent {
+  id              String   @id @default(cuid())
+  eventId         String   @unique @map("event_id")
+  network         String
+  ledgerSeq       Int      @map("ledger_seq")
+  contractId      String   @map("contract_id")
+  eventType       String   @map("event_type")
+  transactionHash String   @map("transaction_hash")
+  processedAt     DateTime @default(now()) @map("processed_at")
+
+  @@index([network, ledgerSeq])
+  @@index([contractId, eventType])
+  @@map("processed_events")
+}
+
+model IndexerLog {
+  id          String   @id @default(cuid())
+  level       String
+  message     String
+  metadata    Json?
+  timestamp   DateTime @default(now())
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([timestamp])
+  @@index([level])
+  @@map("indexer_logs")
 }

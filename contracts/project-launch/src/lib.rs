@@ -1214,3 +1214,7 @@ mod tests {
         assert!(client.get_pending_upgrade().is_none());
     }
 }
+
+
+#[cfg(test)]
+mod cross_chain_integration_test;
