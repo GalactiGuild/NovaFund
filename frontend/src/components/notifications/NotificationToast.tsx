@@ -15,10 +15,14 @@ interface NotificationToastProps {
 
 const typeStyles: Record<Notification["type"], string> = {
   milestone_approval: "from-amber-600/90 to-orange-600/90 border-amber-500/30",
-  contribution_confirmation: "from-emerald-600/90 to-green-600/90 border-emerald-500/30",
+  contribution_confirmation:
+    "from-emerald-600/90 to-green-600/90 border-emerald-500/30",
   project_status: "from-blue-600/90 to-indigo-600/90 border-blue-500/30",
   project_update: "from-violet-600/90 to-purple-600/90 border-violet-500/30",
   system: "from-slate-600/90 to-slate-700/90 border-slate-500/30",
+  social_like: "from-rose-600/90 to-pink-600/90 border-rose-500/30",
+  social_comment: "from-sky-600/90 to-cyan-600/90 border-sky-500/30",
+  social_follow: "from-emerald-600/90 to-teal-600/90 border-emerald-500/30",
 };
 
 export function NotificationToast({
@@ -28,7 +32,8 @@ export function NotificationToast({
 }: NotificationToastProps) {
   const { preferences } = useNotifications();
   const enabled =
-    (notification.type === "milestone_approval" && preferences.milestoneApprovals) ||
+    (notification.type === "milestone_approval" &&
+      preferences.milestoneApprovals) ||
     (notification.type === "contribution_confirmation" &&
       preferences.contributionConfirmations) ||
     (notification.type === "project_status" && preferences.projectStatus) ||

@@ -4,7 +4,10 @@ export type NotificationType =
   | "contribution_confirmation"
   | "project_status"
   | "project_update"
-  | "system";
+  | "system"
+  | "social_like"
+  | "social_comment"
+  | "social_follow";
 
 export interface Notification {
   id: string;
@@ -46,4 +49,7 @@ export const NOTIFICATION_TYPE_LABELS: Record<NotificationType, string> = {
   project_status: "Project status",
   project_update: "Project update",
   system: "System",
+  social_like: "Project liked",
+  social_comment: "New comment",
+  social_follow: "New follower",
 };
