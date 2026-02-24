@@ -1,12 +1,9 @@
 import { Module } from '@nestjs/common';
-import { TypeOrmModule } from '@nestjs/typeorm';
-
-import { ReputationActivity } from './reputation-activity.entity';
-import { ReputationScore } from './reputation-score.entity';
+import { DatabaseModule } from '../database.module';
 import { ReputationService } from './reputation.service';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([ReputationActivity, ReputationScore])],
+  imports: [DatabaseModule],
   providers: [ReputationService],
   exports: [ReputationService],
 })

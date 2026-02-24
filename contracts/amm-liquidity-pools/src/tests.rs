@@ -1,5 +1,5 @@
 #[cfg(test)]
-mod tests {
+mod sqrt_tests {
     #[test]
     fn test_sqrt_function() {
         // Test basic sqrt functionality
@@ -10,7 +10,7 @@ mod tests {
         assert_eq!(crate::AMMLiquidityPools::sqrt(16), 4);
 
         // Test larger numbers
-        let result = crate::AMMLiquidityPools::sqrt(1000000);
-        assert!(result >= 999 && result <= 1001); // Allow for rounding
+        let result = crate::AMMLiquidityPools::sqrt(1_000_000);
+        assert!((999..=1001).contains(&result)); // Allow for rounding
     }
 }

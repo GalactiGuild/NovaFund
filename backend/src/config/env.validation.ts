@@ -43,6 +43,27 @@ class EnvironmentVariables {
 
   @IsNumber()
   JWT_EXPIRATION: number;
+
+  @IsString()
+  STELLAR_NETWORK: string;
+
+  @IsString()
+  STELLAR_RPC_URL: string;
+
+  @IsString()
+  STELLAR_NETWORK_PASSPHRASE: string;
+
+  @IsString()
+  PROJECT_LAUNCH_CONTRACT_ID: string;
+
+  @IsString()
+  ESCROW_CONTRACT_ID: string;
+
+  @IsNumber()
+  INDEXER_POLL_INTERVAL_MS: number;
+
+  @IsNumber()
+  INDEXER_REORG_DEPTH_THRESHOLD: number;
 }
 
 export function validateEnv(config: Record<string, unknown>) {

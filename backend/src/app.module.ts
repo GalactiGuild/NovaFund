@@ -5,6 +5,7 @@ import { AppService } from './app.service';
 import { validateEnv } from './config/env.validation';
 import { ReputationModule } from './reputation/reputation.module';
 import { DatabaseModule } from './database.module';
+import { IndexerModule } from './indexer/indexer.module';
 
 @Module({
   imports: [
@@ -15,6 +16,8 @@ import { DatabaseModule } from './database.module';
     }),
     ReputationModule,
     DatabaseModule,
+    IndexerModule,
+    
   ],
   controllers: [AppController],
   providers: [AppService],

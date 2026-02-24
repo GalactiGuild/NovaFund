@@ -1,5 +1,3 @@
-#![cfg(test)]
-
 use super::*;
 use soroban_sdk::{
     testutils::{Address as _, Ledger},
@@ -43,7 +41,7 @@ fn create_test_proposal(
     end_offset: u64,
 ) -> u64 {
     let current_time = env.ledger().timestamp();
-    let payload = Bytes::from_slice(&env, b"ipfs://QmTest123");
+    let payload = Bytes::from_slice(env, b"ipfs://QmTest123");
 
     client.create_proposal(
         creator,
@@ -100,7 +98,7 @@ fn test_create_proposal_success() {
     assert_eq!(proposal.creator, creator);
     assert_eq!(proposal.yes_votes, 0);
     assert_eq!(proposal.no_votes, 0);
-    assert_eq!(proposal.executed, false);
+    assert!(!proposal.executed);
 }
 
 #[test]
@@ -269,7 +267,7 @@ fn test_finalize_with_quorum_and_majority() {
     client.finalize(&proposal_id);
 
     let proposal = client.get_proposal(&proposal_id);
-    assert_eq!(proposal.executed, true);
+    assert!(proposal.executed);
 }
 
 #[test]
@@ -327,7 +325,7 @@ fn test_finalize_majority_not_reached() {
     client.finalize(&proposal_id);
 
     let proposal = client.get_proposal(&proposal_id);
-    assert_eq!(proposal.executed, false); // Rejected due to no majority
+    assert!(!proposal.executed); // Rejected due to no majority
 }
 
 #[test]
@@ -448,14 +446,14 @@ fn test_has_voted_helper() {
     let proposal_id = create_test_proposal(&env, &client, &creator, 0, 1000);
 
     // Before voting
-    assert_eq!(client.has_voted(&proposal_id, &voter), false);
+    assert!(!client.has_voted(&proposal_id, &voter));
 
     // Vote
     client.vote(&proposal_id, &voter, &true);
 
     // After voting
-    assert_eq!(client.has_voted(&proposal_id, &voter), true);
-    assert_eq!(client.has_voted(&proposal_id, &non_voter), false);
+    assert!(client.has_voted(&proposal_id, &voter));
+    assert!(!client.has_voted(&proposal_id, &non_voter));
 }
 
 #[test]
@@ -511,7 +509,7 @@ fn test_token_weighted_voting_and_quorum_with_timelock() {
     client.finalize(&proposal_id);
 
     let proposal = client.get_proposal(&proposal_id);
-    assert_eq!(proposal.executed, true);
+    assert!(proposal.executed);
 
     // Timelock should be recorded
     let timelock = client.get_proposal_timelock(&proposal_id).unwrap();

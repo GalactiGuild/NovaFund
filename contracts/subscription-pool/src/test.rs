@@ -1,5 +1,5 @@
 #[cfg(test)]
-mod test {
+mod tests {
     use crate::{SubscriptionPeriod, SubscriptionPool, SubscriptionPoolClient, SubscriptionStatus};
     use soroban_sdk::testutils::{Address as _, Ledger};
     use soroban_sdk::{token, Address, Env, String};
