@@ -113,6 +113,21 @@ export default function DashboardPage() {
       setToastMessage(`Successfully claimed $${amount.toLocaleString()}!`);
       setShowToast(true);
       setTimeout(() => setShowToast(false), 3000);
+      // Emit real-time notification (notification center + other tabs)
+      try {
+        await fetch("/api/notifications/emit", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            type: "contribution_confirmation",
+            title: "Returns claimed",
+            message: `Successfully claimed $${amount.toLocaleString()} from your investment.`,
+            link: "/dashboard",
+          }),
+        });
+      } catch {
+        // ignore
+      }
     } catch (error) {
       setToastMessage("Failed to claim returns. Please try again.");
       setShowToast(true);
