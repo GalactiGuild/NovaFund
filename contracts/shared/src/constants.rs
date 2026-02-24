@@ -61,3 +61,11 @@ pub const APPEAL_FEE: i128 = 1_000_000_000;
 
 /// Maximum number of appeals allowed
 pub const MAX_APPEALS: u8 = 2;
+
+// Max & Min threshold consts
+pub const MIN_APPROVAL_THRESHOLD: u32 = 5100; // 51% minimum
+pub const MAX_APPROVAL_THRESHOLD: u32 = 10000; // 100% maximum
+pub const RESUME_TIME_DELAY: u64 = 86400; // 24 hours in seconds
+
+/// Minimum delay before a scheduled upgrade can be executed (48 hours)
+pub const UPGRADE_TIME_LOCK_SECS: u64 = 172800; // 48 * 3600

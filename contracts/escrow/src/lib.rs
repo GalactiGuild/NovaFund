@@ -1,13 +1,14 @@
 #![no_std]
 
 use shared::{
-    constants::{MILESTONE_APPROVAL_THRESHOLD, MIN_VALIDATORS},
+    constants::{MIN_VALIDATORS, RESUME_TIME_DELAY, UPGRADE_TIME_LOCK_SECS},
     errors::Error,
     events::*,
     types::{
         Amount, Dispute, DisputeResolution, DisputeStatus, EscrowInfo, Hash, JurorInfo, Milestone,
-        MilestoneStatus, VoteCommitment,
+        MilestoneStatus, PauseState, PendingUpgrade, VoteCommitment,
     },
+    MIN_APPROVAL_THRESHOLD, MAX_APPROVAL_THRESHOLD,
 };
 use soroban_sdk::{contract, contractimpl, token::TokenClient, Address, BytesN, Env, IntoVal, Vec};
 
@@ -27,7 +28,7 @@ impl EscrowContract {
     /// Initialize the contract with an admin address
     pub fn initialize_admin(env: Env, admin: Address) -> Result<(), Error> {
         if has_admin(&env) {
-            return Err(Error::AlreadyInitialized);
+            return Err(Error::AlreadyInit);
         }
         admin.require_auth();
         set_admin(&env, &admin);
@@ -47,17 +48,22 @@ impl EscrowContract {
         creator: Address,
         token: Address,
         validators: Vec<Address>,
+        approval_threshold: u32,
     ) -> Result<(), Error> {
         creator.require_auth();
 
         // Validate inputs
         if (validators.len() as u32) < MIN_VALIDATORS {
-            return Err(Error::InvalidInput);
+            return Err(Error::InvInput);
         }
 
         // Check if escrow already exists
         if escrow_exists(&env, project_id) {
-            return Err(Error::AlreadyInitialized);
+            return Err(Error::AlreadyInit);
+        }
+
+        if approval_threshold < MIN_APPROVAL_THRESHOLD || approval_threshold > MAX_APPROVAL_THRESHOLD {
+            return Err(Error::InvInput);
         }
 
         // Create escrow info
@@ -68,6 +74,7 @@ impl EscrowContract {
             total_deposited: 0,
             released_amount: 0,
             validators,
+            approval_threshold,
         };
 
         // Store escrow
@@ -94,14 +101,18 @@ impl EscrowContract {
 
         // Validate amount
         if amount <= 0 {
-            return Err(Error::InvalidInput);
+            return Err(Error::InvInput);
+        }
+
+        if is_paused(&env) {
+            return Err(Error::Paused);
         }
 
         // Update total deposited
         escrow.total_deposited = escrow
             .total_deposited
             .checked_add(amount)
-            .ok_or(Error::InvalidInput)?;
+            .ok_or(Error::InvInput)?;
 
         // Store updated escrow
         set_escrow(&env, project_id, &escrow);
@@ -130,22 +141,26 @@ impl EscrowContract {
 
         // Validate amount
         if amount <= 0 {
-            return Err(Error::InvalidInput);
+            return Err(Error::InvInput);
         }
 
         // Validate that total milestone amounts don't exceed escrow total
         let total_milestones = get_total_milestone_amount(&env, project_id)?;
         let new_total = total_milestones
             .checked_add(amount)
-            .ok_or(Error::InvalidInput)?;
+            .ok_or(Error::InvInput)?;
 
         if new_total > escrow.total_deposited {
             return Err(Error::EscrowInsuf);
         }
 
+        if is_paused(&env) {
+            return Err(Error::Paused);
+        }
+
         // Get next milestone ID
         let milestone_id = get_milestone_counter(&env, project_id)?;
-        let next_id = milestone_id.checked_add(1).ok_or(Error::InvalidInput)?;
+        let next_id = milestone_id.checked_add(1).ok_or(Error::InvInput)?;
 
         // Create milestone (with empty proof hash)
         let empty_hash = BytesN::from_array(&env, &[0u8; 32]);
@@ -195,7 +210,11 @@ impl EscrowContract {
 
         // Validate milestone status
         if milestone.status != MilestoneStatus::Pending {
-            return Err(Error::MilestoneStateInv);
+            return Err(Error::MstoneInv);
+        }
+
+        if is_paused(&env) {
+            return Err(Error::Paused);
         }
 
         // Update milestone
@@ -245,7 +264,7 @@ impl EscrowContract {
 
         // Validate milestone status
         if milestone.status != MilestoneStatus::Submitted {
-            return Err(Error::MilestoneStateInv);
+            return Err(Error::MstoneInv);
         }
 
         // Check if validator already voted
@@ -258,12 +277,16 @@ impl EscrowContract {
             milestone.approval_count = milestone
                 .approval_count
                 .checked_add(1)
-                .ok_or(Error::InvalidInput)?;
+                .ok_or(Error::InvInput)?;
         } else {
             milestone.rejection_count = milestone
                 .rejection_count
                 .checked_add(1)
-                .ok_or(Error::InvalidInput)?;
+                .ok_or(Error::InvInput)?;
+        }
+
+        if is_paused(&env) {
+            return Err(Error::Paused);
         }
 
         // Record that this validator voted
@@ -271,8 +294,10 @@ impl EscrowContract {
 
         // Check if milestone is approved or rejected
         let _total_votes = milestone.approval_count as u32 + milestone.rejection_count as u32;
+        // let required_approvals =
+        //     (escrow.validators.len() as u32 * MILESTONE_APPROVAL_THRESHOLD) / 10000;
         let required_approvals =
-            (escrow.validators.len() as u32 * MILESTONE_APPROVAL_THRESHOLD) / 10000;
+            (escrow.validators.len() as u32 * escrow.approval_threshold) / 10000;
 
         // Check for majority approval
         if milestone.approval_count as u32 >= required_approvals {
@@ -376,7 +401,7 @@ impl EscrowContract {
 
         // Validate new validators
         if (new_validators.len() as u32) < MIN_VALIDATORS {
-            return Err(Error::InvalidInput);
+            return Err(Error::InvInput);
         }
 
         // Get escrow
@@ -459,6 +484,31 @@ impl EscrowContract {
         Ok(())
     }
 
+    /// Pause the contract — halts all critical operations instantly
+    ///
+    /// # Arguments
+    /// * `admin` - Must be the platform admin
+    pub fn pause(env: Env, admin: Address) -> Result<(), Error> {
+        let stored_admin = get_admin(&env)?;
+        if stored_admin != admin {
+            return Err(Error::Unauthorized);
+        }
+        admin.require_auth();
+
+        let now = env.ledger().timestamp();
+        let state = PauseState {
+            paused: true,
+            paused_at: now,
+            resume_not_before: now + RESUME_TIME_DELAY,
+        };
+
+        set_pause_state(&env, &state);
+
+        env.events().publish((CONTRACT_PAUSED,), (admin, now));
+
+        Ok(())
+    }
+
     /// Deregister as a juror
     ///
     /// # Arguments
@@ -474,7 +524,7 @@ impl EscrowContract {
         let juror_info = get_juror(&env, &juror)?;
 
         if juror_info.active_disputes > 0 {
-            return Err(Error::JurorActive);
+            return Err(Error::JurorAct);
         }
 
         let token = get_juror_token(&env)?;
@@ -496,6 +546,37 @@ impl EscrowContract {
             active_jurors.remove(index);
             set_active_jurors(&env, &active_jurors);
         }
+
+        Ok(())
+    }
+
+    /// Resume the contract — only allowed after the time delay has passed
+    ///
+    /// # Arguments
+    /// * `admin` - Must be the platform admin
+    pub fn resume(env: Env, admin: Address) -> Result<(), Error> {
+        let stored_admin = get_admin(&env)?;
+        if stored_admin != admin {
+            return Err(Error::Unauthorized);
+        }
+        admin.require_auth();
+
+        let state = get_pause_state(&env);
+
+        let now = env.ledger().timestamp();
+        if now < state.resume_not_before {
+            return Err(Error::ResTooEarly);
+        }
+
+        let new_state = PauseState {
+            paused: false,
+            paused_at: state.paused_at,
+            resume_not_before: state.resume_not_before,
+        };
+
+        set_pause_state(&env, &new_state);
+
+        env.events().publish((CONTRACT_RESUMED,), (admin, now));
 
         Ok(())
     }
@@ -527,7 +608,7 @@ impl EscrowContract {
         if milestone.status != MilestoneStatus::Rejected
             && milestone.status != MilestoneStatus::Submitted
         {
-            return Err(Error::MstoneContested);
+            return Err(Error::MstoneContest);
         }
 
         // Verify initiator is creator or qualifying funder
@@ -580,7 +661,7 @@ impl EscrowContract {
         let mut dispute = get_dispute(&env, dispute_id)?;
 
         if dispute.status != DisputeStatus::Pending && dispute.status != DisputeStatus::Appealed {
-            return Err(Error::InvalidInput);
+            return Err(Error::InvInput);
         }
 
         let jury_size = if dispute.status == DisputeStatus::Appealed {
@@ -591,7 +672,7 @@ impl EscrowContract {
 
         let active_jurors = get_active_jurors(&env);
         if active_jurors.len() < jury_size {
-            return Err(Error::InvalidInput); // Not enough jurors
+            return Err(Error::InvInput); // Not enough jurors
         }
 
         let mut selected_jurors = Vec::new(&env);
@@ -678,12 +759,12 @@ impl EscrowContract {
 
         // panic!("CV3");
         if dispute.status != DisputeStatus::Voting {
-            return Err(Error::VotePeriodNA);
+            return Err(Error::VoteNA);
         }
 
         let current_time = env.ledger().timestamp();
         if current_time > dispute.created_at + shared::constants::VOTING_COMMIT_PERIOD {
-            return Err(Error::VotePeriodNA);
+            return Err(Error::VoteNA);
         }
 
         let assignments = get_juror_assignments(&env, dispute_id)?;
@@ -742,7 +823,7 @@ impl EscrowContract {
         let reveal_end = commit_end + shared::constants::VOTING_REVEAL_PERIOD;
 
         if current_time <= commit_end || current_time > reveal_end {
-            return Err(Error::RevealPeriodNA);
+            return Err(Error::RevealNA);
         }
 
         let mut commitment = get_dispute_vote(&env, dispute_id, &juror)?;
@@ -762,7 +843,7 @@ impl EscrowContract {
                     b.push_back(byte);
                 }
             }
-            DisputeResolution::NoRes => return Err(Error::InvalidInput),
+            DisputeResolution::NoRes => return Err(Error::InvInput),
         }
         b.append(&salt);
 
@@ -799,7 +880,7 @@ impl EscrowContract {
         let mut dispute = get_dispute(&env, dispute_id)?;
 
         if dispute.status != DisputeStatus::Voting {
-            return Err(Error::VotePeriodNA);
+            return Err(Error::VoteNA);
         }
 
         let current_time = env.ledger().timestamp();
@@ -808,7 +889,7 @@ impl EscrowContract {
             + shared::constants::VOTING_REVEAL_PERIOD;
 
         if current_time <= reveal_end {
-            return Err(Error::VotePeriodNA); // Wait for reveal period to end
+            return Err(Error::VoteNA); // Wait for reveal period to end
         }
 
         let assignments = get_juror_assignments(&env, dispute_id)?;
@@ -912,7 +993,7 @@ impl EscrowContract {
         let mut dispute = get_dispute(&env, dispute_id)?;
 
         if dispute.status != DisputeStatus::Resolved {
-            return Err(Error::InvalidInput);
+            return Err(Error::InvInput);
         }
 
         let current_time = env.ledger().timestamp();
@@ -1044,7 +1125,7 @@ impl EscrowContract {
         let mut dispute = get_dispute(&env, dispute_id)?;
 
         if dispute.status != DisputeStatus::Resolved {
-            return Err(Error::InvalidInput);
+            return Err(Error::InvInput);
         }
 
         let current_time = env.ledger().timestamp();
@@ -1077,6 +1158,75 @@ impl EscrowContract {
 
         Ok(())
     }
+
+    /// Returns whether the contract is currently paused
+    pub fn get_is_paused(env: Env) -> bool {
+        is_paused(&env)
+    }
+
+    // ---------- Upgrade (time-locked, admin only, requires pause) ----------
+    /// Schedule an upgrade. Admin only. Executable after UPGRADE_TIME_LOCK_SECS (48h).
+    pub fn schedule_upgrade(
+        env: Env,
+        admin: Address,
+        new_wasm_hash: BytesN<32>,
+    ) -> Result<(), Error> {
+        let stored_admin = get_admin(&env)?;
+        if stored_admin != admin {
+            return Err(Error::Unauthorized);
+        }
+        admin.require_auth();
+        let now = env.ledger().timestamp();
+        let pending = PendingUpgrade {
+            wasm_hash: new_wasm_hash.clone(),
+            execute_not_before: now + UPGRADE_TIME_LOCK_SECS,
+        };
+        set_pending_upgrade(&env, &pending);
+        env.events()
+            .publish((UPGRADE_SCHEDULED,), (admin, new_wasm_hash, pending.execute_not_before));
+        Ok(())
+    }
+
+    /// Execute a scheduled upgrade. Admin only. Contract must be paused. Only after time-lock.
+    pub fn execute_upgrade(env: Env, admin: Address) -> Result<(), Error> {
+        let stored_admin = get_admin(&env)?;
+        if stored_admin != admin {
+            return Err(Error::Unauthorized);
+        }
+        admin.require_auth();
+        if !is_paused(&env) {
+            return Err(Error::UpgReqPause);
+        }
+        let pending = get_pending_upgrade(&env).ok_or(Error::UpgNotSched)?;
+        let now = env.ledger().timestamp();
+        if now < pending.execute_not_before {
+            return Err(Error::UpgTooEarly);
+        }
+        env.deployer().update_current_contract_wasm(pending.wasm_hash.clone());
+        clear_pending_upgrade(&env);
+        env.events().publish((UPGRADE_EXECUTED,), (admin, pending.wasm_hash));
+        Ok(())
+    }
+
+    /// Cancel a scheduled upgrade. Admin only.
+    pub fn cancel_upgrade(env: Env, admin: Address) -> Result<(), Error> {
+        let stored_admin = get_admin(&env)?;
+        if stored_admin != admin {
+            return Err(Error::Unauthorized);
+        }
+        admin.require_auth();
+        if !has_pending_upgrade(&env) {
+            return Err(Error::UpgNotSched);
+        }
+        clear_pending_upgrade(&env);
+        env.events().publish((UPGRADE_CANCELLED,), admin);
+        Ok(())
+    }
+
+    /// Get pending upgrade info, if any.
+    pub fn get_pending_upgrade(env: Env) -> Option<PendingUpgrade> {
+        storage::get_pending_upgrade(&env)
+    }
 }
 
 /// Helper function to release milestone funds
@@ -1089,7 +1239,7 @@ fn release_milestone_funds(
     let new_released = escrow
         .released_amount
         .checked_add(milestone.amount)
-        .ok_or(Error::InvalidInput)?;
+        .ok_or(Error::InvInput)?;
 
     if new_released > escrow.total_deposited {
         return Err(Error::EscrowInsuf);

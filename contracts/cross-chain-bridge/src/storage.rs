@@ -23,7 +23,7 @@ pub fn get_config(env: &Env) -> Result<BridgeConfig, Error> {
     env.storage()
         .persistent()
         .get(&DataKey::Config)
-        .ok_or(Error::NotInitialized)
+        .ok_or(Error::NotInit)
 }
 
 /// Set bridge configuration
@@ -41,7 +41,7 @@ pub fn get_transaction_counter(env: &Env) -> Result<u64, Error> {
     env.storage()
         .persistent()
         .get(&DataKey::TxCounter)
-        .ok_or(Error::NotInitialized)
+        .ok_or(Error::NotInit)
 }
 
 /// Set transaction counter

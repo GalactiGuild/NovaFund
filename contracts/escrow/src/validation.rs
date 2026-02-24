@@ -7,6 +7,6 @@ pub fn validate_validator(escrow: &EscrowInfo, validator: &Address) -> Result<()
     if escrow.validators.iter().any(|v| v == *validator) {
         Ok(())
     } else {
-        Err(Error::NotAValidator)
+        Err(Error::NotValidator)
     }
 }

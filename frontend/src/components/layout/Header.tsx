@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Menu, X } from "lucide-react";
 import { Button } from "../ui";
+import { NotificationCenter } from "../notifications/NotificationCenter";
 
 const Header: React.FC = () => {
   const pathname = usePathname();
@@ -45,6 +46,7 @@ const Header: React.FC = () => {
           >
             Dashboard
           </Link>
+          <NotificationCenter />
           <Button variant="primary" size="md">
             Connect Wallet
           </Button>
@@ -85,6 +87,9 @@ const Header: React.FC = () => {
             >
               Dashboard
             </Link>
+            <div className="flex justify-center">
+              <NotificationCenter />
+            </div>
             <Button variant="primary" size="md" className="w-full justify-center">
               Connect Wallet
             </Button>

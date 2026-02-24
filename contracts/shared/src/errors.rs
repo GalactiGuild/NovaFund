@@ -1,39 +1,71 @@
 use soroban_sdk::contracterror;
 
 #[contracterror]
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[derive(Copy, Clone, Eq, PartialEq)]
 #[repr(u32)]
 pub enum Error {
-    NotInitialized = 1,
-    AlreadyInitialized = 2,
+    NotInit = 1,
+    AlreadyInit = 2,
     Unauthorized = 3,
-    InvalidInput = 4,
+    InvInput = 4,
     NotFound = 5,
 
-    ProjectNotActive = 100,
-    ProjectExists = 101,
-    GoalNotReached = 102,
-    DeadlinePassed = 103,
-    InvalidStatus = 104,
+    // Project Errors
+    ProjNotAct = 6,
+    ProjExists = 7,
+    GoalNotRch = 8,
+    DeadlinePass = 9,
+    InvStatus = 10,
 
-    EscrowInsuf = 200,
-    MilestoneNotAppr = 201,
-    MilestoneStateInv = 202,
-    NotAValidator = 203,
-    AlreadyVoted = 204,
+    // Escrow Errors
+    EscrowInsuf = 11,
+    MstoneNotAppr = 12,
+    MstoneInv = 13,
+    NotValidator = 14,
+    AlreadyVoted = 15,
+    Paused = 16,
+    ResTooEarly = 17,
+    UpgNotSched = 18,
+    UpgTooEarly = 19,
+    UpgReqPause = 20, 
 
-    DispNF = 205,
-    MstoneContested = 206,
-    JurorReg = 207,
-    JurorStakeL = 208,
-    NotJuror = 209,
-    JurorActive = 210,
-    VotePeriodNA = 211,
-    RevealPeriodNA = 212,
-    InvalidReveal = 213,
-    AppealWinCl = 214,
-    MaxAppeals = 215,
-    AppealFeeL = 216,
-    ConflictInt = 217,
+    // Dispute Resolution Errors
+    DispNF = 21,
+    MstoneContest = 22,
+    JurorReg = 23,
+    JurorStakeL = 24,
+    NotJuror = 25,
+    JurorAct = 26,
+    VoteNA = 27,
+    RevealNA = 28,
+    InvReveal = 29,
+    AppealWinCl = 30,
+    MaxAppeals = 31,
+    AppealFeeL = 32,
+    ConflictInt = 33,
+
+    // Distribution errors
+    InsufFunds = 34,
+    InvDist = 35,
+    NoClaim = 36,
+    DistFail = 37,
+
+    // Subscription errors
+    SubNotAct = 38,
+    InvSubPer = 39,
+    SubExists = 40,
+    WithdrLock = 41,
+
+    // Reputation errors
+    RepErr = 42,
+    BadgeNotErn = 43,
+    UserAlreadyReg = 44,
+    BadgeAw = 45,
+    UserNotReg = 46,
+
+    // Governance errors
+    PropNotAct = 47,
+    InsufVote = 48,
+    PropExc = 49,
+    QuorumNR = 50,
 }
-// Temporarily removed other domains to debug macro panic
