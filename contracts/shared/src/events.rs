@@ -70,3 +70,10 @@ pub const CONTRACT_RESUMED: Symbol = symbol_short!("esc_resum");
 pub const UPGRADE_SCHEDULED: Symbol = symbol_short!("upg_sched");
 pub const UPGRADE_EXECUTED: Symbol = symbol_short!("upg_exec");
 pub const UPGRADE_CANCELLED: Symbol = symbol_short!("upg_canc");
+
+// Oracle events
+pub const ORACLE_FEED_CREATED: Symbol = symbol_short!("or_feed");
+pub const ORACLE_FEED_UPDATED: Symbol = symbol_short!("or_upd");
+pub const ORACLE_ORACLE_STAKED: Symbol = symbol_short!("or_stak");
+pub const ORACLE_ORACLE_UNSTAKED: Symbol = symbol_short!("or_unst");
+pub const ORACLE_SLASHED: Symbol = symbol_short!("or_slsh");

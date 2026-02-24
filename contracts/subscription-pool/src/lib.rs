@@ -30,9 +30,9 @@ pub enum SubscriptionStatus {
 pub enum DataKey {
     Admin,
     PoolCounter,
-    Pool(u64),                  // pool_id -> Pool
-    Subscription(u64, Address), // (pool_id, subscriber) -> Subscription
-    SubscribersList(u64),       // pool_id -> Vec<Address>
+    Pool(u64),                        // pool_id -> Pool
+    Subscription(u64, Address),       // (pool_id, subscriber) -> Subscription
+    SubscribersList(u64),             // pool_id -> Vec<Address>
     FailedPaymentCount(u64, Address), // (pool_id, subscriber) -> u32
 }
 
@@ -257,11 +257,7 @@ impl SubscriptionPool {
         Ok(())
     }
 
-    pub fn cancel_subscription(
-        env: Env,
-        pool_id: u64,
-        subscriber: Address,
-    ) -> Result<(), Error> {
+    pub fn cancel_subscription(env: Env, pool_id: u64, subscriber: Address) -> Result<(), Error> {
         subscriber.require_auth();
 
         let sub_key = DataKey::Subscription(pool_id, subscriber.clone());
@@ -278,10 +274,8 @@ impl SubscriptionPool {
         sub.status = SubscriptionStatus::Cancelled;
         env.storage().persistent().set(&sub_key, &sub);
 
-        env.events().publish(
-            (symbol_short!("sub_cancl"), pool_id),
-            subscriber,
-        );
+        env.events()
+            .publish((symbol_short!("sub_cancl"), pool_id), subscriber);
         Ok(())
     }
 
@@ -323,11 +317,7 @@ impl SubscriptionPool {
         Ok(())
     }
 
-    pub fn pause_subscription(
-        env: Env,
-        pool_id: u64,
-        subscriber: Address,
-    ) -> Result<(), Error> {
+    pub fn pause_subscription(env: Env, pool_id: u64, subscriber: Address) -> Result<(), Error> {
         subscriber.require_auth();
 
         let sub_key = DataKey::Subscription(pool_id, subscriber.clone());
@@ -344,18 +334,12 @@ impl SubscriptionPool {
         sub.status = SubscriptionStatus::Paused;
         env.storage().persistent().set(&sub_key, &sub);
 
-        env.events().publish(
-            (symbol_short!("sub_pause"), pool_id),
-            subscriber,
-        );
+        env.events()
+            .publish((symbol_short!("sub_pause"), pool_id), subscriber);
         Ok(())
     }
 
-    pub fn resume_subscription(
-        env: Env,
-        pool_id: u64,
-        subscriber: Address,
-    ) -> Result<(), Error> {
+    pub fn resume_subscription(env: Env, pool_id: u64, subscriber: Address) -> Result<(), Error> {
         subscriber.require_auth();
 
         let sub_key = DataKey::Subscription(pool_id, subscriber.clone());
@@ -374,10 +358,8 @@ impl SubscriptionPool {
         sub.next_payment = env.ledger().timestamp() + (sub.period as u32 as u64);
         env.storage().persistent().set(&sub_key, &sub);
 
-        env.events().publish(
-            (symbol_short!("sub_resum"), pool_id),
-            subscriber,
-        );
+        env.events()
+            .publish((symbol_short!("sub_resum"), pool_id), subscriber);
         Ok(())
     }
 

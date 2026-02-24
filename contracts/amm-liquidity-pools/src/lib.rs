@@ -167,7 +167,7 @@ impl AMMLiquidityPools {
             // First liquidity provider - sqrt(amount_a * amount_b)
             Self::sqrt((amount_a * amount_b) as u64) as i64
         } else if amount_a * pool.total_liquidity / pool.reserve_a
-                < amount_b * pool.total_liquidity / pool.reserve_b
+            < amount_b * pool.total_liquidity / pool.reserve_b
         {
             amount_a * pool.total_liquidity / pool.reserve_a
         } else {

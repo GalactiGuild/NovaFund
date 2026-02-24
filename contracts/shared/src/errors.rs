@@ -28,7 +28,7 @@ pub enum Error {
     ResumeTooEarly = 206,
     UpgradeNotScheduled = 207,
     UpgradeTooEarly = 208,
-    UpgradeRequiresPause = 209, 
+    UpgradeRequiresPause = 209,
 
     // Distribution errors (300-399)
     InsufficientFunds = 300,

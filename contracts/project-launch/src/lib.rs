@@ -1,8 +1,12 @@
 #![no_std]
 
+
 use soroban_sdk::{
     contract, contractimpl, contracttype, token::TokenClient, Address, Bytes, Env, Vec,
 };
+
+use soroban_sdk::{contract, contractimpl, contracttype, token::TokenClient, Address, Bytes, Env};
+
 
 use shared::{
     constants::{
@@ -11,8 +15,8 @@ use shared::{
     },
     errors::Error,
     events::{
-        CONTRIBUTION_MADE, PROJECT_CREATED, PROJECT_FAILED, REFUND_ISSUED,
-        CONTRACT_PAUSED, CONTRACT_RESUMED, UPGRADE_SCHEDULED, UPGRADE_EXECUTED, UPGRADE_CANCELLED,
+        CONTRACT_PAUSED, CONTRACT_RESUMED, CONTRIBUTION_MADE, PROJECT_CREATED, PROJECT_FAILED,
+        REFUND_ISSUED, UPGRADE_CANCELLED, UPGRADE_EXECUTED, UPGRADE_SCHEDULED,
     },
     types::{Jurisdiction, PauseState, PendingUpgrade},
     utils::verify_future_timestamp,
@@ -58,12 +62,20 @@ pub enum DataKey {
     Admin = 0,
     NextProjectId = 1,
     Project = 2,
+
     ContributionAmount = 3,        // (DataKey::ContributionAmount, project_id, contributor, token) -> i128
     RefundProcessed = 4,           // (DataKey::RefundProcessed, project_id, contributor, token) -> bool
     ProjectFailureProcessed = 5,   // (DataKey::ProjectFailureProcessed, project_id) -> bool
     TokenRate = 6,                 // (DataKey::TokenRate, token) -> i128
     IdentityContract = 6,          // Address of the Identity Verification contract
     ProjectJurisdictions = 7,      // (DataKey::ProjectJurisdictions, project_id) -> Vec<Jurisdiction>
+
+    ContributionAmount = 3, // (DataKey::ContributionAmount, project_id, contributor) -> i128
+    RefundProcessed = 4,    // (DataKey::RefundProcessed, project_id, contributor) -> bool
+    ProjectFailureProcessed = 5, // (DataKey::ProjectFailureProcessed, project_id) -> bool
+    IdentityContract = 6,   // Address of the Identity Verification contract
+    ProjectJurisdictions = 7, // (DataKey::ProjectJurisdictions, project_id) -> Vec<Jurisdiction>
+
     PauseState = 8,
     PendingUpgrade = 9,
 
@@ -110,10 +122,12 @@ impl ProjectLaunch {
             .instance()
             .get(&DataKey::Admin)
             .ok_or(Error::NotInitialized)?;
-        
+
         admin.require_auth();
-        env.storage().instance().set(&DataKey::IdentityContract, &identity_contract);
-        
+        env.storage()
+            .instance()
+            .set(&DataKey::IdentityContract, &identity_contract);
+
         Ok(())
     }
     /// Create a new funding project
@@ -138,7 +152,7 @@ impl ProjectLaunch {
         let current_time = env.ledger().timestamp();
         let duration = deadline.saturating_sub(current_time);
 
-        if duration < MIN_PROJECT_DURATION || duration > MAX_PROJECT_DURATION {
+        if !(MIN_PROJECT_DURATION..=MAX_PROJECT_DURATION).contains(&duration) {
             return Err(Error::InvalidDeadline);
         }
 
@@ -257,8 +271,8 @@ impl ProjectLaunch {
                     return Err(Error::IdentityNotVerified);
                 }
             } else {
-                 // If jurisdictions are required but no identity contract is set, fail safe.
-                 return Err(Error::IdentityNotVerified);
+                // If jurisdictions are required but no identity contract is set, fail safe.
+                return Err(Error::IdentityNotVerified);
             }
         }
         // Update project totals
@@ -427,13 +441,18 @@ impl ProjectLaunch {
         );
 
         // Mark refund as processed
-        env.storage()
-            .instance()
-            .set(&refund_key, &true);
+        env.storage().instance().set(&refund_key, &true);
 
         // Emit refund event
+
         env.events()
             .publish((REFUND_ISSUED,), (project_id, contributor, contribution_amount, token));
+
+        env.events().publish(
+            (REFUND_ISSUED,),
+            (project_id, contributor, contribution_amount),
+        );
+
 
         Ok(contribution_amount)
     }
@@ -503,7 +522,9 @@ impl ProjectLaunch {
             paused_at: state.paused_at,
             resume_not_before: state.resume_not_before,
         };
-        env.storage().instance().set(&DataKey::PauseState, &new_state);
+        env.storage()
+            .instance()
+            .set(&DataKey::PauseState, &new_state);
         env.events().publish((CONTRACT_RESUMED,), (admin, now));
         Ok(())
     }
@@ -524,7 +545,11 @@ impl ProjectLaunch {
 
     // ---------- Upgrade (time-locked, admin only) ----------
     /// Schedule an upgrade. Admin only. Upgrade can be executed after UPGRADE_TIME_LOCK_SECS (48h).
-    pub fn schedule_upgrade(env: Env, admin: Address, new_wasm_hash: BytesN<32>) -> Result<(), Error> {
+    pub fn schedule_upgrade(
+        env: Env,
+        admin: Address,
+        new_wasm_hash: BytesN<32>,
+    ) -> Result<(), Error> {
         let stored_admin: Address = env
             .storage()
             .instance()
@@ -539,8 +564,13 @@ impl ProjectLaunch {
             wasm_hash: new_wasm_hash.clone(),
             execute_not_before: now + UPGRADE_TIME_LOCK_SECS,
         };
-        env.storage().instance().set(&DataKey::PendingUpgrade, &pending);
-        env.events().publish((UPGRADE_SCHEDULED,), (admin, new_wasm_hash, pending.execute_not_before));
+        env.storage()
+            .instance()
+            .set(&DataKey::PendingUpgrade, &pending);
+        env.events().publish(
+            (UPGRADE_SCHEDULED,),
+            (admin, new_wasm_hash, pending.execute_not_before),
+        );
         Ok(())
     }
 
@@ -567,9 +597,11 @@ impl ProjectLaunch {
         if now < pending.execute_not_before {
             return Err(Error::UpgradeTooEarly);
         }
-        env.deployer().update_current_contract_wasm(pending.wasm_hash.clone());
+        env.deployer()
+            .update_current_contract_wasm(pending.wasm_hash.clone());
         env.storage().instance().remove(&DataKey::PendingUpgrade);
-        env.events().publish((UPGRADE_EXECUTED,), (admin, pending.wasm_hash));
+        env.events()
+            .publish((UPGRADE_EXECUTED,), (admin, pending.wasm_hash));
         Ok(())
     }
 
@@ -1154,7 +1186,10 @@ mod tests {
             &metadata_hash,
             &None,
         );
-        assert!(result.is_err(), "create_project should be blocked when paused");
+        assert!(
+            result.is_err(),
+            "create_project should be blocked when paused"
+        );
     }
 
     #[test]
@@ -1167,7 +1202,8 @@ mod tests {
         client.initialize(&admin);
         env.ledger().set_timestamp(1000);
         client.pause(&admin);
-        env.ledger().set_timestamp(1000 + shared::RESUME_TIME_DELAY + 1);
+        env.ledger()
+            .set_timestamp(1000 + shared::RESUME_TIME_DELAY + 1);
         let result = client.try_resume(&admin);
         assert!(result.is_ok());
         assert!(!client.get_is_paused());
@@ -1187,7 +1223,10 @@ mod tests {
         assert!(result.is_ok());
         let pending = client.get_pending_upgrade();
         assert!(pending.is_some());
-        assert_eq!(pending.unwrap().execute_not_before, 1000 + shared::UPGRADE_TIME_LOCK_SECS);
+        assert_eq!(
+            pending.unwrap().execute_not_before,
+            1000 + shared::UPGRADE_TIME_LOCK_SECS
+        );
     }
 
     #[test]
@@ -1222,7 +1261,6 @@ mod tests {
         assert!(client.get_pending_upgrade().is_none());
     }
 }
-
 
 #[cfg(test)]
 mod cross_chain_integration_test;

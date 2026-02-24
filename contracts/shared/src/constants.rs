@@ -43,3 +43,11 @@ pub const RESUME_TIME_DELAY: u64 = 86400; // 24 hours in seconds
 
 /// Minimum delay before a scheduled upgrade can be executed (48 hours)
 pub const UPGRADE_TIME_LOCK_SECS: u64 = 172800; // 48 * 3600
+
+// Oracle defaults
+/// Maximum number of oracles allowed per feed
+pub const ORACLE_MAX_ORACLES_PER_FEED: u32 = 16;
+/// Default heartbeat for active feeds (seconds)
+pub const ORACLE_DEFAULT_HEARTBEAT: u64 = 60;
+/// Maximum allowed deviation between consecutive values (basis points)
+pub const ORACLE_MAX_DEVIATION_BPS: u32 = 5000;

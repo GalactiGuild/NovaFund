@@ -6,11 +6,7 @@ use shared::{
     events::{PROPOSAL_CREATED, PROPOSAL_EXECUTED, VOTE_CAST},
     types::{Amount, Proposal},
 };
-use soroban_sdk::{
-    contract, contractimpl, contracttype,
-    token,
-    Address, Bytes, Env, Vec,
-};
+use soroban_sdk::{contract, contractimpl, contracttype, token, Address, Bytes, Env, Vec};
 
 #[contracttype]
 #[derive(Clone)]
@@ -89,7 +85,7 @@ impl GovernanceContract {
     ) -> Result<(), Error> {
         admin.require_auth();
 
-        if recipients.len() != amounts.len() || recipients.len() == 0 {
+        if recipients.len() != amounts.len() || recipients.is_empty() {
             return Err(Error::InvalidInput);
         }
 
@@ -132,9 +128,7 @@ impl GovernanceContract {
         // Move tokens from voter into governance contract as stake
         token_client.transfer(&voter, &self_address, &amount);
 
-        let mut current_stake: Amount = storage
-            .get(&DataKey::Stake(voter.clone()))
-            .unwrap_or(0);
+        let mut current_stake: Amount = storage.get(&DataKey::Stake(voter.clone())).unwrap_or(0);
         current_stake += amount;
         storage.set(&DataKey::Stake(voter.clone()), &current_stake);
 
@@ -157,9 +151,7 @@ impl GovernanceContract {
             .get(&DataKey::GovToken)
             .ok_or(Error::NotInitialized)?;
 
-        let mut current_stake: Amount = storage
-            .get(&DataKey::Stake(voter.clone()))
-            .unwrap_or(0);
+        let mut current_stake: Amount = storage.get(&DataKey::Stake(voter.clone())).unwrap_or(0);
 
         if current_stake < amount {
             return Err(Error::InsufficientVotingPower);
@@ -197,7 +189,7 @@ impl GovernanceContract {
         if start_time < current_time {
             return Err(Error::InvalidInput);
         }
-        if payload_ref.len() == 0 {
+        if payload_ref.is_empty() {
             return Err(Error::InvalidInput);
         }
 
@@ -260,9 +252,7 @@ impl GovernanceContract {
 
         // Token-weighted voting when a governance token is configured.
         let stake: Amount = if storage.has(&DataKey::GovToken) {
-            storage
-                .get(&DataKey::Stake(voter.clone()))
-                .unwrap_or(0)
+            storage.get(&DataKey::Stake(voter.clone())).unwrap_or(0)
         } else {
             1
         };
@@ -316,26 +306,20 @@ impl GovernanceContract {
                 return Err(Error::QuorumNotReached);
             }
 
-            let min_votes_needed =
-                (total_stake * GOVERNANCE_QUORUM as i128) / 10000;
+            let min_votes_needed = (total_stake * GOVERNANCE_QUORUM as i128) / 10000;
 
             if total_votes < min_votes_needed {
                 return Err(Error::QuorumNotReached);
             }
         } else {
             let total_voters: u32 = storage.get(&DataKey::TotalVoters).unwrap_or(100);
-            let min_votes_needed =
-                (total_voters as u64 * GOVERNANCE_QUORUM as u64) / 10000;
+            let min_votes_needed = (total_voters as u64 * GOVERNANCE_QUORUM as u64) / 10000;
             if (total_votes as u64) < min_votes_needed {
                 return Err(Error::QuorumNotReached);
             }
         }
 
-        if proposal.yes_votes > proposal.no_votes {
-            proposal.executed = true;
-        } else {
-            proposal.executed = false;
-        }
+        proposal.executed = proposal.yes_votes > proposal.no_votes;
 
         // Record optional timelock for this proposal
         let timelock_delay: u64 = storage.get(&DataKey::TimelockDelay).unwrap_or(0);

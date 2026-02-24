@@ -244,3 +244,43 @@ pub struct PendingUpgrade {
     /// Ledger timestamp before which execute_upgrade will fail
     pub execute_not_before: u64,
 }
+
+// ==================== Oracle Types ====================
+
+#[contracttype]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[repr(u32)]
+pub enum OracleFeedType {
+    Price = 0,
+    Event = 1,
+    Statistic = 2,
+}
+
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct OracleFeedConfig {
+    pub feed_type: OracleFeedType,
+    pub description: String,
+    pub decimals: u32,
+    pub heartbeat_seconds: u64,
+    pub deviation_bps: BasisPoints,
+    pub min_oracles: u32,
+    pub max_oracles: u32,
+    pub reward_per_submission: Amount,
+}
+
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct OracleFeedState {
+    pub latest_value: Amount,
+    pub latest_round_id: u64,
+    pub latest_timestamp: Timestamp,
+    pub latest_updated_at_ledger: Timestamp,
+}
+
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct OracleReport {
+    pub oracle: Address,
+    pub value: Amount,
+}

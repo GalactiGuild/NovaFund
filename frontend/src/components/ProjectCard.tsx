@@ -5,6 +5,9 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import { Clock, Users, Sparkles, Code, Palette, Leaf } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { LikeButton } from "@/components/social/LikeButton";
+import { ShareButton } from "@/components/social/ShareButton";
+import { SocialStats } from "@/components/social/SocialStats";
 
 export interface Project {
   id: string;
@@ -72,10 +75,12 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({ project }) => {
         className="group relative flex flex-col overflow-hidden rounded-2xl border border-white/10 bg-white/5 transition-colors hover:border-white/20 hover:bg-white/10 cursor-pointer"
       >
         {/* Project Image Placeholder with Category Gradient */}
-        <div className={cn(
-          "relative aspect-video w-full overflow-hidden bg-gradient-to-br transition-transform duration-500 group-hover:scale-105 flex items-center justify-center",
-          style.gradient
-        )}>
+        <div
+          className={cn(
+            "relative aspect-video w-full overflow-hidden bg-gradient-to-br transition-transform duration-500 group-hover:scale-105 flex items-center justify-center",
+            style.gradient
+          )}
+        >
           {/* Animated Icon Background */}
           <motion.div
             animate={{ rotate: 360 }}
@@ -84,16 +89,16 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({ project }) => {
           >
             <IconComponent className="h-32 w-32 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
           </motion.div>
-          
+
           {/* Gradient Overlay */}
           <div className="absolute inset-0 bg-gradient-to-t from-slate-950/50 via-transparent to-transparent" />
-          
+
           {/* Category Badge */}
           <div className="absolute right-4 top-4 z-10">
             <span
               className={cn(
                 "px-3 py-1.5 rounded-full text-xs font-semibold border backdrop-blur-md inline-flex items-center gap-1.5",
-                style.badge,
+                style.badge
               )}
             >
               <IconComponent className="h-3 w-3" />
@@ -140,6 +145,19 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({ project }) => {
               <div className="flex items-center gap-1.5">
                 <Clock className="h-4 w-4" />
                 <span>{project.daysLeft}d left</span>
+              </div>
+            </div>
+
+            {/* Social Features */}
+            <div className="flex items-center justify-between border-t border-white/5 pt-3">
+              <SocialStats projectId={project.id} compact />
+              <div className="flex items-center gap-2">
+                <LikeButton projectId={project.id} compact />
+                <ShareButton
+                  projectId={project.id}
+                  projectTitle={project.title}
+                  compact
+                />
               </div>
             </div>
           </div>

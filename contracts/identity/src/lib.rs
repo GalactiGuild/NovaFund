@@ -38,7 +38,7 @@ impl IdentityContract {
         user: Address,
         jurisdiction: Jurisdiction,
         proof: Bytes,
-        public_inputs: Bytes,
+        _public_inputs: Bytes,
     ) {
         user.require_auth();
 

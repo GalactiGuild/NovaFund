@@ -10,7 +10,10 @@ use soroban_sdk::{
     Address, Bytes, BytesN, Env, String,
 };
 
-fn create_token_contract<'a>(env: &'a Env, admin: &'a Address) -> (TokenClient<'a>, StellarAssetClient<'a>) {
+fn create_token_contract<'a>(
+    env: &'a Env,
+    admin: &'a Address,
+) -> (TokenClient<'a>, StellarAssetClient<'a>) {
     let sac = env.register_stellar_asset_contract_v2(admin.clone());
     (
         TokenClient::new(env, &sac.address()),
@@ -34,13 +37,12 @@ fn test_cross_chain_deposit_and_fund() {
     let launch = ProjectLaunchClient::new(&env, &launch_id);
     let launch_admin = Address::generate(&env);
     launch.initialize(&launch_admin);
-    
+
     // Deploy and set up Identity contract
     let identity_id = env.register_contract(None, identity::IdentityContract);
     let identity = identity::IdentityContractClient::new(&env, &identity_id);
     identity.initialize(&launch_admin);
     launch.mock_all_auths().set_identity_contract(&identity_id);
-
 
     // 3. Register wrapped asset (e.g., WETH)
     let supported_bridge = BytesN::<32>::from_array(&env, &[1u8; 32]);
@@ -69,8 +71,8 @@ fn test_cross_chain_deposit_and_fund() {
     let metadata_hash = Bytes::from_slice(&env, b"QmHash123");
     env.ledger().set_timestamp(1000000);
     let deadline = 1000000 + MIN_PROJECT_DURATION + 86400;
-    
-        let project_id = launch.create_project(
+
+    let project_id = launch.create_project(
         &creator,
         &MIN_FUNDING_GOAL,
         &deadline,
@@ -81,11 +83,16 @@ fn test_cross_chain_deposit_and_fund() {
 
     // 5. User bridges WETH
     let user = Address::generate(&env);
-    
+
     // Verify user identity mapping
     let proof = Bytes::from_slice(&env, &[1, 2, 3]);
     let public_inputs = Bytes::from_slice(&env, &[0]);
-    identity.verify_identity(&user, &shared::types::Jurisdiction::UnitedStates, &proof, &public_inputs);
+    identity.verify_identity(
+        &user,
+        &shared::types::Jurisdiction::UnitedStates,
+        &proof,
+        &public_inputs,
+    );
 
     let source_tx_hash = BytesN::<32>::from_array(&env, &[3u8; 32]);
     let sender = BytesN::<32>::from_array(&env, &[4u8; 32]);
@@ -104,11 +111,15 @@ fn test_cross_chain_deposit_and_fund() {
 
     // 6. User contributes WETH to project
     let contribution = 10_000_000_000;
-    let res = launch.mock_all_auths().try_contribute(&project_id, &user, &contribution);
+    let res = launch
+        .mock_all_auths()
+        .try_contribute(&project_id, &user, &contribution);
     assert_eq!(res, Ok(Ok(())));
-
 
     assert_eq!(token_client.balance(&user), bridge_amount - contribution);
     assert_eq!(token_client.balance(&launch.address), contribution);
-    assert_eq!(launch.get_user_contribution(&project_id, &user), contribution);
+    assert_eq!(
+        launch.get_user_contribution(&project_id, &user),
+        contribution
+    );
 }

@@ -13,7 +13,9 @@ use shared::{
     },
 };
 use soroban_sdk::{
-    contract, contractimpl, token::{TokenClient, StellarAssetClient}, Address, BytesN, Env, String,
+    contract, contractimpl,
+    token::{StellarAssetClient, TokenClient},
+    Address, BytesN, Env, String,
 };
 
 mod storage;
@@ -93,7 +95,7 @@ impl CrossChainBridge {
         }
 
         let chain_config = ChainConfig {
-            chain_id: chain_id.clone(),
+            chain_id,
             name,
             bridge_contract_address: bridge_contract.clone(),
             confirmations_required,
@@ -103,10 +105,8 @@ impl CrossChainBridge {
 
         set_chain_config(&env, chain_id, &chain_config);
 
-        env.events().publish(
-            (SUPPORTED_CHAIN_ADDED,),
-            (chain_id as u32, bridge_contract),
-        );
+        env.events()
+            .publish((SUPPORTED_CHAIN_ADDED,), (chain_id as u32, bridge_contract));
 
         Ok(())
     }
@@ -158,7 +158,7 @@ impl CrossChainBridge {
         let asset = WrappedAssetInfo {
             asset_code: asset_code.clone(),
             issuer: issuer.clone(),
-            original_chain: original_chain.clone(),
+            original_chain,
             original_contract: original_contract.clone(),
             decimals,
             is_active: true,
@@ -229,7 +229,7 @@ impl CrossChainBridge {
 
         let transaction = BridgeTransaction {
             tx_id,
-            source_chain: source_chain.clone(),
+            source_chain,
             destination_chain: source_chain, // For deposits, the destination is conceptually the same chain (informational)
             operation: BridgeOperationType::Deposit,
             sender,
@@ -265,8 +265,7 @@ impl CrossChainBridge {
             (tx_id, recipient, asset, amount, source_tx_hash),
         );
 
-        env.events()
-            .publish((BRIDGE_TX_CONFIRMED,), (tx_id, tx_id));
+        env.events().publish((BRIDGE_TX_CONFIRMED,), (tx_id, tx_id));
 
         Ok(tx_id)
     }
@@ -330,7 +329,7 @@ impl CrossChainBridge {
         let transaction = BridgeTransaction {
             tx_id,
             source_chain: ChainId::Ethereum, // Placeholder
-            destination_chain: destination_chain.clone(),
+            destination_chain,
             operation: BridgeOperationType::Withdraw,
             sender: BytesN::from_array(&env, &[0u8; 32]), // Placeholder
             recipient: sender.clone(),
