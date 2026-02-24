@@ -7,10 +7,13 @@ use shared::{
     types::{Amount, EscrowInfo, Hash, Milestone, MilestoneStatus, PauseState, PendingUpgrade},
     MIN_APPROVAL_THRESHOLD, MAX_APPROVAL_THRESHOLD,
 };
+use shared::upgradeable::*;
+initialize_upgrade(&env, governance_address);
 use soroban_sdk::{contract, contractimpl, token::TokenClient, Address, BytesN, Env, Vec};
 
 mod storage;
 mod validation;
+
 
 #[cfg(test)]
 mod tests;
