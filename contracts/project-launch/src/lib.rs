@@ -5,8 +5,6 @@ use soroban_sdk::{
     contract, contractimpl, contracttype, token::TokenClient, Address, Bytes, Env, Vec,
 };
 
-use soroban_sdk::{contract, contractimpl, contracttype, token::TokenClient, Address, Bytes, Env};
-
 
 use shared::{
     constants::{
@@ -67,18 +65,10 @@ pub enum DataKey {
     RefundProcessed = 4,           // (DataKey::RefundProcessed, project_id, contributor, token) -> bool
     ProjectFailureProcessed = 5,   // (DataKey::ProjectFailureProcessed, project_id) -> bool
     TokenRate = 6,                 // (DataKey::TokenRate, token) -> i128
-    IdentityContract = 6,          // Address of the Identity Verification contract
-    ProjectJurisdictions = 7,      // (DataKey::ProjectJurisdictions, project_id) -> Vec<Jurisdiction>
-
-    ContributionAmount = 3, // (DataKey::ContributionAmount, project_id, contributor) -> i128
-    RefundProcessed = 4,    // (DataKey::RefundProcessed, project_id, contributor) -> bool
-    ProjectFailureProcessed = 5, // (DataKey::ProjectFailureProcessed, project_id) -> bool
-    IdentityContract = 6,   // Address of the Identity Verification contract
-    ProjectJurisdictions = 7, // (DataKey::ProjectJurisdictions, project_id) -> Vec<Jurisdiction>
-
-    PauseState = 8,
-    PendingUpgrade = 9,
-
+    IdentityContract = 7,          // Address of the Identity Verification contract
+    ProjectJurisdictions = 8,      // (DataKey::ProjectJurisdictions, project_id) -> Vec<Jurisdiction>
+    PauseState = 9,
+    PendingUpgrade = 10,
 }
 
 #[contract]
@@ -447,12 +437,6 @@ impl ProjectLaunch {
 
         env.events()
             .publish((REFUND_ISSUED,), (project_id, contributor, contribution_amount, token));
-
-        env.events().publish(
-            (REFUND_ISSUED,),
-            (project_id, contributor, contribution_amount),
-        );
-
 
         Ok(contribution_amount)
     }
