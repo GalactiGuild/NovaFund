@@ -65,3 +65,17 @@ pub const RELAYER_ADDED: Symbol = symbol_short!("rel_add");
 pub const RELAYER_REMOVED: Symbol = symbol_short!("rel_rem");
 pub const BRIDGE_TX_CONFIRMED: Symbol = symbol_short!("tx_conf");
 pub const BRIDGE_TX_FAILED: Symbol = symbol_short!("tx_fail");
+pub const CONTRACT_PAUSED: Symbol = symbol_short!("esc_pause");
+pub const CONTRACT_RESUMED: Symbol = symbol_short!("esc_resum");
+
+// Upgrade events
+pub const UPGRADE_SCHEDULED: Symbol = symbol_short!("upg_sched");
+pub const UPGRADE_EXECUTED: Symbol = symbol_short!("upg_exec");
+pub const UPGRADE_CANCELLED: Symbol = symbol_short!("upg_canc");
+
+// Oracle events
+pub const ORACLE_FEED_CREATED: Symbol = symbol_short!("or_feed");
+pub const ORACLE_FEED_UPDATED: Symbol = symbol_short!("or_upd");
+pub const ORACLE_ORACLE_STAKED: Symbol = symbol_short!("or_stak");
+pub const ORACLE_ORACLE_UNSTAKED: Symbol = symbol_short!("or_unst");
+pub const ORACLE_SLASHED: Symbol = symbol_short!("or_slsh");

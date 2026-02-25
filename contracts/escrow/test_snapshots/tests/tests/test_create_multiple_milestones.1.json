@@ -34,6 +34,9 @@
                       "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAK3IM"
                     }
                   ]
+                },
+                {
+                  "u32": 6700
                 }
               ]
             }
@@ -311,6 +314,14 @@
                 "durability": "persistent",
                 "val": {
                   "map": [
+                    {
+                      "key": {
+                        "symbol": "approval_threshold"
+                      },
+                      "val": {
+                        "u32": 6700
+                      }
+                    },
                     {
                       "key": {
                         "symbol": "creator"
@@ -907,6 +918,9 @@
                       "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAK3IM"
                     }
                   ]
+                },
+                {
+                  "u32": 6700
                 }
               ]
             }
@@ -1101,7 +1115,7 @@
           "v0": {
             "topics": [
               {
-                "symbol": "mile_cr"
+                "symbol": "m_create"
               }
             ],
             "data": {
@@ -1197,7 +1211,7 @@
           "v0": {
             "topics": [
               {
-                "symbol": "mile_cr"
+                "symbol": "m_create"
               }
             ],
             "data": {
@@ -1293,7 +1307,7 @@
           "v0": {
             "topics": [
               {
-                "symbol": "mile_cr"
+                "symbol": "m_create"
               }
             ],
             "data": {

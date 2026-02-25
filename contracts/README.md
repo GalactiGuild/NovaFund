@@ -18,6 +18,43 @@ This directory contains all Soroban smart contracts for the NovaFund platform.
 
 8. **shared/** - Common utilities, types, and helper functions
 
+## 🔄 Contract Upgrade Capability (#33)
+
+**ProjectLaunch** and **Escrow** support secure, time-locked upgrades using Soroban’s native upgrade mechanism (no proxy pattern).
+
+### Flow
+
+1. **Schedule** – Admin calls `schedule_upgrade(admin, new_wasm_hash)`. The new WASM must already be uploaded to the ledger. A 48-hour time-lock starts.
+2. **Pause** – Before executing, the contract must be paused (`pause(admin)`). Escrow already had pause; ProjectLaunch has pause for emergency and for upgrades.
+3. **Execute** – After 48 hours, admin calls `execute_upgrade(admin)`. The contract replaces its own WASM via `env.deployer().update_current_contract_wasm(wasm_hash)`. State (instance and persistent storage) is unchanged.
+4. **Resume** – Admin calls `resume(admin)` after the resume delay (24h for Escrow/ProjectLaunch).
+
+### Access control
+
+- Only the contract **admin** can schedule, execute, or cancel upgrades. Use a multi-sig or governance-controlled address as admin for production.
+- **Escrow:** `execute_upgrade` requires the contract to be **paused**.
+- **ProjectLaunch:** `execute_upgrade` also requires the contract to be **paused**.
+
+### Constants (shared)
+
+- `UPGRADE_TIME_LOCK_SECS` = 172800 (48 hours). Minimum delay between schedule and execute.
+- `RESUME_TIME_DELAY` = 86400 (24 hours). Minimum delay before resume after pause.
+
+### Functions
+
+| Contract       | schedule_upgrade(admin, wasm_hash) | execute_upgrade(admin) | cancel_upgrade(admin) | get_pending_upgrade() |
+|----------------|------------------------------------|-------------------------|------------------------|------------------------|
+| ProjectLaunch  | ✓                                  | ✓ (requires paused)     | ✓                      | ✓                      |
+| Escrow         | ✓                                  | ✓ (requires paused)     | ✓                      | ✓                      |
+
+### Tests
+
+Upgrade and pause behaviour is covered by unit tests: time-lock, require-pause, admin-only, and cancel. Run:
+
+```bash
+cargo test --package project-launch --package escrow
+```
+
 ## 🛠️ Development Setup
 
 ### Prerequisites

@@ -27,6 +27,11 @@ pub enum Error {
     OracleUnauthorized = 205,
     OracleValidationFailed = 206,
     OracleDeadlineNotReached = 207,
+    ContractPaused = 205,
+    ResumeTooEarly = 206,
+    UpgradeNotScheduled = 207,
+    UpgradeTooEarly = 208,
+    UpgradeRequiresPause = 209,
 
     // Distribution errors (300-399)
     InsufficientFunds = 300,
@@ -67,4 +72,5 @@ pub enum Error {
     InvalidDeadline = 1001,
     ProjectNotFound = 1002,
     ContributionTooLow = 1003,
+    IdentityNotVerified = 1004,
 }

@@ -1,15 +1,27 @@
 #![no_std]
 
-use soroban_sdk::{
-    contract, contractimpl, contracttype, token::TokenClient, Address, Bytes, Env,
-};
+use soroban_sdk::{contract, contractimpl, contracttype, token::TokenClient, Address, Bytes, Env};
 
 use shared::{
-    constants::{MAX_PROJECT_DURATION, MIN_CONTRIBUTION, MIN_FUNDING_GOAL, MIN_PROJECT_DURATION},
+    constants::{
+        MAX_PROJECT_DURATION, MIN_CONTRIBUTION, MIN_FUNDING_GOAL, MIN_PROJECT_DURATION,
+        RESUME_TIME_DELAY, UPGRADE_TIME_LOCK_SECS,
+    },
     errors::Error,
-    events::{CONTRIBUTION_MADE, PROJECT_CREATED, PROJECT_FAILED, REFUND_ISSUED},
+    events::{
+        CONTRACT_PAUSED, CONTRACT_RESUMED, CONTRIBUTION_MADE, PROJECT_CREATED, PROJECT_FAILED,
+        REFUND_ISSUED, UPGRADE_CANCELLED, UPGRADE_EXECUTED, UPGRADE_SCHEDULED,
+    },
+    types::{Jurisdiction, PauseState, PendingUpgrade},
     utils::verify_future_timestamp,
 };
+use soroban_sdk::BytesN;
+
+// Interface for IdentityContract
+#[soroban_sdk::contractclient(name = "IdentityContractClient")]
+pub trait IdentityContractTrait {
+    fn is_verified(env: Env, user: Address, jurisdiction: Jurisdiction) -> bool;
+}
 
 /// Project status enumeration
 #[contracttype]
@@ -44,9 +56,13 @@ pub enum DataKey {
     Admin = 0,
     NextProjectId = 1,
     Project = 2,
-    ContributionAmount = 3,        // (DataKey::ContributionAmount, project_id, contributor) -> i128
-    RefundProcessed = 4,           // (DataKey::RefundProcessed, project_id, contributor) -> bool
-    ProjectFailureProcessed = 5,   // (DataKey::ProjectFailureProcessed, project_id) -> bool
+    ContributionAmount = 3, // (DataKey::ContributionAmount, project_id, contributor) -> i128
+    RefundProcessed = 4,    // (DataKey::RefundProcessed, project_id, contributor) -> bool
+    ProjectFailureProcessed = 5, // (DataKey::ProjectFailureProcessed, project_id) -> bool
+    IdentityContract = 6,   // Address of the Identity Verification contract
+    ProjectJurisdictions = 7, // (DataKey::ProjectJurisdictions, project_id) -> Vec<Jurisdiction>
+    PauseState = 8,
+    PendingUpgrade = 9,
 }
 
 #[contract]
@@ -67,6 +83,22 @@ impl ProjectLaunch {
         Ok(())
     }
 
+    /// Set the identity verification contract address
+    pub fn set_identity_contract(env: Env, identity_contract: Address) -> Result<(), Error> {
+        let admin: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::Admin)
+            .ok_or(Error::NotInitialized)?;
+
+        admin.require_auth();
+        env.storage()
+            .instance()
+            .set(&DataKey::IdentityContract, &identity_contract);
+
+        Ok(())
+    }
+
     /// Create a new funding project
     pub fn create_project(
         env: Env,
@@ -75,7 +107,11 @@ impl ProjectLaunch {
         deadline: u64,
         token: Address,
         metadata_hash: Bytes,
+        jurisdictions: Option<soroban_sdk::Vec<Jurisdiction>>,
     ) -> Result<u64, Error> {
+        if Self::get_is_paused(env.clone()) {
+            return Err(Error::ContractPaused);
+        }
         // Validate funding goal
         if funding_goal < MIN_FUNDING_GOAL {
             return Err(Error::InvalidFundingGoal);
@@ -85,7 +121,7 @@ impl ProjectLaunch {
         let current_time = env.ledger().timestamp();
         let duration = deadline.saturating_sub(current_time);
 
-        if duration < MIN_PROJECT_DURATION || duration > MAX_PROJECT_DURATION {
+        if !(MIN_PROJECT_DURATION..=MAX_PROJECT_DURATION).contains(&duration) {
             return Err(Error::InvalidDeadline);
         }
 
@@ -104,6 +140,12 @@ impl ProjectLaunch {
         env.storage()
             .instance()
             .set(&DataKey::NextProjectId, &next_id);
+
+        if let Some(jurisdictions) = jurisdictions {
+            env.storage()
+                .instance()
+                .set(&(DataKey::ProjectJurisdictions, project_id), &jurisdictions);
+        }
 
         // Create project
         let project = Project {
@@ -138,6 +180,9 @@ impl ProjectLaunch {
         contributor: Address,
         amount: i128,
     ) -> Result<(), Error> {
+        if Self::get_is_paused(env.clone()) {
+            return Err(Error::ContractPaused);
+        }
         // Validate contribution amount
         if amount < MIN_CONTRIBUTION {
             return Err(Error::ContributionTooLow);
@@ -159,6 +204,34 @@ impl ProjectLaunch {
         let current_time = env.ledger().timestamp();
         if current_time >= project.deadline {
             return Err(Error::DeadlinePassed);
+        }
+
+        // Verify Identity if required
+        if let Some(jurisdictions) = env
+            .storage()
+            .instance()
+            .get::<_, soroban_sdk::Vec<Jurisdiction>>(&(DataKey::ProjectJurisdictions, project_id))
+        {
+            if let Some(identity_contract) = env
+                .storage()
+                .instance()
+                .get::<_, Address>(&DataKey::IdentityContract)
+            {
+                let identity_client = IdentityContractClient::new(&env, &identity_contract);
+                let mut is_verified = false;
+                for jurisdiction in jurisdictions.iter() {
+                    if identity_client.is_verified(&contributor, &jurisdiction) {
+                        is_verified = true;
+                        break;
+                    }
+                }
+                if !is_verified {
+                    return Err(Error::IdentityNotVerified);
+                }
+            } else {
+                // If jurisdictions are required but no identity contract is set, fail safe.
+                return Err(Error::IdentityNotVerified);
+            }
         }
 
         // Update project totals
@@ -326,13 +399,13 @@ impl ProjectLaunch {
         );
 
         // Mark refund as processed
-        env.storage()
-            .instance()
-            .set(&refund_key, &true);
+        env.storage().instance().set(&refund_key, &true);
 
         // Emit refund event
-        env.events()
-            .publish((REFUND_ISSUED,), (project_id, contributor, contribution_amount));
+        env.events().publish(
+            (REFUND_ISSUED,),
+            (project_id, contributor, contribution_amount),
+        );
 
         Ok(contribution_amount)
     }
@@ -348,6 +421,165 @@ impl ProjectLaunch {
         env.storage()
             .instance()
             .has(&(DataKey::ProjectFailureProcessed, project_id))
+    }
+
+    // ---------- Pause (emergency) ----------
+    /// Pause the contract. Admin only. Critical operations (create_project, contribute) are blocked.
+    pub fn pause(env: Env, admin: Address) -> Result<(), Error> {
+        let stored_admin: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::Admin)
+            .ok_or(Error::NotInitialized)?;
+        if stored_admin != admin {
+            return Err(Error::Unauthorized);
+        }
+        admin.require_auth();
+        let now = env.ledger().timestamp();
+        let state = PauseState {
+            paused: true,
+            paused_at: now,
+            resume_not_before: now + RESUME_TIME_DELAY,
+        };
+        env.storage().instance().set(&DataKey::PauseState, &state);
+        env.events().publish((CONTRACT_PAUSED,), (admin, now));
+        Ok(())
+    }
+
+    /// Resume the contract. Admin only. Only allowed after RESUME_TIME_DELAY has passed.
+    pub fn resume(env: Env, admin: Address) -> Result<(), Error> {
+        let stored_admin: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::Admin)
+            .ok_or(Error::NotInitialized)?;
+        if stored_admin != admin {
+            return Err(Error::Unauthorized);
+        }
+        admin.require_auth();
+        let state: PauseState = env
+            .storage()
+            .instance()
+            .get(&DataKey::PauseState)
+            .unwrap_or(PauseState {
+                paused: false,
+                paused_at: 0,
+                resume_not_before: 0,
+            });
+        let now = env.ledger().timestamp();
+        if now < state.resume_not_before {
+            return Err(Error::ResumeTooEarly);
+        }
+        let new_state = PauseState {
+            paused: false,
+            paused_at: state.paused_at,
+            resume_not_before: state.resume_not_before,
+        };
+        env.storage()
+            .instance()
+            .set(&DataKey::PauseState, &new_state);
+        env.events().publish((CONTRACT_RESUMED,), (admin, now));
+        Ok(())
+    }
+
+    /// Returns whether the contract is currently paused.
+    pub fn get_is_paused(env: Env) -> bool {
+        let state: PauseState = env
+            .storage()
+            .instance()
+            .get(&DataKey::PauseState)
+            .unwrap_or(PauseState {
+                paused: false,
+                paused_at: 0,
+                resume_not_before: 0,
+            });
+        state.paused
+    }
+
+    // ---------- Upgrade (time-locked, admin only) ----------
+    /// Schedule an upgrade. Admin only. Upgrade can be executed after UPGRADE_TIME_LOCK_SECS (48h).
+    pub fn schedule_upgrade(
+        env: Env,
+        admin: Address,
+        new_wasm_hash: BytesN<32>,
+    ) -> Result<(), Error> {
+        let stored_admin: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::Admin)
+            .ok_or(Error::NotInitialized)?;
+        if stored_admin != admin {
+            return Err(Error::Unauthorized);
+        }
+        admin.require_auth();
+        let now = env.ledger().timestamp();
+        let pending = PendingUpgrade {
+            wasm_hash: new_wasm_hash.clone(),
+            execute_not_before: now + UPGRADE_TIME_LOCK_SECS,
+        };
+        env.storage()
+            .instance()
+            .set(&DataKey::PendingUpgrade, &pending);
+        env.events().publish(
+            (UPGRADE_SCHEDULED,),
+            (admin, new_wasm_hash, pending.execute_not_before),
+        );
+        Ok(())
+    }
+
+    /// Execute a scheduled upgrade. Admin only. Contract must be paused. Callable only after time-lock.
+    pub fn execute_upgrade(env: Env, admin: Address) -> Result<(), Error> {
+        let stored_admin: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::Admin)
+            .ok_or(Error::NotInitialized)?;
+        if stored_admin != admin {
+            return Err(Error::Unauthorized);
+        }
+        admin.require_auth();
+        if !Self::get_is_paused(env.clone()) {
+            return Err(Error::UpgradeRequiresPause);
+        }
+        let pending: PendingUpgrade = env
+            .storage()
+            .instance()
+            .get(&DataKey::PendingUpgrade)
+            .ok_or(Error::UpgradeNotScheduled)?;
+        let now = env.ledger().timestamp();
+        if now < pending.execute_not_before {
+            return Err(Error::UpgradeTooEarly);
+        }
+        env.deployer()
+            .update_current_contract_wasm(pending.wasm_hash.clone());
+        env.storage().instance().remove(&DataKey::PendingUpgrade);
+        env.events()
+            .publish((UPGRADE_EXECUTED,), (admin, pending.wasm_hash));
+        Ok(())
+    }
+
+    /// Cancel a scheduled upgrade. Admin only.
+    pub fn cancel_upgrade(env: Env, admin: Address) -> Result<(), Error> {
+        let stored_admin: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::Admin)
+            .ok_or(Error::NotInitialized)?;
+        if stored_admin != admin {
+            return Err(Error::Unauthorized);
+        }
+        admin.require_auth();
+        if !env.storage().instance().has(&DataKey::PendingUpgrade) {
+            return Err(Error::UpgradeNotScheduled);
+        }
+        env.storage().instance().remove(&DataKey::PendingUpgrade);
+        env.events().publish((UPGRADE_CANCELLED,), admin);
+        Ok(())
+    }
+
+    /// Get pending upgrade info, if any.
+    pub fn get_pending_upgrade(env: Env) -> Option<PendingUpgrade> {
+        env.storage().instance().get(&DataKey::PendingUpgrade)
     }
 }
 
@@ -413,6 +645,7 @@ mod tests {
             &deadline,
             &token,
             &metadata_hash,
+            &None,
         );
 
         assert_eq!(project_id, 0);
@@ -425,6 +658,7 @@ mod tests {
             &deadline,
             &token,
             &metadata_hash,
+            &None,
         );
         assert!(result.is_err());
 
@@ -436,6 +670,7 @@ mod tests {
             &too_soon_deadline,
             &token,
             &metadata_hash,
+            &None,
         );
         assert!(result.is_err());
     }
@@ -469,6 +704,7 @@ mod tests {
             &deadline,
             &token,
             &metadata_hash,
+            &None,
         );
 
         // Mint tokens to contributor
@@ -534,6 +770,7 @@ mod tests {
             &deadline,
             &token,
             &metadata_hash,
+            &None,
         );
     }
 
@@ -554,7 +791,7 @@ mod tests {
 
         // Register token
         let token_admin = Address::generate(&env);
-        let (token, token_client, token_admin_client) = create_token_contract(&env, &token_admin);
+        let (token, _token_client, token_admin_client) = create_token_contract(&env, &token_admin);
         let metadata_hash = Bytes::from_slice(&env, b"QmHash123");
 
         // Create project
@@ -566,6 +803,7 @@ mod tests {
             &deadline,
             &token,
             &metadata_hash,
+            &None,
         );
 
         // Mint tokens and contribute less than goal
@@ -625,6 +863,7 @@ mod tests {
             &deadline,
             &token,
             &metadata_hash,
+            &None,
         );
 
         // Mint tokens and contribute full amount (meets goal)
@@ -672,6 +911,7 @@ mod tests {
             &deadline,
             &token,
             &metadata_hash,
+            &None,
         );
 
         // Mint tokens and contribute
@@ -731,6 +971,7 @@ mod tests {
             &deadline,
             &token,
             &metadata_hash,
+            &None,
         );
 
         // Mint and contribute from multiple users
@@ -801,6 +1042,7 @@ mod tests {
             &deadline,
             &token,
             &metadata_hash,
+            &None,
         );
 
         // Move past deadline and mark as failed
@@ -841,6 +1083,7 @@ mod tests {
             &deadline,
             &token,
             &metadata_hash,
+            &None,
         );
 
         // Mint and contribute
@@ -858,5 +1101,119 @@ mod tests {
         let result = client.try_refund_contributor(&project_id, &contributor);
         assert!(result.is_err());
     }
+
+    // ---------- Pause and upgrade ----------
+    #[test]
+    fn test_get_is_paused_defaults_to_false() {
+        let env = Env::default();
+        let contract_id = env.register_contract(None, ProjectLaunch);
+        let client = ProjectLaunchClient::new(&env, &contract_id);
+        env.mock_all_auths();
+        let admin = Address::generate(&env);
+        client.initialize(&admin);
+        assert!(!client.get_is_paused());
+    }
+
+    #[test]
+    fn test_pause_blocks_create_project_and_contribute() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let contract_id = env.register_contract(None, ProjectLaunch);
+        let client = ProjectLaunchClient::new(&env, &contract_id);
+        let admin = Address::generate(&env);
+        let creator = Address::generate(&env);
+        let token = Address::generate(&env);
+        let metadata_hash = Bytes::from_slice(&env, b"QmHash123");
+        client.initialize(&admin);
+        env.ledger().set_timestamp(1000000);
+        let deadline = 1000000 + MIN_PROJECT_DURATION + 86400;
+
+        client.pause(&admin);
+        assert!(client.get_is_paused());
+
+        let result = client.try_create_project(
+            &creator,
+            &MIN_FUNDING_GOAL,
+            &deadline,
+            &token,
+            &metadata_hash,
+            &None,
+        );
+        assert!(
+            result.is_err(),
+            "create_project should be blocked when paused"
+        );
+    }
+
+    #[test]
+    fn test_resume_after_time_delay_succeeds() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let contract_id = env.register_contract(None, ProjectLaunch);
+        let client = ProjectLaunchClient::new(&env, &contract_id);
+        let admin = Address::generate(&env);
+        client.initialize(&admin);
+        env.ledger().set_timestamp(1000);
+        client.pause(&admin);
+        env.ledger()
+            .set_timestamp(1000 + shared::RESUME_TIME_DELAY + 1);
+        let result = client.try_resume(&admin);
+        assert!(result.is_ok());
+        assert!(!client.get_is_paused());
+    }
+
+    #[test]
+    fn test_schedule_upgrade_succeeds() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let contract_id = env.register_contract(None, ProjectLaunch);
+        let client = ProjectLaunchClient::new(&env, &contract_id);
+        let admin = Address::generate(&env);
+        client.initialize(&admin);
+        env.ledger().set_timestamp(1000);
+        let wasm_hash = soroban_sdk::BytesN::from_array(&env, &[1u8; 32]);
+        let result = client.try_schedule_upgrade(&admin, &wasm_hash);
+        assert!(result.is_ok());
+        let pending = client.get_pending_upgrade();
+        assert!(pending.is_some());
+        assert_eq!(
+            pending.unwrap().execute_not_before,
+            1000 + shared::UPGRADE_TIME_LOCK_SECS
+        );
+    }
+
+    #[test]
+    fn test_execute_upgrade_too_early_fails() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let contract_id = env.register_contract(None, ProjectLaunch);
+        let client = ProjectLaunchClient::new(&env, &contract_id);
+        let admin = Address::generate(&env);
+        client.initialize(&admin);
+        env.ledger().set_timestamp(1000);
+        let wasm_hash = soroban_sdk::BytesN::from_array(&env, &[1u8; 32]);
+        client.schedule_upgrade(&admin, &wasm_hash);
+        client.pause(&admin);
+        env.ledger().set_timestamp(1000 + 3600);
+        let result = client.try_execute_upgrade(&admin);
+        assert!(result.is_err(), "execute_upgrade should fail before 48h");
+    }
+
+    #[test]
+    fn test_cancel_upgrade_clears_pending() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let contract_id = env.register_contract(None, ProjectLaunch);
+        let client = ProjectLaunchClient::new(&env, &contract_id);
+        let admin = Address::generate(&env);
+        client.initialize(&admin);
+        let wasm_hash = soroban_sdk::BytesN::from_array(&env, &[1u8; 32]);
+        client.schedule_upgrade(&admin, &wasm_hash);
+        assert!(client.get_pending_upgrade().is_some());
+        client.cancel_upgrade(&admin);
+        assert!(client.get_pending_upgrade().is_none());
+    }
 }
 
+#[cfg(test)]
+mod cross_chain_integration_test;

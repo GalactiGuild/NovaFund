@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { ProjectCard, type Project } from "@/components/ProjectCard";
 import { Search, ChevronDown, Filter } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -12,6 +12,8 @@ const MOCK_PROJECTS: Project[] = [
     title: "Quantum Ledger Explorer",
     description: "A next-generation blockchain explorer for high-frequency trading networks on Stellar.",
     category: "Tech",
+    fundingStage: "Seed",
+    successProbability: 42,
     goal: 50000,
     raised: 32500,
     backers: 124,
@@ -24,6 +26,8 @@ const MOCK_PROJECTS: Project[] = [
     title: "EcoHarvest Carbon Credits",
     description: "Decentralized marketplace for verified carbon offsets from sustainable farming initiatives.",
     category: "Green Energy",
+    fundingStage: "Series A",
+    successProbability: 78,
     goal: 100000,
     raised: 85000,
     backers: 450,
@@ -36,6 +40,8 @@ const MOCK_PROJECTS: Project[] = [
     title: "Neon Dreams: VR Art Gallery",
     description: "An immersive virtual reality space for digital artists to showcase and sell NFT-backed art.",
     category: "Art",
+    fundingStage: "Crowdfunding",
+    successProbability: 36,
     goal: 25000,
     raised: 12000,
     backers: 89,
@@ -48,6 +54,8 @@ const MOCK_PROJECTS: Project[] = [
     title: "SolarGrid Mesh Network",
     description: "P2P energy sharing platform utilizing smart meters and Stellar micro-payments.",
     category: "Green Energy",
+    fundingStage: "Seed",
+    successProbability: 50,
     goal: 75000,
     raised: 15000,
     backers: 210,
@@ -60,6 +68,8 @@ const MOCK_PROJECTS: Project[] = [
     title: "ZenFlow UI Kit",
     description: "A comprehensive design system for decentralized finance applications focused on accessibility.",
     category: "UX",
+    fundingStage: "Crowdfunding",
+    successProbability: 92,
     goal: 15000,
     raised: 14500,
     backers: 312,
@@ -72,6 +82,8 @@ const MOCK_PROJECTS: Project[] = [
     title: "Ocean Guardian AI",
     description: "Autonomous marine drones monitoring coral reefs and detecting plastic pollution patterns.",
     category: "Tech",
+    fundingStage: "Series A",
+    successProbability: 61,
     goal: 120000,
     raised: 45000,
     backers: 156,
@@ -84,6 +96,8 @@ const MOCK_PROJECTS: Project[] = [
     title: "Ethical Fashion Ledger",
     description: "Transparency protocol for clothing brands to verify sustainable supply chain practices.",
     category: "Art",
+    fundingStage: "Seed",
+    successProbability: 21,
     goal: 40000,
     raised: 5000,
     backers: 42,
@@ -96,6 +110,8 @@ const MOCK_PROJECTS: Project[] = [
     title: "Stellar Dev Hub",
     description: "Community-driven platform for Stellar developer resources, grants, and collaboration.",
     category: "Tech",
+    fundingStage: "Crowdfunding",
+    successProbability: 85,
     goal: 30000,
     raised: 28000,
     backers: 560,
@@ -109,14 +125,43 @@ type SortOption = "Newest" | "Ending Soon" | "Most Funded";
 
 export default function ExplorePage() {
   const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [sortBy, setSortBy] = useState<SortOption>("Newest");
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [fundingStage, setFundingStage] = useState<string>("");
+  const [maxDaysLeft, setMaxDaysLeft] = useState<number | null>(null);
+  const [minSuccessProb, setMinSuccessProb] = useState<number>(0);
   const [isSortOpen, setIsSortOpen] = useState(false);
 
   const filteredAndSortedProjects = useMemo(() => {
-    let result = MOCK_PROJECTS.filter((p) =>
-      p.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.description.toLowerCase().includes(searchQuery.toLowerCase())
-    );
+    const q = debouncedSearch.trim().toLowerCase();
+
+    let result = MOCK_PROJECTS.filter((p) => {
+      // Basic text search across important fields
+      const inText = [p.title, p.description, p.category, p.fundingStage]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase()
+        .includes(q);
+
+      if (q && !inText) return false;
+
+      // Category filter (multi-select)
+      if (selectedCategories.length > 0 && !selectedCategories.includes(p.category)) {
+        return false;
+      }
+
+      // Funding stage filter
+      if (fundingStage && p.fundingStage !== fundingStage) return false;
+
+      // Days left filter (timeline)
+      if (maxDaysLeft !== null && p.daysLeft > maxDaysLeft) return false;
+
+      // Success probability
+      if (typeof p.successProbability === "number" && p.successProbability < minSuccessProb) return false;
+
+      return true;
+    });
 
     switch (sortBy) {
       case "Newest":
@@ -131,7 +176,17 @@ export default function ExplorePage() {
     }
 
     return result;
-  }, [searchQuery, sortBy]);
+  }, [debouncedSearch, sortBy, selectedCategories, fundingStage, maxDaysLeft, minSuccessProb]);
+
+  // Debounce the search input to reduce recomputations
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(searchQuery), 300);
+    return () => clearTimeout(t);
+  }, [searchQuery]);
+
+  // derive dynamic filter options
+  const categories = useMemo(() => Array.from(new Set(MOCK_PROJECTS.map((p) => p.category))), []);
+  const fundingStages = useMemo(() => Array.from(new Set(MOCK_PROJECTS.map((p) => p.fundingStage).filter(Boolean as any))), []);
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -151,6 +206,79 @@ export default function ExplorePage() {
             </p>
           </motion.div>
 
+        </div>
+
+        {/* Filters Panel */}
+        <div className="mb-8 flex flex-col gap-4 rounded-xl border border-white/5 bg-white/3 p-4 text-sm text-white/80 sm:flex-row sm:items-center">
+          <div className="flex-1">
+            <div className="mb-2 font-semibold">Categories</div>
+            <div className="flex flex-wrap gap-2">
+              {categories.map((c) => (
+                <button
+                  key={c}
+                  onClick={() => {
+                    setSelectedCategories((prev) => prev.includes(c) ? prev.filter(x => x !== c) : [...prev, c]);
+                  }}
+                  className={cn(
+                    "rounded-full px-3 py-1.5 text-xs transition-colors border",
+                    selectedCategories.includes(c) ? "bg-primary text-black border-transparent" : "bg-white/5 text-white/60 border-white/5"
+                  )}
+                >
+                  {c}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="w-full sm:w-72">
+            <div className="mb-2 font-semibold">Funding Stage</div>
+            <select
+              value={fundingStage}
+              onChange={(e) => setFundingStage(e.target.value)}
+              className="w-full rounded-md bg-white/5 p-2 text-white/80 outline-none"
+            >
+              <option value="">Any</option>
+              {fundingStages.map((s) => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="w-full sm:w-56">
+            <div className="mb-2 font-semibold">Timeline (max days left)</div>
+            <input
+              type="number"
+              placeholder="e.g. 30"
+              min={0}
+              value={maxDaysLeft ?? ""}
+              onChange={(e) => setMaxDaysLeft(e.target.value ? Number(e.target.value) : null)}
+              className="w-full rounded-md bg-white/5 p-2 text-white/80 outline-none"
+            />
+          </div>
+
+          <div className="w-full sm:w-64">
+            <div className="mb-2 flex items-center justify-between font-semibold">
+              <span>Min Success %</span>
+              <span className="text-xs text-white/40">{minSuccessProb}%</span>
+            </div>
+            <input
+              type="range"
+              min={0}
+              max={100}
+              value={minSuccessProb}
+              onChange={(e) => setMinSuccessProb(Number(e.target.value))}
+              className="w-full"
+            />
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => { setSelectedCategories([]); setFundingStage(""); setMaxDaysLeft(null); setMinSuccessProb(0); setSearchQuery(""); }}
+              className="rounded-md border border-white/10 bg-white/5 px-4 py-2 text-sm text-white/70"
+            >
+              Clear Filters
+            </button>
+          </div>
         </div>
       </div>
 

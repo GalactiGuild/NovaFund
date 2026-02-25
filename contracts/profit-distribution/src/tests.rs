@@ -1,7 +1,5 @@
-#![cfg(test)]
-
 use super::*;
-use soroban_sdk::testutils::{Address as _, Ledger};
+use soroban_sdk::testutils::Address as _;
 use soroban_sdk::token::StellarAssetClient;
 use soroban_sdk::{Address, Env, Map};
 
@@ -13,14 +11,15 @@ fn setup_test() -> (Env, ProfitDistributionClient<'static>, Address, Address) {
     let client = ProfitDistributionClient::new(&env, &contract_id);
 
     let admin = Address::generate(&env);
-    let token = env.register_stellar_asset_contract(admin.clone());
+    let token_id = env.register_stellar_asset_contract_v2(admin.clone());
+    let token = token_id.address();
 
     (env, client, admin, token)
 }
 
 #[test]
 fn test_initialize() {
-    let (env, client, admin, _) = setup_test();
+    let (_env, client, admin, _) = setup_test();
     client.initialize(&admin);
     assert_eq!(client.get_admin(), Some(admin));
 }

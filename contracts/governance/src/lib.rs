@@ -4,9 +4,9 @@ use shared::{
     constants::GOVERNANCE_QUORUM,
     errors::Error,
     events::{PROPOSAL_CREATED, PROPOSAL_EXECUTED, VOTE_CAST},
-    types::Proposal,
+    types::{Amount, Proposal},
 };
-use soroban_sdk::{contract, contractimpl, contracttype, Address, Bytes, Env};
+use soroban_sdk::{contract, contractimpl, contracttype, token, Address, Bytes, Env, Vec};
 
 #[contracttype]
 #[derive(Clone)]
@@ -15,6 +15,12 @@ pub enum DataKey {
     Proposal(u64),
     HasVoted(u64, Address),
     TotalVoters,
+    Admin,
+    GovToken,
+    Stake(Address),
+    TotalStake,
+    TimelockDelay,
+    ProposalTimelock(u64),
 }
 
 #[contract]
@@ -29,16 +35,138 @@ impl GovernanceContract {
         admin.require_auth();
 
         if env.storage().instance().has(&DataKey::TotalVoters) {
-            return Err(Error::InvalidInput);
+            return Err(Error::AlreadyInitialized);
         }
 
         if total_voters == 0 {
             return Err(Error::InvalidInput);
         }
 
-        env.storage()
+        let storage = env.storage().instance();
+        storage.set(&DataKey::TotalVoters, &total_voters);
+        storage.set(&DataKey::Admin, &admin);
+
+        Ok(())
+    }
+
+    pub fn configure_token(
+        env: Env,
+        admin: Address,
+        token_address: Address,
+        timelock_delay: u64,
+    ) -> Result<(), Error> {
+        admin.require_auth();
+
+        let storage = env.storage().instance();
+
+        let stored_admin: Option<Address> = storage.get(&DataKey::Admin);
+        if let Some(stored) = stored_admin {
+            if stored != admin {
+                return Err(Error::Unauthorized);
+            }
+        }
+
+        if storage.has(&DataKey::GovToken) {
+            return Err(Error::AlreadyInitialized);
+        }
+
+        storage.set(&DataKey::GovToken, &token_address);
+        storage.set(&DataKey::TimelockDelay, &timelock_delay);
+        storage.set(&DataKey::TotalStake, &0_i128);
+
+        Ok(())
+    }
+
+    pub fn distribute_tokens(
+        env: Env,
+        admin: Address,
+        recipients: Vec<Address>,
+        amounts: Vec<Amount>,
+    ) -> Result<(), Error> {
+        admin.require_auth();
+
+        if recipients.len() != amounts.len() || recipients.is_empty() {
+            return Err(Error::InvalidInput);
+        }
+
+        let gov_token: Address = env
+            .storage()
             .instance()
-            .set(&DataKey::TotalVoters, &total_voters);
+            .get(&DataKey::GovToken)
+            .ok_or(Error::NotInitialized)?;
+
+        let token_client = token::Client::new(&env, &gov_token);
+
+        let len = recipients.len();
+        for i in 0..len {
+            let recipient = recipients.get(i).unwrap();
+            let amount = amounts.get(i).unwrap();
+            if amount <= 0 {
+                return Err(Error::InvalidInput);
+            }
+            token_client.transfer(&admin, &recipient, &amount);
+        }
+
+        Ok(())
+    }
+
+    pub fn stake(env: Env, voter: Address, amount: Amount) -> Result<(), Error> {
+        voter.require_auth();
+
+        if amount <= 0 {
+            return Err(Error::InvalidInput);
+        }
+
+        let storage = env.storage().instance();
+        let gov_token: Address = storage
+            .get(&DataKey::GovToken)
+            .ok_or(Error::NotInitialized)?;
+
+        let token_client = token::Client::new(&env, &gov_token);
+        let self_address = env.current_contract_address();
+
+        // Move tokens from voter into governance contract as stake
+        token_client.transfer(&voter, &self_address, &amount);
+
+        let mut current_stake: Amount = storage.get(&DataKey::Stake(voter.clone())).unwrap_or(0);
+        current_stake += amount;
+        storage.set(&DataKey::Stake(voter.clone()), &current_stake);
+
+        let mut total_stake: Amount = storage.get(&DataKey::TotalStake).unwrap_or(0);
+        total_stake += amount;
+        storage.set(&DataKey::TotalStake, &total_stake);
+
+        Ok(())
+    }
+
+    pub fn unstake(env: Env, voter: Address, amount: Amount) -> Result<(), Error> {
+        voter.require_auth();
+
+        if amount <= 0 {
+            return Err(Error::InvalidInput);
+        }
+
+        let storage = env.storage().instance();
+        let gov_token: Address = storage
+            .get(&DataKey::GovToken)
+            .ok_or(Error::NotInitialized)?;
+
+        let mut current_stake: Amount = storage.get(&DataKey::Stake(voter.clone())).unwrap_or(0);
+
+        if current_stake < amount {
+            return Err(Error::InsufficientVotingPower);
+        }
+
+        current_stake -= amount;
+        storage.set(&DataKey::Stake(voter.clone()), &current_stake);
+
+        let mut total_stake: Amount = storage.get(&DataKey::TotalStake).unwrap_or(0);
+        total_stake -= amount;
+        storage.set(&DataKey::TotalStake, &total_stake);
+
+        let self_address = env.current_contract_address();
+        let token_client = token::Client::new(&env, &gov_token);
+        token_client.transfer(&self_address, &voter, &amount);
 
         Ok(())
     }
@@ -61,7 +189,7 @@ impl GovernanceContract {
         if start_time < current_time {
             return Err(Error::InvalidInput);
         }
-        if payload_ref.len() == 0 {
+        if payload_ref.is_empty() {
             return Err(Error::InvalidInput);
         }
 
@@ -120,17 +248,27 @@ impl GovernanceContract {
             return Err(Error::AlreadyVoted);
         }
 
-        if support {
-            proposal.yes_votes += 1;
+        let storage = env.storage().instance();
+
+        // Token-weighted voting when a governance token is configured.
+        let stake: Amount = if storage.has(&DataKey::GovToken) {
+            storage.get(&DataKey::Stake(voter.clone())).unwrap_or(0)
         } else {
-            proposal.no_votes += 1;
+            1
+        };
+
+        if stake <= 0 {
+            return Err(Error::InsufficientVotingPower);
         }
 
-        env.storage()
-            .instance()
-            .set(&DataKey::Proposal(proposal_id), &proposal);
+        if support {
+            proposal.yes_votes += stake;
+        } else {
+            proposal.no_votes += stake;
+        }
 
-        env.storage().instance().set(&vote_key, &true);
+        storage.set(&DataKey::Proposal(proposal_id), &proposal);
+        storage.set(&vote_key, &true);
 
         // Emit vote cast event
         env.events()
@@ -156,32 +294,41 @@ impl GovernanceContract {
             return Err(Error::ProposalAlreadyExecuted);
         }
 
-        let total_votes = proposal.yes_votes + proposal.no_votes;
+        let storage = env.storage().instance();
 
-        let total_voters: u32 = env
-            .storage()
-            .instance()
-            .get(&DataKey::TotalVoters)
-            .unwrap_or(100);
+        let total_votes: Amount = proposal.yes_votes + proposal.no_votes;
 
-        // Calculate minimum votes needed for quorum
-        // GOVERNANCE_QUORUM is in basis points (e.g., 2000 = 20%)
-        // Formula: (total_voters * GOVERNANCE_QUORUM) / 10000
-        let min_votes_needed = (total_voters as u64 * GOVERNANCE_QUORUM as u64) / 10000;
+        let use_token_quorum = storage.has(&DataKey::GovToken);
 
-        if (total_votes as u64) < min_votes_needed {
-            return Err(Error::QuorumNotReached);
-        }
+        if use_token_quorum {
+            let total_stake: Amount = storage.get(&DataKey::TotalStake).unwrap_or(0);
+            if total_stake <= 0 {
+                return Err(Error::QuorumNotReached);
+            }
 
-        if proposal.yes_votes > proposal.no_votes {
-            proposal.executed = true;
+            let min_votes_needed = (total_stake * GOVERNANCE_QUORUM as i128) / 10000;
+
+            if total_votes < min_votes_needed {
+                return Err(Error::QuorumNotReached);
+            }
         } else {
-            proposal.executed = false;
+            let total_voters: u32 = storage.get(&DataKey::TotalVoters).unwrap_or(100);
+            let min_votes_needed = (total_voters as u64 * GOVERNANCE_QUORUM as u64) / 10000;
+            if (total_votes as u64) < min_votes_needed {
+                return Err(Error::QuorumNotReached);
+            }
         }
 
-        env.storage()
-            .instance()
-            .set(&DataKey::Proposal(proposal_id), &proposal);
+        proposal.executed = proposal.yes_votes > proposal.no_votes;
+
+        // Record optional timelock for this proposal
+        let timelock_delay: u64 = storage.get(&DataKey::TimelockDelay).unwrap_or(0);
+        if timelock_delay > 0 {
+            let eta = current_time + timelock_delay;
+            storage.set(&DataKey::ProposalTimelock(proposal_id), &eta);
+        }
+
+        storage.set(&DataKey::Proposal(proposal_id), &proposal);
 
         // Emit execution event
         env.events()
@@ -207,5 +354,25 @@ impl GovernanceContract {
             .instance()
             .get(&DataKey::TotalVoters)
             .unwrap_or(0)
+    }
+
+    pub fn get_stake(env: Env, voter: Address) -> Amount {
+        env.storage()
+            .instance()
+            .get(&DataKey::Stake(voter))
+            .unwrap_or(0)
+    }
+
+    pub fn get_total_stake(env: Env) -> Amount {
+        env.storage()
+            .instance()
+            .get(&DataKey::TotalStake)
+            .unwrap_or(0)
+    }
+
+    pub fn get_proposal_timelock(env: Env, proposal_id: u64) -> Option<u64> {
+        env.storage()
+            .instance()
+            .get(&DataKey::ProposalTimelock(proposal_id))
     }
 }
