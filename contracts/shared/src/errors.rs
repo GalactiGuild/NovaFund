@@ -24,6 +24,9 @@ pub enum Error {
     InvalidMilestoneStatus = 202,
     NotAValidator = 203,
     AlreadyVoted = 204,
+    OracleUnauthorized = 205,
+    OracleValidationFailed = 206,
+    OracleDeadlineNotReached = 207,
 
     // Distribution errors (300-399)
     InsufficientFunds = 300,

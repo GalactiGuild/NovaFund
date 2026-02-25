@@ -10,3 +10,14 @@ pub fn validate_validator(escrow: &EscrowInfo, validator: &Address) -> Result<()
         Err(Error::NotAValidator)
     }
 }
+
+/// Simple oracle authorization check. An oracle must be registered on the
+/// milestone itself (passed in by higher‑level code) so this helper is
+/// primarily for readability.
+pub fn validate_oracle(_escrow: &EscrowInfo, oracle: &Address, expected: &Address) -> Result<(), Error> {
+    if oracle == expected {
+        Ok(())
+    } else {
+        Err(Error::OracleUnauthorized)
+    }
+}

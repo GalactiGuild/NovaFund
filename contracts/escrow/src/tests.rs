@@ -8,7 +8,9 @@ mod tests {
         Address, BytesN, Env, Vec,
     };
 
-    fn create_test_env() -> (Env, Address, Address, Address, Vec<Address>) {
+    /// common test environment builder; returns an oracle address as the
+    /// last element which is unused by the legacy tests.
+    fn create_test_env() -> (Env, Address, Address, Address, Vec<Address>, Address) {
         let env = Env::default();
         env.ledger().set_timestamp(1000);
 
@@ -17,13 +19,14 @@ mod tests {
         let validator1 = Address::generate(&env);
         let validator2 = Address::generate(&env);
         let validator3 = Address::generate(&env);
+        let oracle = Address::generate(&env);
 
         let mut validators = Vec::new(&env);
         validators.push_back(validator1);
         validators.push_back(validator2);
         validators.push_back(validator3.clone());
 
-        (env, creator, token, validator3, validators)
+        (env, creator, token, validator3, validators, oracle)
     }
 
     fn create_client(env: &Env) -> EscrowContractClient {
@@ -32,7 +35,7 @@ mod tests {
 
     #[test]
     fn test_initialize_escrow() {
-        let (env, creator, token, _, validators) = create_test_env();
+        let (env, creator, token, _, validators, _) = create_test_env();
         let client = create_client(&env);
         env.mock_all_auths();
 
@@ -64,7 +67,7 @@ mod tests {
 
     #[test]
     fn test_initialize_duplicate_escrow() {
-        let (env, creator, token, _, validators) = create_test_env();
+        let (env, creator, token, _, validators, _) = create_test_env();
         let client = create_client(&env);
         env.mock_all_auths();
 
@@ -77,7 +80,7 @@ mod tests {
 
     #[test]
     fn test_deposit_funds() {
-        let (env, creator, token, _, validators) = create_test_env();
+        let (env, creator, token, _, validators, _) = create_test_env();
         let client = create_client(&env);
         env.mock_all_auths();
 
@@ -94,7 +97,7 @@ mod tests {
 
     #[test]
     fn test_deposit_invalid_amount() {
-        let (env, creator, token, _, validators) = create_test_env();
+        let (env, creator, token, _, validators, _) = create_test_env();
         let client = create_client(&env);
         env.mock_all_auths();
 
@@ -109,7 +112,7 @@ mod tests {
 
     #[test]
     fn test_create_milestone() {
-        let (env, creator, token, _, validators) = create_test_env();
+        let (env, creator, token, _, validators, _) = create_test_env();
         let client = create_client(&env);
 
         env.mock_all_auths();
@@ -129,7 +132,7 @@ mod tests {
 
     #[test]
     fn test_create_milestone_exceeds_escrow() {
-        let (env, creator, token, _, validators) = create_test_env();
+        let (env, creator, token, _, validators, _) = create_test_env();
         let client = create_client(&env);
 
         env.mock_all_auths();
@@ -144,7 +147,7 @@ mod tests {
 
     #[test]
     fn test_create_multiple_milestones() {
-        let (env, creator, token, _, validators) = create_test_env();
+        let (env, creator, token, _, validators, _) = create_test_env();
         let client = create_client(&env);
 
         env.mock_all_auths();
@@ -170,7 +173,7 @@ mod tests {
 
     #[test]
     fn test_submit_milestone() {
-        let (env, creator, token, _, validators) = create_test_env();
+        let (env, creator, token, _, validators, _) = create_test_env();
         let client = create_client(&env);
 
         env.mock_all_auths();
@@ -190,7 +193,7 @@ mod tests {
 
     #[test]
     fn test_submit_milestone_invalid_status() {
-        let (env, creator, token, _, validators) = create_test_env();
+        let (env, creator, token, _, validators, _) = create_test_env();
         let client = create_client(&env);
         env.mock_all_auths();
 
@@ -213,7 +216,7 @@ mod tests {
 
     #[test]
     fn test_get_available_balance() {
-        let (env, creator, token, _, validators) = create_test_env();
+        let (env, creator, token, _, validators, _) = create_test_env();
         let client = create_client(&env);
         env.mock_all_auths();
 
@@ -241,7 +244,7 @@ mod tests {
 
     #[test]
     fn test_milestone_not_found() {
-        let (env, creator, token, _, validators) = create_test_env();
+        let (env, creator, token, _, validators, _) = create_test_env();
         let client = create_client(&env);
         env.mock_all_auths();
 
@@ -253,7 +256,7 @@ mod tests {
 
     #[test]
     fn test_milestone_status_transitions() {
-        let (env, creator, token, _, validators) = create_test_env();
+        let (env, creator, token, _, validators, _) = create_test_env();
         let client = create_client(&env);
         env.mock_all_auths();
 
@@ -281,8 +284,89 @@ mod tests {
     }
 
     #[test]
+    fn test_oracle_milestone_auto_approval() {
+        let (env, creator, token, _, validators, oracle) = create_test_env();
+        let client = create_client(&env);
+        env.mock_all_auths();
+
+        client.initialize(&1, &creator, &token, &validators);
+        client.deposit(&1, &1000);
+
+        let description_hash = BytesN::from_array(&env, &[7u8; 32]);
+        let expected_hash = BytesN::from_array(&env, &[99u8; 32]);
+        let deadline = env.ledger().timestamp() + 100;
+
+        client.create_oracle_milestone(
+            &1,
+            &description_hash,
+            &500,
+            &oracle,
+            &expected_hash,
+            &deadline,
+        );
+
+        // creator submits proof as usual
+        let proof_hash = BytesN::from_array(&env, &[9u8; 32]);
+        client.submit_milestone(&1, &0, &proof_hash);
+
+        // oracle delivers correct result
+        env.mock_all_auths();
+        client.oracle_validate(&1, &0, &expected_hash);
+
+        let milestone = client.get_milestone(&1, &0);
+        assert_eq!(milestone.status, MilestoneStatus::Approved);
+
+        let escrow = client.get_escrow(&1);
+        assert_eq!(escrow.released_amount, 500);
+    }
+
+    #[test]
+    fn test_oracle_milestone_fallback_manual() {
+        let (env, creator, token, _, validators, oracle) = create_test_env();
+        let client = create_client(&env);
+        env.mock_all_auths();
+
+        client.initialize(&1, &creator, &token, &validators);
+        client.deposit(&1, &1000);
+
+        let description_hash = BytesN::from_array(&env, &[8u8; 32]);
+        let expected_hash = BytesN::from_array(&env, &[123u8; 32]);
+        let deadline = env.ledger().timestamp() + 10;
+
+        client.create_oracle_milestone(
+            &1,
+            &description_hash,
+            &500,
+            &oracle,
+            &expected_hash,
+            &deadline,
+        );
+        client.submit_milestone(&1, &0, &BytesN::from_array(&env, &[1u8; 32]));
+
+        // oracle sends wrong data
+        env.mock_all_auths();
+        client.oracle_validate(&1, &0, &BytesN::from_array(&env, &[0u8; 32]));
+
+        // milestone should stay in Submitted
+        let milestone = client.get_milestone(&1, &0);
+        assert_eq!(milestone.status, MilestoneStatus::Submitted);
+
+        // advance time past deadline then have validators vote
+        env.ledger().set_timestamp(deadline + 1);
+        // pick a validator from vector
+        let voter = validators.get(0).unwrap();
+        client.vote_milestone(&1, &0, &voter, &true);
+        // another vote to reach threshold
+        let voter2 = validators.get(1).unwrap();
+        client.vote_milestone(&1, &0, &voter2, &true);
+
+        let milestone = client.get_milestone(&1, &0);
+        assert_eq!(milestone.status, MilestoneStatus::Approved);
+    }
+
+    #[test]
     fn test_deposit_updates_correctly() {
-        let (env, creator, token, _, validators) = create_test_env();
+        let (env, creator, token, _, validators, _) = create_test_env();
         let client = create_client(&env);
         env.mock_all_auths();
 

@@ -4,6 +4,11 @@ export interface Milestone {
   description: string;
   percentage: number;
   estimatedDate: string;
+  // advanced validation metadata (optional)
+  validationType?: 'manual' | 'oracle';
+  oracleAddress?: string;
+  oracleExpectedHash?: string;
+  oracleDeadline?: string;
 }
 
 export interface ProjectFormData {

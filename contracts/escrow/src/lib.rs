@@ -7,7 +7,7 @@ use shared::{
     },
     errors::Error,
     events::*,
-    types::{Amount, EscrowInfo, Hash, Milestone, MilestoneStatus},
+    types::{Amount, EscrowInfo, Hash, Milestone, MilestoneStatus, ValidationType},
 };
 use soroban_sdk::{contract, contractimpl, token::TokenClient, Address, BytesN, Env, Vec};
 
@@ -124,7 +124,7 @@ impl EscrowContract {
         description_hash: Hash,
         amount: Amount,
     ) -> Result<(), Error> {
-        // Get escrow to verify it exists and get creator
+        // backward-compatible manual milestone creation
         let escrow = get_escrow(&env, project_id)?;
         escrow.creator.require_auth();
 
@@ -159,6 +159,10 @@ impl EscrowContract {
             approval_count: 0,
             rejection_count: 0,
             created_at: env.ledger().timestamp(),
+            validation_type: ValidationType::Manual,
+            oracle_address: None,
+            oracle_expected_hash: None,
+            oracle_deadline: None,
         };
 
         // Store milestone
@@ -246,6 +250,15 @@ impl EscrowContract {
 
         // Get milestone
         let mut milestone = get_milestone(&env, project_id, milestone_id)?;
+
+        // Oracle milestones cannot be voted on until deadline has passed
+        if milestone.validation_type == ValidationType::Oracle {
+            if let Some(deadline) = milestone.oracle_deadline {
+                if env.ledger().timestamp() < deadline {
+                    return Err(Error::OracleDeadlineNotReached);
+                }
+            }
+        }
 
         // Validate milestone status
         if milestone.status != MilestoneStatus::Submitted {
@@ -364,7 +377,139 @@ impl EscrowContract {
         Ok(escrow.total_deposited - escrow.released_amount)
     }
 
-    /// Update validators for an escrow
+    /// Create an oracle‑backed milestone. The oracle address will be the only
+    /// actor authorized to deliver the objective validation result before the
+    /// deadline. After the deadline (or on oracle failure) standard validator
+    /// voting is allowed as a fallback.
+    ///
+    /// # Arguments
+    /// * `project_id` - Project identifier
+    /// * `description_hash` - Hash of the milestone description
+    /// * `amount` - Amount to be released when milestone is approved
+    /// * `oracle` - Address of the oracle service
+    /// * `expected_hash` - Expected data hash that the oracle will return
+    /// * `deadline` - UNIX timestamp after which validators may vote as a fallback
+    pub fn create_oracle_milestone(
+        env: Env,
+        project_id: u64,
+        description_hash: Hash,
+        amount: Amount,
+        oracle: Address,
+        expected_hash: Hash,
+        deadline: u64,
+    ) -> Result<(), Error> {
+        // basic sanity checks are same as manual milestone
+        let escrow = get_escrow(&env, project_id)?;
+        escrow.creator.require_auth();
+
+        if amount <= 0 {
+            return Err(Error::InvalidInput);
+        }
+        let total_milestones = get_total_milestone_amount(&env, project_id)?;
+        let new_total = total_milestones
+            .checked_add(amount)
+            .ok_or(Error::InvalidInput)?;
+        if new_total > escrow.total_deposited {
+            return Err(Error::InsufficientEscrowBalance);
+        }
+
+        let milestone_id = get_milestone_counter(&env, project_id)?;
+        let next_id = milestone_id.checked_add(1).ok_or(Error::InvalidInput)?;
+
+        let empty_hash = BytesN::from_array(&env, &[0u8; 32]);
+        let milestone = Milestone {
+            id: milestone_id,
+            project_id,
+            description_hash: description_hash.clone(),
+            amount,
+            status: MilestoneStatus::Pending,
+            proof_hash: empty_hash,
+            approval_count: 0,
+            rejection_count: 0,
+            created_at: env.ledger().timestamp(),
+            validation_type: ValidationType::Oracle,
+            oracle_address: Some(oracle.clone()),
+            oracle_expected_hash: Some(expected_hash.clone()),
+            oracle_deadline: Some(deadline),
+        };
+
+        set_milestone(&env, project_id, milestone_id, &milestone);
+        set_milestone_counter(&env, project_id, next_id);
+
+        env.events().publish(
+            (MILESTONE_CREATED,),
+            (project_id, milestone_id, amount, description_hash),
+        );
+
+        Ok(())
+    }
+
+    /// Oracle callback to validate an objective milestone.
+    /// Only the specified oracle address may call this before the deadline.
+    /// If the returned hash matches the expected value the milestone is
+    /// immediately approved and funds released. A mismatch emits a failure
+    /// event and leaves the milestone open for validator voting after the
+    /// deadline.
+    pub fn oracle_validate(
+        env: Env,
+        project_id: u64,
+        milestone_id: u64,
+        result_hash: Hash,
+    ) -> Result<(), Error> {
+        // retrieve milestone
+        let mut milestone = get_milestone(&env, project_id, milestone_id)?;
+        if milestone.validation_type != ValidationType::Oracle {
+            return Err(Error::InvalidInput);
+        }
+        // only configured oracle may call
+        let oracle_addr = milestone
+            .oracle_address
+            .clone()
+            .ok_or(Error::InvalidInput)?;
+        oracle_addr.require_auth();
+
+        // must be in submitted state
+        if milestone.status != MilestoneStatus::Submitted {
+            return Err(Error::InvalidMilestoneStatus);
+        }
+
+        // compare result
+        if let Some(expected) = milestone.oracle_expected_hash.clone() {
+            if result_hash == expected {
+                // automatic approval path
+                milestone.status = MilestoneStatus::Approved;
+                // release funds
+                let mut escrow = get_escrow(&env, project_id)?;
+                release_milestone_funds(&env, &mut escrow, &milestone)?;
+                let token_client = TokenClient::new(&env, &escrow.token);
+                token_client.transfer(
+                    &env.current_contract_address(),
+                    &escrow.creator,
+                    &milestone.amount,
+                );
+                set_escrow(&env, project_id, &escrow);
+                set_milestone(&env, project_id, milestone_id, &milestone);
+                env.events().publish(
+                    (MILESTONE_ORACLE_APPROVED,),
+                    (project_id, milestone_id),
+                );
+                env.events().publish(
+                    (FUNDS_RELEASED,),
+                    (project_id, milestone_id, milestone.amount),
+                );
+            } else {
+                // mismatch: emit failure but keep submitted so validators can vote
+                env.events().publish(
+                    (MILESTONE_ORACLE_FAILED,),
+                    (project_id, milestone_id),
+                );
+                set_milestone(&env, project_id, milestone_id, &milestone);
+            }
+        } else {
+            return Err(Error::InvalidInput);
+        }
+        Ok(())
+    }
     ///
     /// # Arguments
     /// * `project_id` - Project identifier
