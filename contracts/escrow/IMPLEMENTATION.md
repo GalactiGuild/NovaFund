@@ -167,7 +167,7 @@ pub fn create_oracle_milestone(
     description: String,
     amount: Amount,
     oracle: Address,
-    expected_hash: Hash,
+    expected_hash: Bytes,
     deadline: u64,
 ) -> Result<(), Error>
 ```

@@ -207,7 +207,7 @@ The contract exposes the following public functions. Each function includes para
     - description: Milestone description hash.
     - amount: Amount requested for release.
     - oracle: Address of the trusted oracle service.
-    - expected_hash: Hash that the oracle is expected to report.
+    - expected_hash: Bytes that the oracle is expected to report (typically a 32-byte hash).
     - deadline: Timestamp after which validators may vote if oracle has not
       approved.
   - Validation: same as `create_milestone` plus a non‑zero deadline.

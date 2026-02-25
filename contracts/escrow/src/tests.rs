@@ -5,7 +5,7 @@ mod tests {
     use shared::types::MilestoneStatus;
     use soroban_sdk::{
         testutils::{Address as _, Ledger},
-        Address, BytesN, Env, Vec,
+        Address, Bytes, BytesN, Env, Vec,
     };
 
     /// common test environment builder; returns an oracle address as the
@@ -293,7 +293,7 @@ mod tests {
         client.deposit(&1, &1000);
 
         let description_hash = BytesN::from_array(&env, &[7u8; 32]);
-        let expected_hash = BytesN::from_array(&env, &[99u8; 32]);
+        let expected_hash = Bytes::from_slice(&env, &[99u8; 32]);
         let deadline = env.ledger().timestamp() + 100;
 
         client.create_oracle_milestone(
@@ -330,7 +330,7 @@ mod tests {
         client.deposit(&1, &1000);
 
         let description_hash = BytesN::from_array(&env, &[8u8; 32]);
-        let expected_hash = BytesN::from_array(&env, &[123u8; 32]);
+        let expected_hash = Bytes::from_slice(&env, &[123u8; 32]);
         let deadline = env.ledger().timestamp() + 10;
 
         client.create_oracle_milestone(
@@ -345,7 +345,7 @@ mod tests {
 
         // oracle sends wrong data
         env.mock_all_auths();
-        client.oracle_validate(&1, &0, &BytesN::from_array(&env, &[0u8; 32]));
+        client.oracle_validate(&1, &0, &Bytes::from_slice(&env, &[0u8; 32]));
 
         // milestone should stay in Submitted
         let milestone = client.get_milestone(&1, &0);

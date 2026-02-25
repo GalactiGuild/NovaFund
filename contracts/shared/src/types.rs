@@ -1,4 +1,4 @@
-use soroban_sdk::{contracttype, Address, BytesN, String, Vec};
+use soroban_sdk::{contracttype, Address, Bytes, BytesN, String, Vec};
 
 /// Common timestamp type
 pub type Timestamp = u64;
@@ -104,7 +104,7 @@ pub struct Milestone {
     // advanced validation fields
     pub validation_type: ValidationType,
     pub oracle_address: Option<Address>,
-    pub oracle_expected_hash: Option<Hash>,
+    pub oracle_expected_hash: Option<Bytes>,
     pub oracle_deadline: Option<Timestamp>,
 }
 

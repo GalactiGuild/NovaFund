@@ -314,7 +314,7 @@ impl EscrowContract {
         description_hash: Hash,
         amount: Amount,
         oracle: Address,
-        expected_hash: Hash,
+        expected_hash: Bytes,
         deadline: u64,
     ) -> Result<(), Error> {
         // basic sanity checks are same as manual milestone
@@ -373,7 +373,7 @@ impl EscrowContract {
         env: Env,
         project_id: u64,
         milestone_id: u64,
-        result_hash: Hash,
+        result_hash: Bytes,
     ) -> Result<(), Error> {
         // retrieve milestone
         let mut milestone = get_milestone(&env, project_id, milestone_id)?;
