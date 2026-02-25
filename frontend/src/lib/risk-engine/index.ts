@@ -30,9 +30,9 @@ export class RiskEngine {
 
   constructor(config?: Partial<DataPipelineConfig>) {
     this.config = {
-      cacheTtlMs:  5 * 60 * 1000,
-      maxRetries:  3,
-      timeoutMs:   8_000,
+      cacheTtlMs: 5 * 60 * 1000,
+      maxRetries: 3,
+      timeoutMs: 8_000,
       privacyMode: false,
       ...config,
     };
@@ -55,7 +55,10 @@ export class RiskEngine {
     );
 
     if (!raw) {
-      console.error(`[RiskEngine] Could not fetch data for project ${projectId}:`, errors);
+      console.error(
+        `[RiskEngine] Could not fetch data for project ${projectId}:`,
+        errors,
+      );
       return null;
     }
 
@@ -69,27 +72,42 @@ export class RiskEngine {
     raw: ProjectRawData,
     dataSourcesUsed: string[] = ["ON_CHAIN", "OFF_CHAIN"],
   ): RiskAssessmentResult {
-    const features        = extractFeatures(raw);
-    const riskScore       = computeRiskScore(features);
-    const riskLevel       = classifyRiskLevel(riskScore.overall, DEFAULT_MODEL_CONFIG);
-    const successPred     = predictSuccessProbability(features, DEFAULT_MODEL_CONFIG);
-    const topRiskFactors  = getTopRiskFactors(features, 5);
-    const topStrengths    = getTopStrengths(features, 5);
-    const explanation     = generateExplanationSummary(riskScore, topRiskFactors, topStrengths);
-    const insights        = generateInvestorInsights(features, riskScore, topRiskFactors);
+    const features = extractFeatures(raw);
+    const riskScore = computeRiskScore(features);
+    const riskLevel = classifyRiskLevel(
+      riskScore.overall,
+      DEFAULT_MODEL_CONFIG,
+    );
+    const successPred = predictSuccessProbability(
+      features,
+      DEFAULT_MODEL_CONFIG,
+    );
+    const topRiskFactors = getTopRiskFactors(features, 5);
+    const topStrengths = getTopStrengths(features, 5);
+    const explanation = generateExplanationSummary(
+      riskScore,
+      topRiskFactors,
+      topStrengths,
+    );
+    const insights = generateInvestorInsights(
+      features,
+      riskScore,
+      topRiskFactors,
+    );
 
     return {
-      projectId:          raw.offChain.projectId,
-      timestamp:          raw.timestamp,
+      projectId: raw.offChain.projectId,
+      timestamp: raw.timestamp,
       riskLevel,
       riskScore,
-      successPrediction:  successPred,
+      successPrediction: successPred,
       topRiskFactors,
       topStrengths,
       explanationSummary: explanation,
-      investorInsights:   insights,
-      dataSourcesUsed:    dataSourcesUsed as RiskAssessmentResult["dataSourcesUsed"],
-      assessmentVersion:  ENGINE_VERSION,
+      investorInsights: insights,
+      dataSourcesUsed:
+        dataSourcesUsed as RiskAssessmentResult["dataSourcesUsed"],
+      assessmentVersion: ENGINE_VERSION,
     };
   }
 
@@ -97,7 +115,11 @@ export class RiskEngine {
    * Batch assess multiple projects in parallel (capped concurrency).
    */
   async assessBatch(
-    projects: Array<{ projectId: string; chainId?: number; contractAddress?: string }>,
+    projects: Array<{
+      projectId: string;
+      chainId?: number;
+      contractAddress?: string;
+    }>,
     concurrency = 5,
   ): Promise<Map<string, RiskAssessmentResult | null>> {
     const results = new Map<string, RiskAssessmentResult | null>();
@@ -106,7 +128,7 @@ export class RiskEngine {
       const slice = projects.slice(i, i + concurrency);
       const batch = await Promise.allSettled(
         slice.map(({ projectId, chainId = 1, contractAddress }) =>
-          this.assess(projectId, chainId, contractAddress)
+          this.assess(projectId, chainId, contractAddress),
         ),
       );
 
@@ -122,6 +144,9 @@ export class RiskEngine {
 
 // ─── Re-exports for consumers ──────────────────────────────────────────────────
 
-export type { RiskAssessmentResult, MonitoringSnapshot, RiskAlert } from "./types";
-export { startMonitoring, stopMonitoring, onAlert, onSnapshot, getRecentSnapshots } from "./monitor";
+export type {
+  RiskAssessmentResult,
+  MonitoringSnapshot,
+  RiskAlert,
+} from "./types";
 export { invalidateProjectCache } from "./data-pipeline";
