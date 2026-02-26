@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { AppController } from './app.controller';
+import { UserController } from './user.controller';
 import { AppService } from './app.service';
 import { validateEnv } from './config/env.validation';
 import { ReputationModule } from './reputation/reputation.module';
@@ -20,7 +21,7 @@ import { NotificationModule } from './notification/notification.module';
     IndexerModule,
     NotificationModule,
   ],
-  controllers: [AppController],
+  controllers: [AppController, UserController],
   providers: [AppService],
 })
 export class AppModule {}
