@@ -1,12 +1,12 @@
 #![no_std]
 
 use shared::{
-    constants::GOVERNANCE_QUORUM,
+    constants::{GOVERNANCE_QUORUM, MAX_BATCH_SIZE},
     errors::Error,
-    events::{PROPOSAL_CREATED, PROPOSAL_EXECUTED, VOTE_CAST},
-    types::{Amount, Proposal},
+    events::{BATCH_COMPLETED, BATCH_ITEM_FAILED, PROPOSAL_CREATED, PROPOSAL_EXECUTED, VOTE_CAST},
+    types::{BatchResult, Proposal},
 };
-use soroban_sdk::{contract, contractimpl, contracttype, token, Address, Bytes, Env, Vec};
+use soroban_sdk::{contract, contractimpl, contracttype, Address, Bytes, Env, Vec};
 
 #[contracttype]
 #[derive(Clone)]
@@ -356,23 +356,100 @@ impl GovernanceContract {
             .unwrap_or(0)
     }
 
-    pub fn get_stake(env: Env, voter: Address) -> Amount {
-        env.storage()
-            .instance()
-            .get(&DataKey::Stake(voter))
-            .unwrap_or(0)
-    }
+    // ==================== Batch Operations ====================
 
-    pub fn get_total_stake(env: Env) -> Amount {
-        env.storage()
-            .instance()
-            .get(&DataKey::TotalStake)
-            .unwrap_or(0)
-    }
+    /// Cast votes on multiple proposals in a single call
+    ///
+    /// # Arguments
+    /// * `votes` - Vec of (proposal_id, support) tuples
+    /// * `voter` - Address of the voter
+    pub fn batch_vote(
+        env: Env,
+        votes: Vec<(u64, bool)>,
+        voter: Address,
+    ) -> Result<BatchResult, Error> {
+        let count = votes.len() as u32;
+        if count == 0 {
+            return Err(Error::BatchEmpty);
+        }
+        if count > MAX_BATCH_SIZE {
+            return Err(Error::BatchLimitExceeded);
+        }
 
-    pub fn get_proposal_timelock(env: Env, proposal_id: u64) -> Option<u64> {
-        env.storage()
-            .instance()
-            .get(&DataKey::ProposalTimelock(proposal_id))
+        // Authenticate voter once
+        voter.require_auth();
+
+        let current_time = env.ledger().timestamp();
+        let mut successful: u32 = 0;
+        let mut failed: u32 = 0;
+
+        for i in 0..votes.len() {
+            let (proposal_id, support) = votes.get(i).unwrap();
+
+            // Get proposal - skip if not found
+            let mut proposal: Proposal = match env
+                .storage()
+                .instance()
+                .get(&DataKey::Proposal(proposal_id))
+            {
+                Some(p) => p,
+                None => {
+                    failed += 1;
+                    env.events()
+                        .publish((BATCH_ITEM_FAILED,), proposal_id);
+                    continue;
+                }
+            };
+
+            // Skip if already executed
+            if proposal.executed {
+                failed += 1;
+                env.events()
+                    .publish((BATCH_ITEM_FAILED,), proposal_id);
+                continue;
+            }
+
+            // Skip if outside voting window
+            if current_time < proposal.start_time || current_time > proposal.end_time {
+                failed += 1;
+                env.events()
+                    .publish((BATCH_ITEM_FAILED,), proposal_id);
+                continue;
+            }
+
+            // Skip if already voted
+            let vote_key = DataKey::HasVoted(proposal_id, voter.clone());
+            if env.storage().instance().has(&vote_key) {
+                failed += 1;
+                env.events()
+                    .publish((BATCH_ITEM_FAILED,), proposal_id);
+                continue;
+            }
+
+            // Cast vote
+            if support {
+                proposal.yes_votes += 1;
+            } else {
+                proposal.no_votes += 1;
+            }
+
+            env.storage()
+                .instance()
+                .set(&DataKey::Proposal(proposal_id), &proposal);
+            env.storage().instance().set(&vote_key, &true);
+
+            env.events()
+                .publish((VOTE_CAST,), (proposal_id, voter.clone(), support));
+            successful += 1;
+        }
+
+        env.events()
+            .publish((BATCH_COMPLETED,), (successful, failed));
+
+        Ok(BatchResult {
+            total: count,
+            successful,
+            failed,
+        })
     }
 }

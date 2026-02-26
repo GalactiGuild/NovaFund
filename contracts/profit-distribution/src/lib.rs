@@ -6,7 +6,7 @@
 // - Dividend claiming mechanism
 
 #![no_std]
-use soroban_sdk::{contract, contractimpl, contractmeta, token::TokenClient, Address, Env, Map};
+use soroban_sdk::{contract, contractimpl, contractmeta, token::TokenClient, Address, Env, Map, Vec};
 
 mod errors;
 mod events;
@@ -21,6 +21,12 @@ use crate::{
     events::{emit_claim_event, emit_deposit_event},
     storage::*,
     types::InvestorShare,
+};
+
+use shared::{
+    constants::MAX_BATCH_SIZE,
+    events::{BATCH_COMPLETED, BATCH_ITEM_FAILED},
+    types::BatchResult,
 };
 
 const PRECISION: i128 = 1_000_000_000_000;
@@ -184,5 +190,104 @@ impl ProfitDistribution {
     /// Get contract admin
     pub fn get_admin(env: Env) -> Option<Address> {
         get_admin(&env)
+    }
+
+    // ==================== Batch Operations ====================
+
+    /// Claim dividends from multiple projects in a single call
+    ///
+    /// # Arguments
+    /// * `project_ids` - Vec of project IDs to claim from
+    /// * `investor` - Address of the investor
+    ///
+    /// # Returns
+    /// * `(BatchResult, i128)` - Batch result and total amount claimed
+    pub fn batch_claim_dividends(
+        env: Env,
+        project_ids: Vec<u64>,
+        investor: Address,
+    ) -> Result<(BatchResult, i128), ContractError> {
+        let count = project_ids.len() as u32;
+        if count == 0 {
+            return Err(ContractError::BatchEmpty);
+        }
+        if count > MAX_BATCH_SIZE {
+            return Err(ContractError::BatchLimitExceeded);
+        }
+
+        // Authenticate investor once
+        investor.require_auth();
+
+        let mut successful: u32 = 0;
+        let mut failed: u32 = 0;
+        let mut total_claimed: i128 = 0;
+
+        for i in 0..project_ids.len() {
+            let project_id = project_ids.get(i).unwrap();
+
+            // Get project token - skip if not initialized
+            let token_address = match get_project_token(&env, project_id) {
+                Some(t) => t,
+                None => {
+                    failed += 1;
+                    env.events()
+                        .publish((BATCH_ITEM_FAILED,), project_id);
+                    continue;
+                }
+            };
+
+            // Get investor share - skip if not registered
+            let mut share = match get_investor_share(&env, project_id, &investor) {
+                Some(s) => s,
+                None => {
+                    failed += 1;
+                    env.events()
+                        .publish((BATCH_ITEM_FAILED,), project_id);
+                    continue;
+                }
+            };
+
+            let current_acc = get_acc_profit_per_share(&env, project_id);
+
+            // Calculate pending amount
+            let pending = (share.share_percentage as i128
+                * (current_acc - share.accumulated_at_last_update))
+                / PRECISION;
+            let claimable = share.claimable_amount + pending;
+
+            // Skip if nothing to claim
+            if claimable <= 0 {
+                failed += 1;
+                env.events()
+                    .publish((BATCH_ITEM_FAILED,), project_id);
+                continue;
+            }
+
+            // Update user state
+            share.claimable_amount = 0;
+            share.accumulated_at_last_update = current_acc;
+            share.total_claimed += claimable;
+            set_investor_share(&env, project_id, &investor, &share);
+
+            // Transfer funds
+            let token_client = TokenClient::new(&env, &token_address);
+            token_client.transfer(&env.current_contract_address(), &investor, &claimable);
+
+            emit_claim_event(&env, project_id, &investor, claimable);
+            total_claimed += claimable;
+            successful += 1;
+        }
+
+        env.events()
+            .publish((BATCH_COMPLETED,), (successful, failed));
+
+        Ok((
+            BatchResult {
+                total: count,
+                successful,
+                failed,
+            },
+            total_claimed,
+        ))
     }
 }

@@ -1,11 +1,13 @@
 #![no_std]
 
 use shared::{
-    constants::{MIN_VALIDATORS, RESUME_TIME_DELAY, UPGRADE_TIME_LOCK_SECS},
+    constants::{
+        ESCROW_INITIALIZED, MAX_BATCH_SIZE, MILESTONE_APPROVAL_THRESHOLD, MILESTONE_APPROVED,
+        MILESTONE_CREATED, MILESTONE_REJECTED, MILESTONE_SUBMITTED, MIN_VALIDATORS,
+    },
     errors::Error,
     events::*,
-    types::{Amount, EscrowInfo, Hash, Milestone, MilestoneStatus, PauseState, PendingUpgrade},
-    MAX_APPROVAL_THRESHOLD, MIN_APPROVAL_THRESHOLD,
+    types::{Amount, BatchResult, EscrowInfo, Hash, Milestone, MilestoneStatus},
 };
 use soroban_sdk::{contract, contractimpl, token::TokenClient, Address, BytesN, Env, Vec};
 
@@ -305,117 +307,230 @@ impl EscrowContract {
         Ok(())
     }
 
-    pub fn pause(env: Env, admin: Address) -> Result<(), Error> {
-        let stored_admin = get_admin(&env)?;
-        if stored_admin != admin {
-            return Err(Error::Unauthorized);
-        }
-        admin.require_auth();
+    // ==================== Batch Operations ====================
 
-        let now = env.ledger().timestamp();
-        let state = PauseState {
-            paused: true,
-            paused_at: now,
-            resume_not_before: now + RESUME_TIME_DELAY,
-        };
-
-        set_pause_state(&env, &state);
-        env.events().publish((CONTRACT_PAUSED,), (admin, now));
-
-        Ok(())
-    }
-
-    pub fn resume(env: Env, admin: Address) -> Result<(), Error> {
-        let stored_admin = get_admin(&env)?;
-        if stored_admin != admin {
-            return Err(Error::Unauthorized);
-        }
-        admin.require_auth();
-
-        let state = get_pause_state(&env);
-
-        let now = env.ledger().timestamp();
-        if now < state.resume_not_before {
-            return Err(Error::ResumeTooEarly);
-        }
-
-        let new_state = PauseState {
-            paused: false,
-            paused_at: state.paused_at,
-            resume_not_before: state.resume_not_before,
-        };
-
-        set_pause_state(&env, &new_state);
-        env.events().publish((CONTRACT_RESUMED,), (admin, now));
-
-        Ok(())
-    }
-
-    pub fn get_is_paused(env: Env) -> bool {
-        is_paused(&env)
-    }
-
-    pub fn schedule_upgrade(
+    /// Create multiple milestones for a project in a single call
+    ///
+    /// # Arguments
+    /// * `project_id` - Project identifier
+    /// * `milestones` - Vec of (description_hash, amount) tuples
+    pub fn batch_create_milestones(
         env: Env,
-        admin: Address,
-        new_wasm_hash: BytesN<32>,
-    ) -> Result<(), Error> {
-        let stored_admin = get_admin(&env)?;
-        if stored_admin != admin {
-            return Err(Error::Unauthorized);
+        project_id: u64,
+        milestones: Vec<(Hash, Amount)>,
+    ) -> Result<BatchResult, Error> {
+        let count = milestones.len() as u32;
+        if count == 0 {
+            return Err(Error::BatchEmpty);
         }
-        admin.require_auth();
-        let now = env.ledger().timestamp();
-        let pending = PendingUpgrade {
-            wasm_hash: new_wasm_hash.clone(),
-            execute_not_before: now + UPGRADE_TIME_LOCK_SECS,
-        };
-        set_pending_upgrade(&env, &pending);
+        if count > MAX_BATCH_SIZE {
+            return Err(Error::BatchLimitExceeded);
+        }
+
+        // Get escrow and authenticate creator once
+        let escrow = get_escrow(&env, project_id)?;
+        escrow.creator.require_auth();
+
+        let mut successful: u32 = 0;
+        let mut failed: u32 = 0;
+        let mut milestone_id = get_milestone_counter(&env, project_id)?;
+        let mut running_total = get_total_milestone_amount(&env, project_id)?;
+
+        for i in 0..milestones.len() {
+            let (description_hash, amount) = milestones.get(i).unwrap();
+
+            // Validate amount
+            if amount <= 0 {
+                failed += 1;
+                env.events()
+                    .publish((BATCH_ITEM_FAILED,), (project_id, i as u32));
+                continue;
+            }
+
+            // Validate total doesn't exceed escrow balance
+            let new_total = match running_total.checked_add(amount) {
+                Some(t) => t,
+                None => {
+                    failed += 1;
+                    env.events()
+                        .publish((BATCH_ITEM_FAILED,), (project_id, i as u32));
+                    continue;
+                }
+            };
+
+            if new_total > escrow.total_deposited {
+                failed += 1;
+                env.events()
+                    .publish((BATCH_ITEM_FAILED,), (project_id, i as u32));
+                continue;
+            }
+
+            // Create milestone
+            let empty_hash = BytesN::from_array(&env, &[0u8; 32]);
+            let milestone = Milestone {
+                id: milestone_id,
+                project_id,
+                description_hash: description_hash.clone(),
+                amount,
+                status: MilestoneStatus::Pending,
+                proof_hash: empty_hash,
+                approval_count: 0,
+                rejection_count: 0,
+                created_at: env.ledger().timestamp(),
+            };
+
+            set_milestone(&env, project_id, milestone_id, &milestone);
+            running_total = new_total;
+            milestone_id += 1;
+            successful += 1;
+
+            env.events().publish(
+                (MILESTONE_CREATED,),
+                (project_id, milestone.id, amount, description_hash),
+            );
+        }
+
+        // Update the milestone counter once
+        set_milestone_counter(&env, project_id, milestone_id);
+
         env.events().publish(
-            (UPGRADE_SCHEDULED,),
-            (admin, new_wasm_hash, pending.execute_not_before),
+            (BATCH_COMPLETED,),
+            (project_id, successful, failed),
         );
-        Ok(())
+
+        Ok(BatchResult {
+            total: count,
+            successful,
+            failed,
+        })
     }
 
-    pub fn execute_upgrade(env: Env, admin: Address) -> Result<(), Error> {
-        let stored_admin = get_admin(&env)?;
-        if stored_admin != admin {
-            return Err(Error::Unauthorized);
+    /// Vote on multiple milestones in a single call
+    ///
+    /// # Arguments
+    /// * `project_id` - Project identifier
+    /// * `votes` - Vec of (milestone_id, approve) tuples
+    /// * `voter` - Address of the voter
+    pub fn batch_vote_milestones(
+        env: Env,
+        project_id: u64,
+        votes: Vec<(u64, bool)>,
+        voter: Address,
+    ) -> Result<BatchResult, Error> {
+        let count = votes.len() as u32;
+        if count == 0 {
+            return Err(Error::BatchEmpty);
         }
-        admin.require_auth();
-        if !is_paused(&env) {
-            return Err(Error::UpgradeRequiresPause);
+        if count > MAX_BATCH_SIZE {
+            return Err(Error::BatchLimitExceeded);
         }
-        let pending = get_pending_upgrade(&env).ok_or(Error::UpgradeNotScheduled)?;
-        let now = env.ledger().timestamp();
-        if now < pending.execute_not_before {
-            return Err(Error::UpgradeTooEarly);
+
+        // Authenticate voter once
+        voter.require_auth();
+
+        // Get escrow and verify voter is a validator
+        let mut escrow = get_escrow(&env, project_id)?;
+        if !escrow.validators.iter().any(|v| v == voter) {
+            return Err(Error::NotAValidator);
         }
-        env.deployer()
-            .update_current_contract_wasm(pending.wasm_hash.clone());
-        clear_pending_upgrade(&env);
+
+        let mut successful: u32 = 0;
+        let mut failed: u32 = 0;
+
+        for i in 0..votes.len() {
+            let (milestone_id, approve) = votes.get(i).unwrap();
+
+            // Get milestone - skip if not found
+            let mut milestone = match get_milestone(&env, project_id, milestone_id) {
+                Ok(m) => m,
+                Err(_) => {
+                    failed += 1;
+                    env.events()
+                        .publish((BATCH_ITEM_FAILED,), (project_id, milestone_id));
+                    continue;
+                }
+            };
+
+            // Validate milestone status
+            if milestone.status != MilestoneStatus::Submitted {
+                failed += 1;
+                env.events()
+                    .publish((BATCH_ITEM_FAILED,), (project_id, milestone_id));
+                continue;
+            }
+
+            // Check if already voted
+            if has_validator_voted(&env, project_id, milestone_id, &voter).unwrap_or(false) {
+                failed += 1;
+                env.events()
+                    .publish((BATCH_ITEM_FAILED,), (project_id, milestone_id));
+                continue;
+            }
+
+            // Update vote counts
+            if approve {
+                milestone.approval_count = milestone
+                    .approval_count
+                    .checked_add(1)
+                    .unwrap_or(milestone.approval_count);
+            } else {
+                milestone.rejection_count = milestone
+                    .rejection_count
+                    .checked_add(1)
+                    .unwrap_or(milestone.rejection_count);
+            }
+
+            // Record vote
+            let _ = set_validator_vote(&env, project_id, milestone_id, &voter);
+
+            // Check for milestone finalization
+            let required_approvals =
+                (escrow.validators.len() as u32 * MILESTONE_APPROVAL_THRESHOLD) / 10000;
+
+            if milestone.approval_count as u32 >= required_approvals {
+                milestone.status = MilestoneStatus::Approved;
+
+                // Release funds
+                if release_milestone_funds(&env, &mut escrow, &milestone).is_ok() {
+                    let token_client = TokenClient::new(&env, &escrow.token);
+                    token_client.transfer(
+                        &env.current_contract_address(),
+                        &escrow.creator,
+                        &milestone.amount,
+                    );
+                    set_escrow(&env, project_id, &escrow);
+
+                    env.events().publish(
+                        (MILESTONE_APPROVED,),
+                        (project_id, milestone_id, milestone.approval_count),
+                    );
+                    env.events().publish(
+                        (FUNDS_RELEASED,),
+                        (project_id, milestone_id, milestone.amount),
+                    );
+                }
+            } else if milestone.rejection_count as u32
+                > escrow.validators.len() as u32 - required_approvals
+            {
+                milestone.status = MilestoneStatus::Rejected;
+                env.events().publish(
+                    (MILESTONE_REJECTED,),
+                    (project_id, milestone_id, milestone.rejection_count),
+                );
+            }
+
+            set_milestone(&env, project_id, milestone_id, &milestone);
+            successful += 1;
+        }
+
         env.events()
-            .publish((UPGRADE_EXECUTED,), (admin, pending.wasm_hash));
-        Ok(())
-    }
+            .publish((BATCH_COMPLETED,), (project_id, successful, failed));
 
-    pub fn cancel_upgrade(env: Env, admin: Address) -> Result<(), Error> {
-        let stored_admin = get_admin(&env)?;
-        if stored_admin != admin {
-            return Err(Error::Unauthorized);
-        }
-        admin.require_auth();
-        if !has_pending_upgrade(&env) {
-            return Err(Error::UpgradeNotScheduled);
-        }
-        clear_pending_upgrade(&env);
-        env.events().publish((UPGRADE_CANCELLED,), admin);
-        Ok(())
-    }
-
-    pub fn get_pending_upgrade(env: Env) -> Option<PendingUpgrade> {
-        storage::get_pending_upgrade(&env)
+        Ok(BatchResult {
+            total: count,
+            successful,
+            failed,
+        })
     }
 }
 

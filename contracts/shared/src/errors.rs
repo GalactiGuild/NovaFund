@@ -69,5 +69,8 @@ pub enum Error {
     InvalidDeadline = 1001,
     ProjectNotFound = 1002,
     ContributionTooLow = 1003,
-    IdentityNotVerified = 1004,
+
+    // Batch operation errors (800-899)
+    BatchLimitExceeded = 800,
+    BatchEmpty = 801,
 }

@@ -1,18 +1,17 @@
 #![no_std]
 
-use soroban_sdk::{contract, contractimpl, contracttype, token::TokenClient, Address, Bytes, Env};
+use soroban_sdk::{
+    contract, contracterror, contractimpl, contracttype, token::TokenClient, Address, Bytes, Env,
+    Vec,
+    contract, contractimpl, contracttype, token::TokenClient, Address, Bytes, Env,
+};
 
 use shared::{
-    constants::{
-        MAX_PROJECT_DURATION, MIN_CONTRIBUTION, MIN_FUNDING_GOAL, MIN_PROJECT_DURATION,
-        RESUME_TIME_DELAY, UPGRADE_TIME_LOCK_SECS,
-    },
+    constants::{MAX_BATCH_SIZE, MAX_PROJECT_DURATION, MIN_CONTRIBUTION, MIN_FUNDING_GOAL, MIN_PROJECT_DURATION},
     errors::Error,
-    events::{
-        CONTRACT_PAUSED, CONTRACT_RESUMED, CONTRIBUTION_MADE, PROJECT_CREATED, PROJECT_FAILED,
-        REFUND_ISSUED, UPGRADE_CANCELLED, UPGRADE_EXECUTED, UPGRADE_SCHEDULED,
-    },
-    types::{Jurisdiction, PauseState, PendingUpgrade},
+    events::{BATCH_COMPLETED, BATCH_ITEM_FAILED, CONTRIBUTION_MADE, PROJECT_CREATED},
+    types::BatchResult,
+    events::{CONTRIBUTION_MADE, PROJECT_CREATED, PROJECT_FAILED, REFUND_ISSUED},
     utils::verify_future_timestamp,
 };
 use soroban_sdk::BytesN;
@@ -298,129 +297,114 @@ impl ProjectLaunch {
         env.storage().instance().get(&DataKey::Admin)
     }
 
-    /// Check if project deadline has passed and mark it as failed if funding goal not met
-    /// This can be called by anyone to trigger the failure status update
-    pub fn mark_project_failed(env: Env, project_id: u64) -> Result<(), Error> {
-        // Get project
-        let mut project: Project = env
-            .storage()
-            .instance()
-            .get(&(DataKey::Project, project_id))
-            .ok_or(Error::ProjectNotFound)?;
+    // ==================== Batch Operations ====================
+
+    /// Contribute to multiple projects in a single call
+    ///
+    /// # Arguments
+    /// * `contributions` - Vec of (project_id, amount) tuples
+    /// * `contributor` - Address of the contributor
+    pub fn batch_contribute(
+        env: Env,
+        contributions: Vec<(u64, i128)>,
+        contributor: Address,
+    ) -> Result<BatchResult, Error> {
+        let count = contributions.len() as u32;
+        if count == 0 {
+            return Err(Error::BatchEmpty);
+        }
+        if count > MAX_BATCH_SIZE {
+            return Err(Error::BatchLimitExceeded);
+        }
+
+        // Authenticate contributor once
+        contributor.require_auth();
 
         let current_time = env.ledger().timestamp();
+        let mut successful: u32 = 0;
+        let mut failed: u32 = 0;
 
-        // Check if deadline has passed
-        if current_time <= project.deadline {
-            return Err(Error::InvalidInput); // Deadline hasn't passed yet
+        for i in 0..contributions.len() {
+            let (project_id, amount) = contributions.get(i).unwrap();
+
+            // Validate minimum contribution
+            if amount < MIN_CONTRIBUTION {
+                failed += 1;
+                env.events()
+                    .publish((BATCH_ITEM_FAILED,), project_id);
+                continue;
+            }
+
+            // Get project - skip if not found
+            let mut project: Project = match env
+                .storage()
+                .instance()
+                .get(&(DataKey::Project, project_id))
+            {
+                Some(p) => p,
+                None => {
+                    failed += 1;
+                    env.events()
+                        .publish((BATCH_ITEM_FAILED,), project_id);
+                    continue;
+                }
+            };
+
+            // Skip if not active
+            if project.status != ProjectStatus::Active {
+                failed += 1;
+                env.events()
+                    .publish((BATCH_ITEM_FAILED,), project_id);
+                continue;
+            }
+
+            // Skip if past deadline
+            if current_time >= project.deadline {
+                failed += 1;
+                env.events()
+                    .publish((BATCH_ITEM_FAILED,), project_id);
+                continue;
+            }
+
+            // Update project totals
+            project.total_raised += amount;
+            env.storage()
+                .instance()
+                .set(&(DataKey::Project, project_id), &project);
+
+            // Perform token transfer
+            let token_client = TokenClient::new(&env, &project.token);
+            token_client.transfer(&contributor, &env.current_contract_address(), &amount);
+
+            // Store aggregated contribution
+            let contribution_key =
+                (DataKey::ContributionAmount, project_id, contributor.clone());
+            let current_contribution: i128 = env
+                .storage()
+                .persistent()
+                .get(&contribution_key)
+                .unwrap_or(0);
+
+            let new_contribution = current_contribution.checked_add(amount).unwrap();
+            env.storage()
+                .persistent()
+                .set(&contribution_key, &new_contribution);
+
+            env.events().publish(
+                (CONTRIBUTION_MADE,),
+                (project_id, contributor.clone(), amount, project.total_raised),
+            );
+            successful += 1;
         }
 
-        // Check if project is already failed or completed
-        if project.status == ProjectStatus::Failed || project.status == ProjectStatus::Completed {
-            return Err(Error::InvalidProjectStatus);
-        }
+        env.events()
+            .publish((BATCH_COMPLETED,), (successful, failed));
 
-        // Check if failure has already been processed
-        if env
-            .storage()
-            .instance()
-            .has(&(DataKey::ProjectFailureProcessed, project_id))
-        {
-            return Err(Error::InvalidProjectStatus);
-        }
-
-        // Check if funding goal was met
-        if project.total_raised >= project.funding_goal {
-            // Project succeeded, mark as completed instead
-            project.status = ProjectStatus::Completed;
-        } else {
-            // Project failed due to insufficient funding
-            project.status = ProjectStatus::Failed;
-            // Emit event to indicate project failure
-            env.events().publish((PROJECT_FAILED,), project_id);
-        }
-
-        // Store updated project
-        env.storage()
-            .instance()
-            .set(&(DataKey::Project, project_id), &project);
-
-        // Mark that failure check has been processed
-        env.storage()
-            .instance()
-            .set(&(DataKey::ProjectFailureProcessed, project_id), &true);
-
-        Ok(())
-    }
-
-    /// Refund a specific contributor
-    /// Can be called by the contributor or any permissionless caller
-    pub fn refund_contributor(
-        env: Env,
-        project_id: u64,
-        contributor: Address,
-    ) -> Result<i128, Error> {
-        // Get project
-        let project: Project = env
-            .storage()
-            .instance()
-            .get(&(DataKey::Project, project_id))
-            .ok_or(Error::ProjectNotFound)?;
-
-        // Ensure project is in failed state
-        if project.status != ProjectStatus::Failed {
-            return Err(Error::ProjectNotActive);
-        }
-
-        // Check if refund has already been processed for this contributor
-        let refund_key = (DataKey::RefundProcessed, project_id, contributor.clone());
-        if env.storage().instance().has(&refund_key) {
-            return Err(Error::InvalidInput); // Already refunded
-        }
-
-        // Get contribution amount
-        let contribution_key = (DataKey::ContributionAmount, project_id, contributor.clone());
-        let contribution_amount: i128 = env
-            .storage()
-            .persistent()
-            .get(&contribution_key)
-            .unwrap_or(0);
-
-        if contribution_amount <= 0 {
-            return Err(Error::InvalidInput); // No contribution to refund
-        }
-
-        // Transfer tokens back to contributor
-        let token_client = TokenClient::new(&env, &project.token);
-        token_client.transfer(
-            &env.current_contract_address(),
-            &contributor,
-            &contribution_amount,
-        );
-
-        // Mark refund as processed
-        env.storage().instance().set(&refund_key, &true);
-
-        // Emit refund event
-        env.events().publish(
-            (REFUND_ISSUED,),
-            (project_id, contributor, contribution_amount),
-        );
-
-        Ok(contribution_amount)
-    }
-
-    /// Check if a contributor has been refunded for a project
-    pub fn is_refunded(env: Env, project_id: u64, contributor: Address) -> bool {
-        let refund_key = (DataKey::RefundProcessed, project_id, contributor);
-        env.storage().instance().has(&refund_key)
-    }
-
-    /// Check if project failure has been processed
-    pub fn is_failure_processed(env: Env, project_id: u64) -> bool {
-        env.storage()
-            .instance()
-            .has(&(DataKey::ProjectFailureProcessed, project_id))
+        Ok(BatchResult {
+            total: count,
+            successful,
+            failed,
+        })
     }
 
     // ---------- Pause (emergency) ----------
