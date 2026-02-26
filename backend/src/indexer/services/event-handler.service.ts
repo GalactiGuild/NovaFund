@@ -1,3 +1,75 @@
+/**
+ * Handler for MILESTONE_REJECTED events
+ */
+class MilestoneRejectedHandler implements IEventHandler {
+  readonly eventType = ContractEventType.MILESTONE_REJECTED;
+  private readonly logger = new Logger(MilestoneRejectedHandler.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notificationService: NotificationService,
+    private readonly reputationService: ReputationService,
+  ) {}
+
+  validate(event: ParsedContractEvent): boolean {
+    const data = event.data as any;
+    return !!(data.projectId !== undefined && data.milestoneId !== undefined);
+  }
+
+  async handle(event: ParsedContractEvent): Promise<void> {
+    const data = event.data as any;
+
+    this.logger.log(
+      `Processing MILESTONE_REJECTED: Milestone ${data.milestoneId} for project ${data.projectId}`,
+    );
+
+    const project = await this.prisma.project.findUnique({
+      where: { contractId: data.projectId.toString() },
+    });
+
+    if (!project) {
+      this.logger.warn(`Project ${data.projectId} not found for milestone rejection`);
+      return;
+    }
+
+    // Update milestone status
+    await this.prisma.milestone.updateMany({
+      where: {
+        projectId: project.id,
+      },
+      data: {
+        status: 'REJECTED',
+      },
+    });
+
+    // Notify all contributors of this project
+    const contributors = await this.prisma.contribution.findMany({
+      where: { projectId: project.id },
+      select: { investorId: true },
+      distinct: ['investorId'],
+    });
+
+    for (const contribution of contributors) {
+      try {
+        await this.notificationService.notify(
+          contribution.investorId,
+          'MILESTONE',
+          'Project Milestone Failed',
+          `A project you back (${project.title}) has a failed milestone!`,
+          { projectId: project.id, milestoneId: data.milestoneId }
+        );
+      } catch (e) {
+        this.logger.error(`Failed to notify investor ${contribution.investorId} of milestone: ${e.message}`);
+      }
+    }
+
+    // Update trust score for the creator
+    if (project.creatorId) {
+      await this.reputationService.updateTrustScore(project.creatorId);
+      this.logger.log(`Updated trust score for creator ${project.creatorId}`);
+    }
+  }
+}
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma.service';
 import {
@@ -11,6 +83,7 @@ import {
 } from '../types/event-types';
 import { IEventHandler, IEventHandlerRegistry } from '../interfaces/event-handler.interface';
 import { NotificationService } from '../../notification/services/notification.service';
+import { ReputationService } from '../../reputation/reputation.service';
 
 /**
  * Handler for PROJECT_CREATED events
@@ -163,6 +236,7 @@ class MilestoneApprovedHandler implements IEventHandler {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notificationService: NotificationService,
+    private readonly reputationService: ReputationService,
   ) { }
 
   validate(event: ParsedContractEvent): boolean {
@@ -222,6 +296,12 @@ class MilestoneApprovedHandler implements IEventHandler {
     }
 
     this.logger.log(`Approved milestone for project ${data.projectId}`);
+
+    // Update trust score for the creator
+    if (project.creatorId) {
+      await this.reputationService.updateTrustScore(project.creatorId);
+      this.logger.log(`Updated trust score for creator ${project.creatorId}`);
+    }
   }
 }
 
@@ -347,7 +427,8 @@ export class EventHandlerService implements IEventHandlerRegistry {
   private registerHandlers(): void {
     this.register(new ProjectCreatedHandler(this.prisma));
     this.register(new ContributionMadeHandler(this.prisma, this.notificationService));
-    this.register(new MilestoneApprovedHandler(this.prisma, this.notificationService));
+    this.register(new MilestoneApprovedHandler(this.prisma, this.notificationService, this.reputationService));
+    this.register(new MilestoneRejectedHandler(this.prisma, this.notificationService, this.reputationService));
     this.register(new FundsReleasedHandler(this.prisma));
     this.register(new ProjectCompletedHandler(this.prisma));
     this.register(new ProjectFailedHandler(this.prisma));

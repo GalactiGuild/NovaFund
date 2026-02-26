@@ -15,6 +15,7 @@ model User {
   walletAddress   String   @unique @map("wallet_address")
   profileData     Json?    @map("profile_data")
   reputationScore Int      @default(0) @map("reputation_score")
+  trustScore      Int      @default(500) @map("trust_score")
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
 
