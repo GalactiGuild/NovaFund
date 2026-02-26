@@ -9,7 +9,7 @@ import stellarConfig, { indexerConfig } from '../config/stellar.config';
 
 /**
  * Blockchain Indexer Module
- * 
+ *
  * This module provides background indexing of Stellar blockchain events
  * to synchronize on-chain state with the local database.
  */

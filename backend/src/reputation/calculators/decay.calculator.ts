@@ -1,4 +1,4 @@
-import { DECAY_HALF_LIFE_DAYS } from "../Reputation.constants";
+import { DECAY_HALF_LIFE_DAYS } from '../Reputation.constants';
 
 /**
  * Exponential time-decay weight.
