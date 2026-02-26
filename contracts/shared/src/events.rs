@@ -18,6 +18,8 @@ pub const MILESTONE_CREATED: Symbol = symbol_short!("m_create");
 pub const MILESTONE_SUBMITTED: Symbol = symbol_short!("m_submit");
 pub const MILESTONE_APPROVED: Symbol = symbol_short!("m_apprv");
 pub const MILESTONE_REJECTED: Symbol = symbol_short!("m_reject");
+pub const MILESTONE_ORACLE_APPROVED: Symbol = symbol_short!("m_or_ap");
+pub const MILESTONE_ORACLE_FAILED: Symbol = symbol_short!("m_or_fail");
 pub const MILESTONE_COMPLETED: Symbol = symbol_short!("milestone");
 pub const VALIDATORS_UPDATED: Symbol = symbol_short!("v_update");
 

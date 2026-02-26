@@ -1,4 +1,4 @@
-use soroban_sdk::{contracttype, Address, BytesN, String, Vec};
+use soroban_sdk::{contracttype, Address, Bytes, BytesN, String, Vec};
 
 /// Common timestamp type
 pub type Timestamp = u64;
@@ -74,7 +74,21 @@ pub enum MilestoneStatus {
     Rejected = 3,  // Rejected by majority
 }
 
+#[contracttype]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[repr(u32)]
+pub enum ValidationType {
+    Manual = 0,  // traditional validator vote
+    Oracle = 1,  // external oracle provides objective result
+}
+
 /// Milestone structure
+///
+/// `validation_type` indicates whether the milestone is reviewed manually by
+/// validators or automatically via an oracle. When `Oracle` is selected the
+/// additional fields (`oracle_address`, `oracle_expected_hash`,
+/// `oracle_deadline`) provide an on-chain anchor for the external criteria.
+/// Manual validator voting remains available as a fallback after the deadline.
 #[contracttype]
 #[derive(Clone, Debug)]
 pub struct Milestone {
@@ -87,6 +101,11 @@ pub struct Milestone {
     pub approval_count: u32,
     pub rejection_count: u32,
     pub created_at: Timestamp,
+    // advanced validation fields
+    pub validation_type: ValidationType,
+    pub oracle_address: Option<Address>,
+    pub oracle_expected_hash: Option<Bytes>,
+    pub oracle_deadline: Option<Timestamp>,
 }
 
 /// Proposal status

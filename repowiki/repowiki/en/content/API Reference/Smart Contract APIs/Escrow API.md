@@ -198,6 +198,37 @@ The contract exposes the following public functions. Each function includes para
     - project_id: Project identifier.
     - milestone_id: Milestone identifier.
     - approve: Boolean indicating approval.
+
+- create_oracle_milestone
+  - Purpose: Create a milestone that will be automatically validated by an external
+    oracle before falling back to manual validator voting.
+  - Parameters:
+    - project_id: Project identifier.
+    - description: Milestone description hash.
+    - amount: Amount requested for release.
+    - oracle: Address of the trusted oracle service.
+    - expected_hash: Bytes that the oracle is expected to report (typically a 32-byte hash).
+    - deadline: Timestamp after which validators may vote if oracle has not
+      approved.
+  - Validation: same as `create_milestone` plus a non‑zero deadline.
+  - Events: MILESTONE_CREATED.
+
+- oracle_validate
+  - Purpose: Called by the configured oracle to submit its verification result.
+    A successful check immediately approves the milestone and releases funds.
+    A mismatched result emits an oracle failure event and leaves the milestone
+    open for manual voting.
+  - Parameters:
+    - project_id: Project identifier.
+    - milestone_id: Milestone identifier.
+    - result_hash: Data hash returned by the oracle.
+  - Validation:
+    - Caller must be the configured oracle address.
+    - Milestone must be in Submitted state and of type Oracle.
+  - Events:
+    - MILESTONE_ORACLE_APPROVED (on match)
+    - MILESTONE_ORACLE_FAILED (on mismatch)
+    - FUNDS_RELEASED (if approved)
   - Validation:
     - Caller must be a validator and authorize the transaction.
     - Milestone must be in Submitted status.

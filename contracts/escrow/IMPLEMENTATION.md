@@ -136,7 +136,9 @@ pub fn deposit(
 
 ### create_milestone
 
-Creates a new milestone within an escrow.
+Creates a new milestone within an escrow.  This legacy entry-point continues to
+support the traditional, manual validation workflow in which project validators
+vote on submitted proofs.
 
 ```rust
 pub fn create_milestone(
@@ -144,6 +146,29 @@ pub fn create_milestone(
     project_id: u64,
     description: String,
     amount: Amount,
+) -> Result<(), Error>
+```
+
+### create_oracle_milestone
+
+An enhanced constructor for milestones that require objective, external
+verification.  The caller must specify the oracle service address, an expected
+hash that the oracle will return, and a deadline timestamp.  Prior to the
+deadline the configured oracle is the only actor authorised to mark the
+milestone as approved.  If the oracle provides a matching hash the funds are
+released immediately; a mismatch or lack of response leaves the milestone in the
+`Submitted` state so that validators can fall back to manual voting after the
+deadline.
+
+```rust
+pub fn create_oracle_milestone(
+    env: Env,
+    project_id: u64,
+    description: String,
+    amount: Amount,
+    oracle: Address,
+    expected_hash: Bytes,
+    deadline: u64,
 ) -> Result<(), Error>
 ```
 
