@@ -35,8 +35,8 @@ export default registerAs('stellar', () => ({
 
 export const indexerConfig = registerAs('indexer', () => ({
   pollIntervalMs: parseInt(process.env.INDEXER_POLL_INTERVAL_MS || '5000', 10),
-  startLedger: process.env.INDEXER_START_LEDGER 
-    ? parseInt(process.env.INDEXER_START_LEDGER, 10) 
+  startLedger: process.env.INDEXER_START_LEDGER
+    ? parseInt(process.env.INDEXER_START_LEDGER, 10)
     : undefined,
   reorgDepthThreshold: parseInt(process.env.INDEXER_REORG_DEPTH_THRESHOLD || '5', 10),
   maxEventsPerFetch: parseInt(process.env.INDEXER_MAX_EVENTS_PER_FETCH || '100', 10),

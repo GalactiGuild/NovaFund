@@ -10,7 +10,7 @@ export class StorageService {
   constructor() {
     this.ipfs = create({
       host: 'your-ipfs-provider-url',
-      port: 5000 
+      port: 5000,
     });
   }
 

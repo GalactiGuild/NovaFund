@@ -3,8 +3,7 @@ import { timeDecayWeight } from './decay.calculator';
 
 const NOW = new Date('2024-06-15T00:00:00.000Z');
 
-const daysAgo = (d: number) =>
-  new Date(NOW.getTime() - d * 86_400_000);
+const daysAgo = (d: number) => new Date(NOW.getTime() - d * 86_400_000);
 
 describe('timeDecayWeight', () => {
   it('returns 1.0 for an activity that happened right now', () => {
@@ -34,9 +33,7 @@ describe('timeDecayWeight', () => {
   });
 
   it('produces a strictly decreasing sequence as age increases', () => {
-    const weights = [0, 30, 90, 180, 365, 730].map((d) =>
-      timeDecayWeight(daysAgo(d), NOW),
-    );
+    const weights = [0, 30, 90, 180, 365, 730].map((d) => timeDecayWeight(daysAgo(d), NOW));
     for (let i = 1; i < weights.length; i++) {
       expect(weights[i]).toBeLessThan(weights[i - 1]);
     }

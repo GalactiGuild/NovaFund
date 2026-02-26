@@ -6,6 +6,7 @@ import { validateEnv } from './config/env.validation';
 import { ReputationModule } from './reputation/reputation.module';
 import { DatabaseModule } from './database.module';
 import { IndexerModule } from './indexer/indexer.module';
+import { NotificationModule } from './notification/notification.module';
 
 @Module({
   imports: [
@@ -17,7 +18,7 @@ import { IndexerModule } from './indexer/indexer.module';
     ReputationModule,
     DatabaseModule,
     IndexerModule,
-    
+    NotificationModule,
   ],
   controllers: [AppController],
   providers: [AppService],

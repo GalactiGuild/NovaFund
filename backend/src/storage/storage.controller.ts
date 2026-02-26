@@ -12,7 +12,11 @@ export class StorageController {
 
   @Post('banner')
   async optimizeAndUploadBanner(@Body() banner: any): Promise<string> {
-    const optimizedImage = await this.storageService.optimizeImage(banner.imagePath, banner.width, banner.height);
+    const optimizedImage = await this.storageService.optimizeImage(
+      banner.imagePath,
+      banner.width,
+      banner.height,
+    );
     const cid = await this.storageService.pinProjectMetadata({ image: optimizedImage });
     return cid;
   }

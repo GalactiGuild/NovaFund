@@ -7,15 +7,15 @@ export enum ActivityType {
   /** A transaction or job completed successfully by both parties. */
   SUCCESSFUL_TRANSACTION = 'SUCCESSFUL_TRANSACTION',
   /** A transaction that was abandoned, disputed, or failed. */
-  FAILED_TRANSACTION     = 'FAILED_TRANSACTION',
+  FAILED_TRANSACTION = 'FAILED_TRANSACTION',
   /** A peer-to-peer rating submitted after a completed transaction. */
-  PEER_RATING            = 'PEER_RATING',
+  PEER_RATING = 'PEER_RATING',
   /** A review or comment left on a listing / profile. */
-  COMMUNITY_REVIEW       = 'COMMUNITY_REVIEW',
+  COMMUNITY_REVIEW = 'COMMUNITY_REVIEW',
   /** A dispute resolution decided in the subject's favour. */
-  DISPUTE_WON            = 'DISPUTE_WON',
+  DISPUTE_WON = 'DISPUTE_WON',
   /** A dispute resolution decided against the subject. */
-  DISPUTE_LOST           = 'DISPUTE_LOST',
+  DISPUTE_LOST = 'DISPUTE_LOST',
   /** A high-value contribution flagged by admins or automated scoring. */
   HIGH_VALUE_CONTRIBUTION = 'HIGH_VALUE_CONTRIBUTION',
 }
@@ -27,10 +27,10 @@ export enum ActivityType {
  * Tune these constants without touching calculation logic.
  */
 export const FACTOR_WEIGHTS = {
-  SUCCESS_RATE:        0.35,  // outcome quality
-  PEER_RATING:         0.30,  // community sentiment
-  CONTRIBUTION_SIZE:   0.20,  // volume and impact
-  COMMUNITY_FEEDBACK:  0.15,  // reviews and dispute outcomes
+  SUCCESS_RATE: 0.35, // outcome quality
+  PEER_RATING: 0.3, // community sentiment
+  CONTRIBUTION_SIZE: 0.2, // volume and impact
+  COMMUNITY_FEEDBACK: 0.15, // reviews and dispute outcomes
 } as const;
 
 /**

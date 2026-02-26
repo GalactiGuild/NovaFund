@@ -49,7 +49,9 @@ export class LedgerTrackerService {
    * @returns The created cursor
    */
   async initializeCursor(startLedger: number): Promise<LedgerCursor> {
-    this.logger.log(`Initializing ledger cursor at ledger ${startLedger} for network ${this.network}`);
+    this.logger.log(
+      `Initializing ledger cursor at ledger ${startLedger} for network ${this.network}`,
+    );
 
     const cursor = await this.prisma.ledgerCursor.upsert({
       where: { network: this.network },
@@ -94,7 +96,7 @@ export class LedgerTrackerService {
   /**
    * Detect if a re-org has occurred
    * Compares the expected ledger hash with the actual hash from the network
-   * 
+   *
    * @param currentLedger The current ledger info from the network
    * @returns ReorgDetectionResult indicating if re-org occurred
    */
@@ -114,11 +116,11 @@ export class LedgerTrackerService {
     // If we're at the same sequence, check hash
     if (currentLedger.sequence === cursor.lastLedgerSeq) {
       const hasReorg = currentLedger.hash !== cursor.lastLedgerHash;
-      
+
       if (hasReorg) {
         this.logger.warn(
           `Re-org detected at ledger ${currentLedger.sequence}. ` +
-          `Expected hash: ${cursor.lastLedgerHash}, Got: ${currentLedger.hash}`
+            `Expected hash: ${cursor.lastLedgerHash}, Got: ${currentLedger.hash}`,
         );
       }
 
@@ -142,7 +144,7 @@ export class LedgerTrackerService {
 
     // Current ledger is behind cursor - this indicates a re-org
     this.logger.warn(
-      `Re-org detected. Current ledger ${currentLedger.sequence} is behind cursor ${cursor.lastLedgerSeq}`
+      `Re-org detected. Current ledger ${currentLedger.sequence} is behind cursor ${cursor.lastLedgerSeq}`,
     );
 
     return {
@@ -165,14 +167,11 @@ export class LedgerTrackerService {
 
     this.logger.warn(
       `Handling re-org with depth ${reorgResult.reorgDepth}. ` +
-      `Rolling back to ledger ${reorgResult.lastValidLedger}`
+        `Rolling back to ledger ${reorgResult.lastValidLedger}`,
     );
 
     // Calculate rollback depth (add buffer for safety)
-    const rollbackDepth = Math.min(
-      reorgResult.reorgDepth + 2,
-      this.reorgDepthThreshold
-    );
+    const rollbackDepth = Math.min(reorgResult.reorgDepth + 2, this.reorgDepthThreshold);
 
     const safeLedgerSeq = Math.max(0, reorgResult.lastValidLedger - rollbackDepth);
 
@@ -285,7 +284,7 @@ export class LedgerTrackerService {
 
     this.logger.log(
       `Progress: Ledger ${currentLedger}/${targetLedger} (${progress}%) | ` +
-      `Events: ${eventsProcessed} | Remaining: ${remaining}`
+        `Events: ${eventsProcessed} | Remaining: ${remaining}`,
     );
 
     // Store log in database for monitoring
