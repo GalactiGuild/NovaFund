@@ -1,6 +1,3 @@
-/// Platform constants
-use soroban_sdk::{symbol_short, Symbol};
-
 /// Default platform fee (2.5%)
 pub const DEFAULT_PLATFORM_FEE: u32 = 250;
 
@@ -8,10 +5,10 @@ pub const DEFAULT_PLATFORM_FEE: u32 = 250;
 pub const MAX_PLATFORM_FEE: u32 = 1000;
 
 /// Minimum project funding goal
-pub const MIN_FUNDING_GOAL: i128 = 1_000_0000000; // 1,000 XLM (with 7 decimals)
+pub const MIN_FUNDING_GOAL: i128 = 10_000_000_000; // 1,000 XLM (with 7 decimals)
 
 /// Maximum project funding goal
-pub const MAX_FUNDING_GOAL: i128 = 1_000_000_0000000; // 1,000,000 XLM
+pub const MAX_FUNDING_GOAL: i128 = 10_000_000_000_000; // 1,000,000 XLM
 
 /// Minimum project duration (1 day in seconds)
 pub const MIN_PROJECT_DURATION: u64 = 86400;

@@ -51,6 +51,17 @@ pub struct UserProfile {
     pub verified: bool,
 }
 
+/// Regulatory Jurisdiction
+#[contracttype]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[repr(u32)]
+pub enum Jurisdiction {
+    Global = 0,
+    UnitedStates = 1,
+    EuropeanUnion = 2,
+    UnitedKingdom = 3,
+}
+
 #[contracttype]
 #[derive(Clone)]
 pub struct EscrowInfo {
@@ -60,6 +71,7 @@ pub struct EscrowInfo {
     pub total_deposited: Amount,
     pub released_amount: Amount,
     pub validators: Vec<Address>,
+    pub approval_threshold: u32,
 }
 
 #[contracttype]
@@ -107,7 +119,7 @@ pub enum VoteOption {
     No = 2,
 }
 
-/// Governance proposal structure (MVP)
+/// Governance proposal structure (token-weighted voting)
 #[contracttype]
 #[derive(Clone, Debug)]
 pub struct Proposal {
@@ -116,9 +128,9 @@ pub struct Proposal {
     pub payload_ref: soroban_sdk::Bytes, // Reference to proposal details (e.g., IPFS hash, JSON pointer)
     pub start_time: Timestamp,
     pub end_time: Timestamp,
-    pub yes_votes: u32,  // Simple vote count (1-address-1-vote)
-    pub no_votes: u32,   // Simple vote count (1-address-1-vote)
-    pub executed: bool,  // Execution status
+    pub yes_votes: Amount, // Token-weighted yes votes
+    pub no_votes: Amount,  // Token-weighted no votes
+    pub executed: bool,    // Execution status
 }
 
 // ==================== Cross-Chain Bridge Types ====================
@@ -223,4 +235,61 @@ pub struct BridgeConfig {
     pub confirmation_threshold: u32,
     pub max_gas_price: u64,
     pub emergency_pause_threshold: u32,
+}
+
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct PauseState {
+    pub paused: bool,
+    pub paused_at: u64,
+    pub resume_not_before: u64,
+}
+
+/// Pending contract upgrade (time-locked). Used by ProjectLaunch and Escrow.
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct PendingUpgrade {
+    pub wasm_hash: Hash,
+    /// Ledger timestamp before which execute_upgrade will fail
+    pub execute_not_before: u64,
+}
+
+// ==================== Oracle Types ====================
+
+#[contracttype]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[repr(u32)]
+pub enum OracleFeedType {
+    Price = 0,
+    Event = 1,
+    Statistic = 2,
+}
+
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct OracleFeedConfig {
+    pub feed_type: OracleFeedType,
+    pub description: String,
+    pub decimals: u32,
+    pub heartbeat_seconds: u64,
+    pub deviation_bps: BasisPoints,
+    pub min_oracles: u32,
+    pub max_oracles: u32,
+    pub reward_per_submission: Amount,
+}
+
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct OracleFeedState {
+    pub latest_value: Amount,
+    pub latest_round_id: u64,
+    pub latest_timestamp: Timestamp,
+    pub latest_updated_at_ledger: Timestamp,
+}
+
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct OracleReport {
+    pub oracle: Address,
+    pub value: Amount,
 }

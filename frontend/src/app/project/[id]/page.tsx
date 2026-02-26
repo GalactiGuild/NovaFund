@@ -2,7 +2,15 @@
 
 import { useMemo, useState } from "react";
 import { Clock8, ShieldCheck, Sparkles, Target, Users } from "lucide-react";
-import MilestoneTimeline, { type Milestone } from "@/components/MilestoneTimeline";
+import MilestoneTimeline, {
+  type Milestone,
+} from "@/components/MilestoneTimeline";
+import { ShareButton } from "@/components/social/ShareButton";
+import { LikeButton } from "@/components/social/LikeButton";
+import { SocialStats } from "@/components/social/SocialStats";
+import { UserProfileCard } from "@/components/social/UserProfileCard";
+import { BackerAvatars } from "@/components/social/BackerAvatars";
+import { CommentSection } from "@/components/social/CommentSection";
 
 type ContributionState = "idle" | "loading" | "success" | "error";
 
@@ -99,19 +107,18 @@ const projectProfile = {
     "Empowering communities with decentralized solar energy solutions powered by Stellar micro-transactions.",
 };
 
-export default function ProjectPage({
-  params,
-}: {
-  params: { id: string };
-}) {
+export default function ProjectPage({ params }: { params: { id: string } }) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [contributionAmount, setContributionAmount] = useState("0.25");
   const [contributionNote, setContributionNote] = useState("");
-  const [contributionStatus, setContributionStatus] = useState<ContributionState>("idle");
+  const [contributionStatus, setContributionStatus] =
+    useState<ContributionState>("idle");
   const [statusMessage, setStatusMessage] = useState("");
-  const [latestContribution, setLatestContribution] = useState<
-    { amount: string; note: string } | null
-  >(null);
+  const [latestContribution, setLatestContribution] = useState<{
+    amount: string;
+    note: string;
+  } | null>(null);
+  const [insuranceSelected, setInsuranceSelected] = useState(false);
 
   const fundingTarget = 1_400_000;
   const fundsCommitted = 870_000;
@@ -119,11 +126,22 @@ export default function ProjectPage({
   const fundingProgress = Math.round((fundsCommitted / fundingTarget) * 100);
   const releaseProgress = Math.round((fundsReleased / fundingTarget) * 100);
 
-  const completedCount = milestones.filter((milestone) => milestone.status === "completed").length;
+  const completedCount = milestones.filter(
+    (milestone) => milestone.status === "completed"
+  ).length;
   const activeMilestone = useMemo(
     () => milestones.find((milestone) => milestone.status === "active"),
     []
   );
+
+  const estimatedPremium = useMemo(() => {
+    const amount = Number(contributionAmount);
+    if (!contributionAmount || Number.isNaN(amount) || amount <= 0) {
+      return "0.00";
+    }
+    const premiumRate = 0.02;
+    return (amount * premiumRate).toFixed(2);
+  }, [contributionAmount]);
 
   const openModal = () => {
     setIsModalOpen(true);
@@ -153,7 +171,11 @@ export default function ProjectPage({
       const success = Math.random() > 0.2;
       if (success) {
         setContributionStatus("success");
-        setStatusMessage("Contribution queued. Expect the on-chain release window in 2 minutes.");
+        setStatusMessage(
+          insuranceSelected
+            ? "Contribution and insurance coverage queued. Expect the on-chain release window in 2 minutes."
+            : "Contribution queued. Expect the on-chain release window in 2 minutes."
+        );
         setLatestContribution({
           amount: `${amount.toFixed(2)} XLM`,
           note: contributionNote || "Community wallet",
@@ -175,35 +197,57 @@ export default function ProjectPage({
               <span>Project ID #{params.id}</span>
             </div>
             <h1 className="text-4xl font-semibold text-white sm:text-5xl">
-              {projectProfile.name} <span className="text-purple-300">({projectProfile.ticker})</span>
+              {projectProfile.name}{" "}
+              <span className="text-purple-300">({projectProfile.ticker})</span>
             </h1>
-            <p className="max-w-3xl text-lg text-white/70">{projectProfile.tagline}</p>
-            <div className="flex flex-wrap gap-3 text-xs uppercase tracking-[0.3em] text-white/60">
+            <p className="max-w-3xl text-lg text-white/70">
+              {projectProfile.tagline}
+            </p>
+            <div className="flex flex-wrap items-center gap-3 text-xs uppercase tracking-[0.3em] text-white/60">
               <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
                 {projectProfile.category}
               </span>
               <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
                 {completedCount}/{milestones.length} milestones released
               </span>
+              <div className="flex items-center gap-2 normal-case tracking-normal">
+                <LikeButton projectId={params.id} />
+                <ShareButton
+                  projectId={params.id}
+                  projectTitle={projectProfile.name}
+                />
+              </div>
             </div>
           </div>
           <div className="mt-8 grid gap-6 rounded-3xl border border-white/5 bg-black/20 p-6 md:grid-cols-3">
             <div>
-              <p className="text-xs uppercase tracking-[0.4em] text-white/50">Raised</p>
+              <p className="text-xs uppercase tracking-[0.4em] text-white/50">
+                Raised
+              </p>
               <p className="text-3xl font-semibold text-white">$870K</p>
               <p className="text-xs text-white/60">62% of funding target</p>
             </div>
             <div>
-              <p className="text-xs uppercase tracking-[0.4em] text-white/50">Released</p>
+              <p className="text-xs uppercase tracking-[0.4em] text-white/50">
+                Released
+              </p>
               <p className="text-3xl font-semibold text-purple-300">$620K</p>
               <p className="text-xs text-white/60">4 of 5 tranches approved</p>
             </div>
             <div>
-              <p className="text-xs uppercase tracking-[0.4em] text-white/50">Active milestone</p>
+              <p className="text-xs uppercase tracking-[0.4em] text-white/50">
+                Active milestone
+              </p>
               <p className="text-2xl font-semibold text-white">
                 {activeMilestone?.title ?? "Awaiting staging"}
               </p>
             </div>
+          </div>
+
+          {/* Social Stats & Creator */}
+          <div className="mt-6 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-white/5 bg-black/10 px-6 py-4">
+            <SocialStats projectId={params.id} />
+            <BackerAvatars projectId={params.id} />
           </div>
         </div>
 
@@ -212,27 +256,46 @@ export default function ProjectPage({
             <div className="rounded-3xl border border-white/10 bg-slate-900/60 p-3 md:p-6 shadow-xl">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-xs uppercase tracking-[0.4em] text-white/60">Milestone roadmap</p>
-                  <h2 className="text-3xl font-semibold text-white">Vertical fund releases</h2>
+                  <p className="text-xs uppercase tracking-[0.4em] text-white/60">
+                    Milestone roadmap
+                  </p>
+                  <h2 className="text-3xl font-semibold text-white">
+                    Vertical fund releases
+                  </h2>
                 </div>
                 <span className="text-sm font-semibold text-white/70">
                   {completedCount}/{milestones.length} released
                 </span>
               </div>
               <p className="mt-3 text-sm text-white/60">
-                Every milestone automatically gates fund releases through validator votes and telemetry
-                verification.
+                Every milestone automatically gates fund releases through
+                validator votes and telemetry verification.
               </p>
             </div>
 
             <div className="rounded-3xl border border-white/10 bg-slate-900/60 p-3 md:p-6 shadow-xl">
               <MilestoneTimeline milestones={milestones} />
             </div>
+
+            {/* Community Discussion */}
+            <div className="rounded-3xl border border-white/10 bg-slate-900/60 p-3 md:p-6 shadow-xl">
+              <CommentSection projectId={params.id} />
+            </div>
           </div>
 
           <aside className="space-y-5 rounded-3xl border border-white/10 bg-slate-900/60 p-6 shadow-xl">
+            {/* Project Creator */}
             <div>
-              <p className="text-xs uppercase tracking-[0.4em] text-white/60">Funding progress</p>
+              <p className="mb-3 text-xs uppercase tracking-[0.4em] text-white/60">
+                Project creator
+              </p>
+              <UserProfileCard walletAddress="GDQP2K...X7MZ" compact />
+            </div>
+
+            <div>
+              <p className="text-xs uppercase tracking-[0.4em] text-white/60">
+                Funding progress
+              </p>
               <div className="mt-3">
                 <div className="flex items-center justify-between text-sm font-semibold text-white/70">
                   <span>Total committed</span>
@@ -259,11 +322,18 @@ export default function ProjectPage({
 
             <div className="space-y-4">
               {highlightStats.map((stat) => (
-                <div key={stat.label} className="flex items-center gap-3 rounded-2xl border border-white/5 bg-white/5 px-4 py-3">
+                <div
+                  key={stat.label}
+                  className="flex items-center gap-3 rounded-2xl border border-white/5 bg-white/5 px-4 py-3"
+                >
                   <stat.icon className="h-5 w-5 text-purple-300/90" />
                   <div>
-                    <p className="text-xs uppercase tracking-[0.3em] text-white/50">{stat.label}</p>
-                    <p className="text-lg font-semibold text-white">{stat.value}</p>
+                    <p className="text-xs uppercase tracking-[0.3em] text-white/50">
+                      {stat.label}
+                    </p>
+                    <p className="text-lg font-semibold text-white">
+                      {stat.value}
+                    </p>
                     <p className="text-xs text-white/60">{stat.detail}</p>
                   </div>
                 </div>
@@ -276,8 +346,9 @@ export default function ProjectPage({
                 <span>{activeMilestone ? "Live" : "Queued"}</span>
               </div>
               <p className="text-sm text-white/70">
-                Join the current tranche to help unlock the next milestone release. Contributions are
-                reconciled by the escalation council within minutes.
+                Join the current tranche to help unlock the next milestone
+                release. Contributions are reconciled by the escalation council
+                within minutes.
               </p>
               <button
                 type="button"
@@ -288,20 +359,63 @@ export default function ProjectPage({
               </button>
               {latestContribution && (
                 <p className="text-xs text-white/60">
-                  Latest confirmed: <strong className="text-white">{latestContribution.amount}</strong>{" "}
+                  Latest confirmed:{" "}
+                  <strong className="text-white">
+                    {latestContribution.amount}
+                  </strong>{" "}
                   — {latestContribution.note}
                 </p>
               )}
               <p className="text-xs text-purple-300/90">
-                Contributors receive real-time verification receipts before funds are released.
+                Contributors receive real-time verification receipts before
+                funds are released.
+              </p>
+            </div>
+
+            <div className="space-y-3 rounded-2xl border border-purple-500/20 bg-gradient-to-b from-slate-900 to-slate-950/80 p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <ShieldCheck className="h-4 w-4 text-purple-300" />
+                  <p className="text-xs uppercase tracking-[0.4em] text-white/60">
+                    Insurance pool
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setInsuranceSelected((value) => !value)}
+                  className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                    insuranceSelected
+                      ? "bg-purple-500 text-slate-950"
+                      : "bg-white/5 text-white/70 border border-white/10"
+                  }`}
+                >
+                  {insuranceSelected ? "Enabled" : "Add coverage"}
+                </button>
+              </div>
+              <p className="text-sm text-white/70">
+                Protect your downside with an on-chain insurance pool that pays
+                out if the project fails after funds are released.
+              </p>
+              <p className="text-xs text-white/60">
+                Indicative premium:{" "}
+                <span className="font-semibold text-purple-200">
+                  {estimatedPremium} XLM
+                </span>{" "}
+                for a {contributionAmount} XLM contribution.
+              </p>
+              <p className="text-[11px] text-white/50">
+                Pricing is simulated for now and will be driven by project risk
+                scores and pool utilization once contracts are wired in.
               </p>
             </div>
 
             <div className="rounded-2xl border border-white/5 bg-black/40 p-4">
-              <p className="text-xs uppercase tracking-[0.4em] text-white/60">Validation cadence</p>
+              <p className="text-xs uppercase tracking-[0.4em] text-white/60">
+                Validation cadence
+              </p>
               <p className="text-sm text-white/70">
-                Validators validate each milestone within 24h. Locked milestones unlock once consensus is
-                recorded.
+                Validators validate each milestone within 24h. Locked milestones
+                unlock once consensus is recorded.
               </p>
             </div>
           </aside>
@@ -312,7 +426,9 @@ export default function ProjectPage({
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 px-4 py-6">
           <div className="w-full max-w-md rounded-3xl border border-white/10 bg-slate-900/90 p-6 shadow-2xl backdrop-blur">
             <div className="flex items-center justify-between">
-              <h3 className="text-xl font-semibold text-white">Contribute to {projectProfile.ticker}</h3>
+              <h3 className="text-xl font-semibold text-white">
+                Contribute to {projectProfile.ticker}
+              </h3>
               <button
                 type="button"
                 onClick={closeModal}
@@ -322,8 +438,8 @@ export default function ProjectPage({
               </button>
             </div>
             <p className="mt-2 text-sm text-white/60">
-              Contributions are simulated for now — an approval guard ensures successful transactions or
-              surfaces errors.
+              Contributions are simulated for now — an approval guard ensures
+              successful transactions or surfaces errors.
             </p>
 
             <form onSubmit={handleContribute} className="mt-6 space-y-4">
@@ -335,7 +451,9 @@ export default function ProjectPage({
                   type="number"
                   step="0.01"
                   value={contributionAmount}
-                  onChange={(event) => setContributionAmount(event.target.value)}
+                  onChange={(event) =>
+                    setContributionAmount(event.target.value)
+                  }
                   className="mt-2 w-full rounded-2xl border border-white/5 bg-white/5 px-4 py-3 text-base text-white outline-none transition focus:border-purple-300"
                 />
               </div>
@@ -358,7 +476,9 @@ export default function ProjectPage({
                 disabled={contributionStatus === "loading"}
                 className="w-full rounded-2xl border border-white/10 bg-gradient-to-r from-purple-500 to-amber-400 px-4 py-3 text-sm font-semibold text-slate-950 transition disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {contributionStatus === "loading" ? "Processing…" : "Simulate contribution"}
+                {contributionStatus === "loading"
+                  ? "Processing…"
+                  : "Simulate contribution"}
               </button>
             </form>
 

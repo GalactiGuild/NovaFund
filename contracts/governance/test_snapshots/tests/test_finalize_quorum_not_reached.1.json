@@ -468,6 +468,18 @@
                         "key": {
                           "vec": [
                             {
+                              "symbol": "Admin"
+                            }
+                          ]
+                        },
+                        "val": {
+                          "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4"
+                        }
+                      },
+                      {
+                        "key": {
+                          "vec": [
+                            {
                               "symbol": "HasVoted"
                             },
                             {
@@ -796,7 +808,10 @@
                                 "symbol": "no_votes"
                               },
                               "val": {
-                                "u32": 0
+                                "i128": {
+                                  "hi": 0,
+                                  "lo": 0
+                                }
                               }
                             },
                             {
@@ -820,7 +835,10 @@
                                 "symbol": "yes_votes"
                               },
                               "val": {
-                                "u32": 15
+                                "i128": {
+                                  "hi": 0,
+                                  "lo": 15
+                                }
                               }
                             }
                           ]

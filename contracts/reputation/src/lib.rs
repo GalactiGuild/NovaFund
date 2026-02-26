@@ -148,7 +148,7 @@ impl ReputationContract {
 
         // Calculate new score with clamping
         let new_score = profile.score.saturating_add(delta);
-        let clamped_score = new_score.max(REPUTATION_MIN).min(REPUTATION_MAX);
+        let clamped_score = new_score.clamp(REPUTATION_MIN, REPUTATION_MAX);
 
         // Update profile
         profile.score = clamped_score;

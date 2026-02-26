@@ -107,6 +107,9 @@
                       "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M"
                     }
                   ]
+                },
+                {
+                  "u32": 6700
                 }
               ]
             }
@@ -239,6 +242,9 @@
                           "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M"
                         }
                       ]
+                    },
+                    {
+                      "u32": 6700
                     }
                   ]
                 }

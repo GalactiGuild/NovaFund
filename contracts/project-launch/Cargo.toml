@@ -8,9 +8,11 @@ license.workspace = true
 soroban-sdk = { workspace = true }
 soroban-token-sdk = { workspace = true }
 shared = { path = "../shared" }
+identity = { path = "../identity" }
 
 [dev-dependencies]
 soroban-sdk = { workspace = true, features = ["testutils"] }
+cross-chain-bridge = { path = "../cross-chain-bridge", features = ["testutils"] }
 
 [lib]
 crate-type = ["cdylib"]
@@ -24,3 +26,6 @@ debug-assertions = false
 panic = "abort"
 codegen-units = 1
 lto = true
+
+[features]
+testutils = ["soroban-sdk/testutils"]

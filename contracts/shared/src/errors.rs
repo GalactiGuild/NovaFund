@@ -24,6 +24,11 @@ pub enum Error {
     InvalidMilestoneStatus = 202,
     NotAValidator = 203,
     AlreadyVoted = 204,
+    ContractPaused = 205,
+    ResumeTooEarly = 206,
+    UpgradeNotScheduled = 207,
+    UpgradeTooEarly = 208,
+    UpgradeRequiresPause = 209,
 
     // Distribution errors (300-399)
     InsufficientFunds = 300,
