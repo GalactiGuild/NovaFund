@@ -453,6 +453,10 @@ mod tests {
 
         client.initialize(&1, &creator, &token, &validators, &DEFAULT_THRESHOLD);
 
+        let v1 = validators.get(0).unwrap();
+        let v2 = validators.get(1).unwrap();
+        let v3 = validators.get(2).unwrap();
+
         let mut jurors = Vec::new(&env);
         for _ in 0..7 {
             let j = Address::generate(&env);
@@ -504,6 +508,9 @@ mod tests {
         client.configure_dispute_token(&juror_token);
 
         client.initialize(&1, &creator, &token, &validators, &DEFAULT_THRESHOLD);
+
+        let v1 = validators.get(0).unwrap();
+        let v2 = validators.get(1).unwrap();
 
         let mut jurors = Vec::new(&env);
         for _ in 0..20 {
