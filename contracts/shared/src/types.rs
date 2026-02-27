@@ -89,6 +89,66 @@ pub struct Milestone {
     pub created_at: Timestamp,
 }
 
+// ==================== Dispute Resolution Types ====================
+
+/// Status of a dispute
+#[contracttype]
+#[derive(Clone, Copy, PartialEq, Debug, Eq)]
+pub enum DisputeStatus {
+    Pending = 0,
+    JurySelection = 1,
+    Voting = 2,
+    Resolved = 3,
+    Appealed = 4,
+    FinalResolved = 5,
+}
+
+/// Resolution outcome of a dispute
+#[contracttype]
+#[derive(Clone, Copy, PartialEq, Debug, Eq)]
+pub enum DisputeResolution {
+    NoRes = 0,
+    RelFunds = 1,
+    RefBackers = 2,
+    PartRel = 3,
+}
+
+/// Dispute structure
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct Dispute {
+    pub id: u64,
+    pub milestone_id: u64,
+    pub project_id: u64,
+    pub initiator: Address,
+    pub status: DisputeStatus,
+    pub created_at: Timestamp,
+    pub resolution: DisputeResolution,
+    pub resolution_payload: u32,
+    pub appeal_count: u32,
+}
+
+/// Juror Information
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct JurorInfo {
+    pub address: Address,
+    pub staked_amount: Amount,
+    pub active_disputes: u32,
+    pub successful_votes: u32,
+    pub missed_votes: u32,
+}
+
+/// Vote commitment for the commit-reveal scheme
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct VoteCommitment {
+    pub hash: Hash,
+    pub revealed: bool,
+    pub vote: DisputeResolution,
+    pub vote_payload: u32,
+}
+
 /// Proposal status
 #[contracttype]
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]

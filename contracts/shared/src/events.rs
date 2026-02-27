@@ -21,6 +21,15 @@ pub const MILESTONE_REJECTED: Symbol = symbol_short!("m_reject");
 pub const MILESTONE_COMPLETED: Symbol = symbol_short!("milestone");
 pub const VALIDATORS_UPDATED: Symbol = symbol_short!("v_update");
 
+// Dispute events
+pub const JURY_SELECTED: Symbol = symbol_short!("j_select");
+pub const VOTE_COMMITTED: Symbol = symbol_short!("v_commit");
+pub const VOTE_REVEALED: Symbol = symbol_short!("v_reveal");
+pub const DISPUTE_RESOLVED: Symbol = symbol_short!("d_resolve");
+pub const DISPUTE_APPEALED: Symbol = symbol_short!("d_appeal");
+pub const APPEAL_RESOLVED: Symbol = symbol_short!("a_resolve");
+pub const JUROR_SLASHED: Symbol = symbol_short!("j_slashed");
+
 // Distribution events
 pub const PROFIT_DISTRIBUTED: Symbol = symbol_short!("profit");
 pub const DIVIDEND_CLAIMED: Symbol = symbol_short!("claim");

@@ -71,7 +71,7 @@ pub struct AMMLiquidityPools;
 impl AMMLiquidityPools {
     pub fn initialize(env: Env, admin: Address, default_fee_rate: u32) {
         if env.storage().instance().has(&ADMIN) {
-            panic_with_error!(&env, Error::AlreadyInitialized);
+            panic_with_error!(&env, Error::AlreadyInit);
         }
 
         admin.require_auth();
@@ -85,7 +85,7 @@ impl AMMLiquidityPools {
         admin.require_auth();
 
         if token_a == token_b {
-            panic_with_error!(&env, Error::InvalidInput);
+            panic_with_error!(&env, Error::InvInput);
         }
 
         let mut pools: Map<u64, Pool> = env
@@ -99,7 +99,7 @@ impl AMMLiquidityPools {
             if (pool.token_a == token_a && pool.token_b == token_b)
                 || (pool.token_a == token_b && pool.token_b == token_a)
             {
-                panic_with_error!(&env, Error::ProjectAlreadyExists);
+                panic_with_error!(&env, Error::ProjExists);
             }
         }
 
@@ -132,7 +132,7 @@ impl AMMLiquidityPools {
 
     pub fn add_liquidity(env: Env, params: LiquidityParams) -> i64 {
         if env.ledger().timestamp() > params.deadline {
-            panic_with_error!(&env, Error::DeadlinePassed);
+            panic_with_error!(&env, Error::DeadlinePass);
         }
 
         let mut pools: Map<u64, Pool> = env
@@ -175,7 +175,7 @@ impl AMMLiquidityPools {
         };
 
         if liquidity < params.min_liquidity {
-            panic_with_error!(&env, Error::InsufficientFunds);
+            panic_with_error!(&env, Error::InsufFunds);
         }
 
         // Update pool reserves
@@ -237,7 +237,7 @@ impl AMMLiquidityPools {
         deadline: u64,
     ) -> (i64, i64) {
         if env.ledger().timestamp() > deadline {
-            panic_with_error!(&env, Error::DeadlinePassed);
+            panic_with_error!(&env, Error::DeadlinePass);
         }
 
         let mut pools: Map<u64, Pool> = env
@@ -248,14 +248,14 @@ impl AMMLiquidityPools {
         let mut pool = pools.get(pool_id).unwrap();
 
         if pool.total_liquidity == 0 || liquidity > pool.total_liquidity {
-            panic_with_error!(&env, Error::InsufficientFunds);
+            panic_with_error!(&env, Error::InsufFunds);
         }
 
         let amount_a = (liquidity * pool.reserve_a) / pool.total_liquidity;
         let amount_b = (liquidity * pool.reserve_b) / pool.total_liquidity;
 
         if amount_a < min_amount_a || amount_b < min_amount_b {
-            panic_with_error!(&env, Error::InsufficientFunds);
+            panic_with_error!(&env, Error::InsufFunds);
         }
 
         // Update pool
@@ -298,7 +298,7 @@ impl AMMLiquidityPools {
 
     pub fn swap(env: Env, params: SwapParams) -> i64 {
         if env.ledger().timestamp() > params.deadline {
-            panic_with_error!(&env, Error::DeadlinePassed);
+            panic_with_error!(&env, Error::DeadlinePass);
         }
 
         let pools: Map<u64, Pool> = env
@@ -316,7 +316,7 @@ impl AMMLiquidityPools {
         };
 
         if reserve_in == 0 || reserve_out == 0 {
-            panic_with_error!(&env, Error::InsufficientFunds);
+            panic_with_error!(&env, Error::InsufFunds);
         }
 
         // Calculate amount out with fees
@@ -324,7 +324,7 @@ impl AMMLiquidityPools {
         let amount_out = (reserve_out * amount_in_with_fee) / (reserve_in + amount_in_with_fee);
 
         if amount_out < params.min_amount_out {
-            panic_with_error!(&env, Error::InsufficientFunds);
+            panic_with_error!(&env, Error::InsufFunds);
         }
 
         // Update reserves

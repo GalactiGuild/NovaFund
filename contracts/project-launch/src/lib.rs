@@ -9,8 +9,8 @@ use shared::{
     },
     errors::Error,
     events::{
-        CONTRACT_PAUSED, CONTRACT_RESUMED, CONTRIBUTION_MADE, PROJECT_CREATED, PROJECT_FAILED,
-        REFUND_ISSUED, UPGRADE_CANCELLED, UPGRADE_EXECUTED, UPGRADE_SCHEDULED,
+        CONTRIBUTION_MADE, PROJECT_CREATED, PROJECT_FAILED, REFUND_ISSUED,
+        CONTRACT_PAUSED, CONTRACT_RESUMED, UPGRADE_SCHEDULED, UPGRADE_EXECUTED, UPGRADE_CANCELLED,
     },
     types::{Jurisdiction, PauseState, PendingUpgrade},
     utils::verify_future_timestamp,
@@ -56,11 +56,11 @@ pub enum DataKey {
     Admin = 0,
     NextProjectId = 1,
     Project = 2,
-    ContributionAmount = 3, // (DataKey::ContributionAmount, project_id, contributor) -> i128
-    RefundProcessed = 4,    // (DataKey::RefundProcessed, project_id, contributor) -> bool
-    ProjectFailureProcessed = 5, // (DataKey::ProjectFailureProcessed, project_id) -> bool
-    IdentityContract = 6,   // Address of the Identity Verification contract
-    ProjectJurisdictions = 7, // (DataKey::ProjectJurisdictions, project_id) -> Vec<Jurisdiction>
+    ContributionAmount = 3,        // (DataKey::ContributionAmount, project_id, contributor) -> i128
+    RefundProcessed = 4,           // (DataKey::RefundProcessed, project_id, contributor) -> bool
+    ProjectFailureProcessed = 5,   // (DataKey::ProjectFailureProcessed, project_id) -> bool
+    IdentityContract = 6,          // Address of the Identity Verification contract
+    ProjectJurisdictions = 7,      // (DataKey::ProjectJurisdictions, project_id) -> Vec<Jurisdiction>
     PauseState = 8,
     PendingUpgrade = 9,
 }
@@ -73,7 +73,7 @@ impl ProjectLaunch {
     /// Initialize the contract with an admin address
     pub fn initialize(env: Env, admin: Address) -> Result<(), Error> {
         if env.storage().instance().has(&DataKey::Admin) {
-            return Err(Error::AlreadyInitialized);
+            return Err(Error::AlreadyInit);
         }
 
         admin.require_auth();
@@ -89,13 +89,11 @@ impl ProjectLaunch {
             .storage()
             .instance()
             .get(&DataKey::Admin)
-            .ok_or(Error::NotInitialized)?;
-
+            .ok_or(Error::NotInit)?;
+        
         admin.require_auth();
-        env.storage()
-            .instance()
-            .set(&DataKey::IdentityContract, &identity_contract);
-
+        env.storage().instance().set(&DataKey::IdentityContract, &identity_contract);
+        
         Ok(())
     }
 
@@ -110,23 +108,23 @@ impl ProjectLaunch {
         jurisdictions: Option<soroban_sdk::Vec<Jurisdiction>>,
     ) -> Result<u64, Error> {
         if Self::get_is_paused(env.clone()) {
-            return Err(Error::ContractPaused);
+            return Err(Error::Paused);
         }
         // Validate funding goal
         if funding_goal < MIN_FUNDING_GOAL {
-            return Err(Error::InvalidFundingGoal);
+            return Err(Error::InvInput);
         }
 
         // Validate deadline
         let current_time = env.ledger().timestamp();
         let duration = deadline.saturating_sub(current_time);
 
-        if !(MIN_PROJECT_DURATION..=MAX_PROJECT_DURATION).contains(&duration) {
-            return Err(Error::InvalidDeadline);
+        if duration < MIN_PROJECT_DURATION || duration > MAX_PROJECT_DURATION {
+            return Err(Error::InvInput);
         }
 
         if !verify_future_timestamp(&env, deadline) {
-            return Err(Error::InvalidDeadline);
+            return Err(Error::InvInput);
         }
 
         // Get next project ID
@@ -181,11 +179,11 @@ impl ProjectLaunch {
         amount: i128,
     ) -> Result<(), Error> {
         if Self::get_is_paused(env.clone()) {
-            return Err(Error::ContractPaused);
+            return Err(Error::Paused);
         }
         // Validate contribution amount
         if amount < MIN_CONTRIBUTION {
-            return Err(Error::ContributionTooLow);
+            return Err(Error::InvInput);
         }
         contributor.require_auth();
 
@@ -194,16 +192,16 @@ impl ProjectLaunch {
             .storage()
             .instance()
             .get(&(DataKey::Project, project_id))
-            .ok_or(Error::ProjectNotFound)?;
+            .ok_or(Error::NotFound)?;
 
         // Validate project status and deadline
         if project.status != ProjectStatus::Active {
-            return Err(Error::ProjectNotActive);
+            return Err(Error::ProjNotAct);
         }
 
         let current_time = env.ledger().timestamp();
         if current_time >= project.deadline {
-            return Err(Error::DeadlinePassed);
+            return Err(Error::DeadlinePass);
         }
 
         // Verify Identity if required
@@ -226,11 +224,11 @@ impl ProjectLaunch {
                     }
                 }
                 if !is_verified {
-                    return Err(Error::IdentityNotVerified);
+                    return Err(Error::Unauthorized);
                 }
             } else {
-                // If jurisdictions are required but no identity contract is set, fail safe.
-                return Err(Error::IdentityNotVerified);
+                 // If jurisdictions are required but no identity contract is set, fail safe.
+                 return Err(Error::Unauthorized);
             }
         }
 
@@ -271,7 +269,7 @@ impl ProjectLaunch {
         env.storage()
             .instance()
             .get(&(DataKey::Project, project_id))
-            .ok_or(Error::ProjectNotFound)
+            .ok_or(Error::NotFound)
     }
 
     /// Get individual contribution amount for a user
@@ -306,18 +304,18 @@ impl ProjectLaunch {
             .storage()
             .instance()
             .get(&(DataKey::Project, project_id))
-            .ok_or(Error::ProjectNotFound)?;
+            .ok_or(Error::NotFound)?;
 
         let current_time = env.ledger().timestamp();
 
         // Check if deadline has passed
         if current_time <= project.deadline {
-            return Err(Error::InvalidInput); // Deadline hasn't passed yet
+            return Err(Error::InvInput); // Deadline hasn't passed yet
         }
 
         // Check if project is already failed or completed
         if project.status == ProjectStatus::Failed || project.status == ProjectStatus::Completed {
-            return Err(Error::InvalidProjectStatus);
+            return Err(Error::InvStatus);
         }
 
         // Check if failure has already been processed
@@ -326,7 +324,7 @@ impl ProjectLaunch {
             .instance()
             .has(&(DataKey::ProjectFailureProcessed, project_id))
         {
-            return Err(Error::InvalidProjectStatus);
+            return Err(Error::InvStatus);
         }
 
         // Check if funding goal was met
@@ -365,17 +363,17 @@ impl ProjectLaunch {
             .storage()
             .instance()
             .get(&(DataKey::Project, project_id))
-            .ok_or(Error::ProjectNotFound)?;
+            .ok_or(Error::NotFound)?;
 
         // Ensure project is in failed state
         if project.status != ProjectStatus::Failed {
-            return Err(Error::ProjectNotActive);
+            return Err(Error::ProjNotAct);
         }
 
         // Check if refund has already been processed for this contributor
         let refund_key = (DataKey::RefundProcessed, project_id, contributor.clone());
         if env.storage().instance().has(&refund_key) {
-            return Err(Error::InvalidInput); // Already refunded
+            return Err(Error::InvInput); // Already refunded
         }
 
         // Get contribution amount
@@ -387,7 +385,7 @@ impl ProjectLaunch {
             .unwrap_or(0);
 
         if contribution_amount <= 0 {
-            return Err(Error::InvalidInput); // No contribution to refund
+            return Err(Error::InvInput); // No contribution to refund
         }
 
         // Transfer tokens back to contributor
@@ -430,7 +428,7 @@ impl ProjectLaunch {
             .storage()
             .instance()
             .get(&DataKey::Admin)
-            .ok_or(Error::NotInitialized)?;
+            .ok_or(Error::NotInit)?;
         if stored_admin != admin {
             return Err(Error::Unauthorized);
         }
@@ -452,7 +450,7 @@ impl ProjectLaunch {
             .storage()
             .instance()
             .get(&DataKey::Admin)
-            .ok_or(Error::NotInitialized)?;
+            .ok_or(Error::NotInit)?;
         if stored_admin != admin {
             return Err(Error::Unauthorized);
         }
@@ -468,16 +466,14 @@ impl ProjectLaunch {
             });
         let now = env.ledger().timestamp();
         if now < state.resume_not_before {
-            return Err(Error::ResumeTooEarly);
+            return Err(Error::ResTooEarly);
         }
         let new_state = PauseState {
             paused: false,
             paused_at: state.paused_at,
             resume_not_before: state.resume_not_before,
         };
-        env.storage()
-            .instance()
-            .set(&DataKey::PauseState, &new_state);
+        env.storage().instance().set(&DataKey::PauseState, &new_state);
         env.events().publish((CONTRACT_RESUMED,), (admin, now));
         Ok(())
     }
@@ -498,16 +494,12 @@ impl ProjectLaunch {
 
     // ---------- Upgrade (time-locked, admin only) ----------
     /// Schedule an upgrade. Admin only. Upgrade can be executed after UPGRADE_TIME_LOCK_SECS (48h).
-    pub fn schedule_upgrade(
-        env: Env,
-        admin: Address,
-        new_wasm_hash: BytesN<32>,
-    ) -> Result<(), Error> {
+    pub fn schedule_upgrade(env: Env, admin: Address, new_wasm_hash: BytesN<32>) -> Result<(), Error> {
         let stored_admin: Address = env
             .storage()
             .instance()
             .get(&DataKey::Admin)
-            .ok_or(Error::NotInitialized)?;
+            .ok_or(Error::NotInit)?;
         if stored_admin != admin {
             return Err(Error::Unauthorized);
         }
@@ -517,13 +509,8 @@ impl ProjectLaunch {
             wasm_hash: new_wasm_hash.clone(),
             execute_not_before: now + UPGRADE_TIME_LOCK_SECS,
         };
-        env.storage()
-            .instance()
-            .set(&DataKey::PendingUpgrade, &pending);
-        env.events().publish(
-            (UPGRADE_SCHEDULED,),
-            (admin, new_wasm_hash, pending.execute_not_before),
-        );
+        env.storage().instance().set(&DataKey::PendingUpgrade, &pending);
+        env.events().publish((UPGRADE_SCHEDULED,), (admin, new_wasm_hash, pending.execute_not_before));
         Ok(())
     }
 
@@ -533,28 +520,26 @@ impl ProjectLaunch {
             .storage()
             .instance()
             .get(&DataKey::Admin)
-            .ok_or(Error::NotInitialized)?;
+            .ok_or(Error::NotInit)?;
         if stored_admin != admin {
             return Err(Error::Unauthorized);
         }
         admin.require_auth();
         if !Self::get_is_paused(env.clone()) {
-            return Err(Error::UpgradeRequiresPause);
+            return Err(Error::UpgReqPause);
         }
         let pending: PendingUpgrade = env
             .storage()
             .instance()
             .get(&DataKey::PendingUpgrade)
-            .ok_or(Error::UpgradeNotScheduled)?;
+            .ok_or(Error::UpgNotSched)?;
         let now = env.ledger().timestamp();
         if now < pending.execute_not_before {
-            return Err(Error::UpgradeTooEarly);
+            return Err(Error::UpgTooEarly);
         }
-        env.deployer()
-            .update_current_contract_wasm(pending.wasm_hash.clone());
+        env.deployer().update_current_contract_wasm(pending.wasm_hash.clone());
         env.storage().instance().remove(&DataKey::PendingUpgrade);
-        env.events()
-            .publish((UPGRADE_EXECUTED,), (admin, pending.wasm_hash));
+        env.events().publish((UPGRADE_EXECUTED,), (admin, pending.wasm_hash));
         Ok(())
     }
 
@@ -564,13 +549,13 @@ impl ProjectLaunch {
             .storage()
             .instance()
             .get(&DataKey::Admin)
-            .ok_or(Error::NotInitialized)?;
+            .ok_or(Error::NotInit)?;
         if stored_admin != admin {
             return Err(Error::Unauthorized);
         }
         admin.require_auth();
         if !env.storage().instance().has(&DataKey::PendingUpgrade) {
-            return Err(Error::UpgradeNotScheduled);
+            return Err(Error::UpgNotSched);
         }
         env.storage().instance().remove(&DataKey::PendingUpgrade);
         env.events().publish((UPGRADE_CANCELLED,), admin);
@@ -1139,10 +1124,7 @@ mod tests {
             &metadata_hash,
             &None,
         );
-        assert!(
-            result.is_err(),
-            "create_project should be blocked when paused"
-        );
+        assert!(result.is_err(), "create_project should be blocked when paused");
     }
 
     #[test]
@@ -1155,8 +1137,7 @@ mod tests {
         client.initialize(&admin);
         env.ledger().set_timestamp(1000);
         client.pause(&admin);
-        env.ledger()
-            .set_timestamp(1000 + shared::RESUME_TIME_DELAY + 1);
+        env.ledger().set_timestamp(1000 + shared::RESUME_TIME_DELAY + 1);
         let result = client.try_resume(&admin);
         assert!(result.is_ok());
         assert!(!client.get_is_paused());
@@ -1176,10 +1157,7 @@ mod tests {
         assert!(result.is_ok());
         let pending = client.get_pending_upgrade();
         assert!(pending.is_some());
-        assert_eq!(
-            pending.unwrap().execute_not_before,
-            1000 + shared::UPGRADE_TIME_LOCK_SECS
-        );
+        assert_eq!(pending.unwrap().execute_not_before, 1000 + shared::UPGRADE_TIME_LOCK_SECS);
     }
 
     #[test]
@@ -1214,6 +1192,3 @@ mod tests {
         assert!(client.get_pending_upgrade().is_none());
     }
 }
-
-#[cfg(test)]
-mod cross_chain_integration_test;

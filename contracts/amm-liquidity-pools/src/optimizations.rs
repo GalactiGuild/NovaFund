@@ -35,7 +35,7 @@ impl GasOptimizer {
 
         for batch_op in swaps.iter() {
             if env.ledger().timestamp() > batch_op.deadline {
-                panic_with_error!(&env, Error::DeadlinePassed);
+                panic_with_error!(&env, Error::DeadlinePass);
             }
 
             match batch_op.operation_type {
@@ -45,7 +45,7 @@ impl GasOptimizer {
                     let amount_out = Self::execute_swap_optimized(&env, &batch_op.params);
                     results.push_back(amount_out);
                 }
-                _ => panic_with_error!(&env, Error::InvalidInput),
+                _ => panic_with_error!(&env, Error::InvInput),
             }
         }
 
@@ -57,7 +57,7 @@ impl GasOptimizer {
 
         for batch_op in operations.iter() {
             if env.ledger().timestamp() > batch_op.deadline {
-                panic_with_error!(&env, Error::DeadlinePassed);
+                panic_with_error!(&env, Error::DeadlinePass);
             }
 
             match batch_op.operation_type {
@@ -72,7 +72,7 @@ impl GasOptimizer {
                         Self::execute_remove_liquidity_optimized(&env, &batch_op.params);
                     results.push_back(liquidity);
                 }
-                _ => panic_with_error!(&env, Error::InvalidInput),
+                _ => panic_with_error!(&env, Error::InvInput),
             }
         }
 

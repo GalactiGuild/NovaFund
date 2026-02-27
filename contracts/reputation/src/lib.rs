@@ -66,7 +66,7 @@ impl ReputationContract {
     pub fn initialize(env: Env, admin: Address) -> Result<(), Error> {
         // Check if already initialized
         if env.storage().instance().has(&DataKey::Initialized) {
-            return Err(Error::AlreadyInitialized);
+            return Err(Error::AlreadyInit);
         }
 
         // Require admin authorization
@@ -99,7 +99,7 @@ impl ReputationContract {
             .persistent()
             .has(&DataKey::Profile(user.clone()))
         {
-            return Err(Error::UserAlreadyRegistered);
+            return Err(Error::UserAlreadyReg);
         }
 
         // Require user authorization to register themselves
@@ -182,7 +182,7 @@ impl ReputationContract {
 
         // Check for duplicate badge
         if Self::has_badge(&profile.badges, badge) {
-            return Err(Error::BadgeAlreadyAwarded);
+            return Err(Error::BadgeAw);
         }
 
         // Award badge
@@ -225,13 +225,13 @@ impl ReputationContract {
         env.storage()
             .instance()
             .get(&DataKey::Admin)
-            .ok_or(Error::NotInitialized)
+            .ok_or(Error::NotInit)
     }
 
     /// Check if the contract is initialized
     fn require_initialized(env: &Env) -> Result<(), Error> {
         if !env.storage().instance().has(&DataKey::Initialized) {
-            return Err(Error::NotInitialized);
+            return Err(Error::NotInit);
         }
         Ok(())
     }
@@ -241,7 +241,7 @@ impl ReputationContract {
         env.storage()
             .persistent()
             .get(&DataKey::Profile(user.clone()))
-            .ok_or(Error::UserNotRegistered)
+            .ok_or(Error::UserNotReg)
     }
 
     /// Check if a badge list contains a specific badge
@@ -321,7 +321,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "Error(Contract, #503)")]
+    #[should_panic(expected = "Error(Contract, #44)")]
     fn test_register_user_already_registered() {
         let (_, admin, client, user) = setup_env();
         client.initialize(&admin);
@@ -386,7 +386,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "Error(Contract, #505)")]
+    #[should_panic(expected = "Error(Contract, #46)")]
     fn test_update_score_user_not_registered() {
         let (_, admin, client, user) = setup_env();
         client.initialize(&admin);
@@ -426,7 +426,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "Error(Contract, #504)")]
+    #[should_panic(expected = "Error(Contract, #45)")]
     fn test_award_badge_duplicate_prevented() {
         let (_, admin, client, user) = setup_env();
         client.initialize(&admin);
@@ -440,7 +440,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "Error(Contract, #505)")]
+    #[should_panic(expected = "Error(Contract, #46)")]
     fn test_award_badge_user_not_registered() {
         let (_, admin, client, user) = setup_env();
         client.initialize(&admin);
@@ -465,7 +465,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "Error(Contract, #505)")]
+    #[should_panic(expected = "Error(Contract, #46)")]
     fn test_get_profile_not_found() {
         let (_, admin, client, user) = setup_env();
         client.initialize(&admin);

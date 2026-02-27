@@ -1,73 +1,71 @@
 use soroban_sdk::contracterror;
 
 #[contracterror]
-#[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
+#[derive(Copy, Clone, Eq, PartialEq)]
 #[repr(u32)]
 pub enum Error {
-    // General errors (1-99)
-    NotInitialized = 1,
-    AlreadyInitialized = 2,
+    NotInit = 1,
+    AlreadyInit = 2,
     Unauthorized = 3,
-    InvalidInput = 4,
+    InvInput = 4,
     NotFound = 5,
 
-    // Project errors (100-199)
-    ProjectNotActive = 100,
-    ProjectAlreadyExists = 101,
-    FundingGoalNotReached = 102,
-    DeadlinePassed = 103,
-    InvalidProjectStatus = 104,
+    // Project Errors
+    ProjNotAct = 6,
+    ProjExists = 7,
+    GoalNotRch = 8,
+    DeadlinePass = 9,
+    InvStatus = 10,
 
-    // Escrow errors (200-299)
-    InsufficientEscrowBalance = 200,
-    MilestoneNotApproved = 201,
-    InvalidMilestoneStatus = 202,
-    NotAValidator = 203,
-    AlreadyVoted = 204,
-    ContractPaused = 205,
-    ResumeTooEarly = 206,
-    UpgradeNotScheduled = 207,
-    UpgradeTooEarly = 208,
-    UpgradeRequiresPause = 209,
+    // Escrow Errors
+    EscrowInsuf = 11,
+    MstoneNotAppr = 12,
+    MstoneInv = 13,
+    NotValidator = 14,
+    AlreadyVoted = 15,
+    Paused = 16,
+    ResTooEarly = 17,
+    UpgNotSched = 18,
+    UpgTooEarly = 19,
+    UpgReqPause = 20, 
 
-    // Distribution errors (300-399)
-    InsufficientFunds = 300,
-    InvalidDistribution = 301,
-    NoClaimableAmount = 302,
-    DistributionFailed = 303,
+    // Dispute Resolution Errors
+    DispNF = 21,
+    MstoneContest = 22,
+    JurorReg = 23,
+    JurorStakeL = 24,
+    NotJuror = 25,
+    JurorAct = 26,
+    VoteNA = 27,
+    RevealNA = 28,
+    InvReveal = 29,
+    AppealWinCl = 30,
+    MaxAppeals = 31,
+    AppealFeeL = 32,
+    ConflictInt = 33,
 
-    // Subscription errors (400-499)
-    SubscriptionNotActive = 400,
-    InvalidSubscriptionPeriod = 401,
-    SubscriptionExists = 402,
-    WithdrawalLocked = 403,
+    // Distribution errors
+    InsufFunds = 34,
+    InvDist = 35,
+    NoClaim = 36,
+    DistFail = 37,
 
-    // Reputation errors (500-599)
-    ReputationTooLow = 500,
-    InvalidReputationScore = 501,
-    BadgeNotEarned = 502,
-    UserAlreadyRegistered = 503,
-    BadgeAlreadyAwarded = 504,
-    UserNotRegistered = 505,
+    // Subscription errors
+    SubNotAct = 38,
+    InvSubPer = 39,
+    SubExists = 40,
+    WithdrLock = 41,
 
-    // Governance errors (600-699)
-    ProposalNotActive = 600,
-    InsufficientVotingPower = 601,
-    ProposalAlreadyExecuted = 602,
-    QuorumNotReached = 603,
+    // Reputation errors
+    RepErr = 42,
+    BadgeNotErn = 43,
+    UserAlreadyReg = 44,
+    BadgeAw = 45,
+    UserNotReg = 46,
 
-    // Cross-chain bridge errors (700-799)
-    BridgePaused = 700,
-    ChainNotSupported = 701,
-    InvalidChain = 702,
-    BridgeTransactionFailed = 703,
-    InsufficientConfirmations = 704,
-    RelayerNotRegistered = 705,
-    InvalidBridgeOperation = 706,
-
-    InvalidFundingGoal = 1000,
-    InvalidDeadline = 1001,
-    ProjectNotFound = 1002,
-    ContributionTooLow = 1003,
-    IdentityNotVerified = 1004,
+    // Governance errors
+    PropNotAct = 47,
+    InsufVote = 48,
+    PropExc = 49,
+    QuorumNR = 50,
 }

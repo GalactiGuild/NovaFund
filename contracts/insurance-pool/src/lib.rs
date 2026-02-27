@@ -367,8 +367,8 @@ mod tests {
         let (token, token_client, token_admin_client) = create_token_contract(&env, &funder);
         env.mock_all_auths();
         client.initialize(&admin, &token);
-        token_admin_client.mint(&funder, &10_000_000_000);
-        client.fund_pool(&funder, &5_000_000_000);
+        token_admin_client.mint(&funder, &1_000_0000000);
+        client.fund_pool(&funder, &500_0000000);
         let (total, locked, pool_token) = client.get_pool_state();
         assert_eq!(total, 500_0000000);
         assert_eq!(locked, 0);
@@ -387,28 +387,21 @@ mod tests {
         let (token, token_client, token_admin_client) = create_token_contract(&env, &funder);
         env.mock_all_auths();
         client.initialize(&admin, &token);
-        token_admin_client.mint(&funder, &10_000_000_000);
-        client.fund_pool(&funder, &8_000_000_000);
-        token_admin_client.mint(&investor, &5_000_000_000);
-        client.configure_project(
-            &1u64,
-            &200u32,
-            &8000u32,
-            &5_000_000_000,
-            &8_000_000_000,
-            &true,
-        );
+        token_admin_client.mint(&funder, &1_000_0000000);
+        client.fund_pool(&funder, &800_0000000);
+        token_admin_client.mint(&investor, &500_0000000);
+        client.configure_project(&1u64, &200u32, &8000u32, &500_0000000, &800_0000000, &true);
         let initial_investor_balance = token_client.balance(&investor);
-        client.purchase_coverage(&1u64, &investor, &2_000_000_000);
+        client.purchase_coverage(&1u64, &investor, &200_0000000);
         let post_premium_balance = token_client.balance(&investor);
         assert!(post_premium_balance < initial_investor_balance);
         let (total_reserves, locked_reserves, _) = client.get_pool_state();
-        assert_eq!(locked_reserves, 2_000_000_000);
-        assert!(total_reserves > 8_000_000_000);
+        assert_eq!(locked_reserves, 200_0000000);
+        assert!(total_reserves > 800_0000000);
         env.mock_all_auths();
         client.mark_project_failed(&1u64);
         let payout = client.claim_payout(&1u64, &investor);
-        assert_eq!(payout, 1_600_000_000);
+        assert_eq!(payout, 160_0000000);
         let final_investor_balance = token_client.balance(&investor);
         assert!(final_investor_balance > post_premium_balance);
         let coverage = client.get_coverage(&1u64, &investor);
@@ -429,18 +422,18 @@ mod tests {
         let (token, _, token_admin_client) = create_token_contract(&env, &funder);
         env.mock_all_auths();
         client.initialize(&admin, &token);
-        token_admin_client.mint(&funder, &10_000_000_000);
-        client.fund_pool(&funder, &3_000_000_000);
-        token_admin_client.mint(&investor, &5_000_000_000);
+        token_admin_client.mint(&funder, &1_000_0000000);
+        client.fund_pool(&funder, &300_0000000);
+        token_admin_client.mint(&investor, &500_0000000);
         client.configure_project(
             &2u64,
             &500u32,
             &10000u32,
-            &10_000_000_000,
-            &50_000_000_000,
+            &1_000_0000000,
+            &5_000_0000000,
             &true,
         );
-        let res = client.try_purchase_coverage(&2u64, &investor, &40_000_000_000);
+        let res = client.try_purchase_coverage(&2u64, &investor, &4_000_0000000);
         assert!(res.is_err());
     }
 }
