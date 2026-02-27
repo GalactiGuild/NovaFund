@@ -1,10 +1,4 @@
-import {
-  Column,
-  Entity,
-  Index,
-  PrimaryGeneratedColumn,
-  UpdateDateColumn,
-} from 'typeorm';
+import { Column, Entity, Index, PrimaryGeneratedColumn, UpdateDateColumn } from 'typeorm';
 
 /**
  * Cached composite reputation score for a single user.

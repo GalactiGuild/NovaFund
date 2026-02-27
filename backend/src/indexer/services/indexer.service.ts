@@ -36,7 +36,7 @@ export class IndexerService implements OnModuleInit, OnModuleDestroy {
     this.network = this.configService.get<string>('STELLAR_NETWORK', 'testnet');
     const rpcUrl = this.configService.get<string>(
       'STELLAR_RPC_URL',
-      'https://soroban-testnet.stellar.org'
+      'https://soroban-testnet.stellar.org',
     );
     this.pollIntervalMs = this.configService.get<number>('INDEXER_POLL_INTERVAL_MS', 5000);
     this.maxEventsPerFetch = this.configService.get<number>('INDEXER_MAX_EVENTS_PER_FETCH', 100);
@@ -97,7 +97,7 @@ export class IndexerService implements OnModuleInit, OnModuleDestroy {
   async onModuleDestroy(): Promise<void> {
     this.logger.log('Shutting down blockchain indexer...');
     this.isShuttingDown = true;
-    
+
     // Wait for current processing to complete
     while (this.isRunning) {
       await this.sleep(100);
@@ -190,7 +190,7 @@ export class IndexerService implements OnModuleInit, OnModuleDestroy {
         } catch (error) {
           errorCount++;
           this.logger.error(`Failed to process event ${event.id}: ${error.message}`);
-          
+
           // Continue processing other events even if one fails
           // But log the error for monitoring
           await this.ledgerTracker.logError(`Event processing failed: ${event.id}`, {
@@ -206,10 +206,7 @@ export class IndexerService implements OnModuleInit, OnModuleDestroy {
       // Log progress
       await this.ledgerTracker.logProgress(latestLedger, latestLedger, processedCount);
 
-      this.logger.log(
-        `Processed ${processedCount}/${events.length} events (${errorCount} errors)`
-      );
-
+      this.logger.log(`Processed ${processedCount}/${events.length} events (${errorCount} errors)`);
     } catch (error) {
       this.logger.error(`Error in poll cycle: ${error.message}`, error.stack);
       await this.ledgerTracker.logError('Poll cycle failed', { error: error.message });
@@ -232,9 +229,7 @@ export class IndexerService implements OnModuleInit, OnModuleDestroy {
         return await this.fetchEvents(startLedger, endLedger);
       } catch (error) {
         lastError = error;
-        this.logger.warn(
-          `Fetch attempt ${attempt}/${this.retryAttempts} failed: ${error.message}`
-        );
+        this.logger.warn(`Fetch attempt ${attempt}/${this.retryAttempts} failed: ${error.message}`);
 
         if (attempt < this.retryAttempts) {
           const delay = this.retryDelayMs * Math.pow(2, attempt - 1); // Exponential backoff
@@ -245,17 +240,14 @@ export class IndexerService implements OnModuleInit, OnModuleDestroy {
     }
 
     throw new Error(
-      `Failed to fetch events after ${this.retryAttempts} attempts: ${lastError?.message}`
+      `Failed to fetch events after ${this.retryAttempts} attempts: ${lastError?.message}`,
     );
   }
 
   /**
    * Fetch events from Soroban RPC
    */
-  private async fetchEvents(
-    startLedger: number,
-    endLedger: number,
-  ): Promise<SorobanEvent[]> {
+  private async fetchEvents(startLedger: number, endLedger: number): Promise<SorobanEvent[]> {
     const events: SorobanEvent[] = [];
     let cursor: string | undefined;
 
@@ -402,9 +394,7 @@ export class IndexerService implements OnModuleInit, OnModuleDestroy {
    */
   private parseEventType(symbol: string): ContractEventType | null {
     // Map symbol to event type enum
-    const eventType = Object.values(ContractEventType).find(
-      (type) => type === symbol
-    );
+    const eventType = Object.values(ContractEventType).find((type) => type === symbol);
     return eventType || null;
   }
 
@@ -417,10 +407,10 @@ export class IndexerService implements OnModuleInit, OnModuleDestroy {
       // For now, return a placeholder - proper XDR parsing requires
       // the Soroban SDK's ScVal parsing which depends on the specific event structure
       // This should be enhanced based on your actual event data structure
-      
+
       // Attempt basic XDR parsing if possible
       // Note: Full implementation would use xdr.ScVal.fromXDR() and proper type conversion
-      
+
       return {
         rawXdr: valueXdr,
         eventType,
