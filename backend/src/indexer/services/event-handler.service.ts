@@ -417,6 +417,7 @@ export class EventHandlerService implements IEventHandlerRegistry {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notificationService: NotificationService,
+    private readonly reputationService: ReputationService,
   ) {
     this.registerHandlers();
   }
