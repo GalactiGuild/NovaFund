@@ -14,7 +14,7 @@ fn test_initialization() {
     env.mock_all_auths();
     
     // Initialize
-    client.initialize(&admin);
+    client.init_registry(&admin);
 }
 
 #[test]
@@ -28,8 +28,8 @@ fn test_double_initialization_should_panic() {
     
     env.mock_all_auths();
     
-    client.initialize(&admin);
-    client.initialize(&admin); // Should panic
+    client.init_registry(&admin);
+    client.init_registry(&admin); // Should panic
 }
 
 #[test]
@@ -42,18 +42,18 @@ fn test_add_and_verify_identity() {
     let user = Address::generate(&env);
     
     env.mock_all_auths();
-    client.initialize(&admin);
+    client.init_registry(&admin);
     
     // Create a mock hash
     let mut hash_data = [0u8; 32];
     hash_data[0] = 1;
     let hash = BytesN::from_array(&env, &hash_data);
     
-    assert!(!client.verify_identity(&user));
+    assert!(!client.verify(&user));
     
-    client.add_identity(&admin, &user, &hash);
+    client.add(&admin, &user, &hash);
     
-    assert!(client.verify_identity(&user));
+    assert!(client.verify(&user));
 }
 
 #[test]
@@ -66,17 +66,17 @@ fn test_remove_identity() {
     let user = Address::generate(&env);
     
     env.mock_all_auths();
-    client.initialize(&admin);
+    client.init_registry(&admin);
     
     let mut hash_data = [0u8; 32];
     hash_data[1] = 2;
     let hash = BytesN::from_array(&env, &hash_data);
     
-    client.add_identity(&admin, &user, &hash);
-    assert!(client.verify_identity(&user));
+    client.add(&admin, &user, &hash);
+    assert!(client.verify(&user));
     
-    client.remove_identity(&admin, &user);
-    assert!(!client.verify_identity(&user));
+    client.remove(&admin, &user);
+    assert!(!client.verify(&user));
 }
 
 #[test]
@@ -91,14 +91,14 @@ fn test_unauthorized_add_identity() {
     let user = Address::generate(&env);
     
     env.mock_all_auths();
-    client.initialize(&admin);
+    client.init_registry(&admin);
     
     let mut hash_data = [0u8; 32];
     hash_data[0] = 5;
     let hash = BytesN::from_array(&env, &hash_data);
     
     // Only the real admin can add, should panic
-    client.add_identity(&fake_admin, &user, &hash);
+    client.add(&fake_admin, &user, &hash);
 }
 
 #[test]
@@ -113,16 +113,16 @@ fn test_unauthorized_remove_identity() {
     let user = Address::generate(&env);
     
     env.mock_all_auths();
-    client.initialize(&admin);
+    client.init_registry(&admin);
     
     let mut hash_data = [0u8; 32];
     hash_data[0] = 5;
     let hash = BytesN::from_array(&env, &hash_data);
     
-    client.add_identity(&admin, &user, &hash);
+    client.add(&admin, &user, &hash);
     
     // Fake admin attempts to remove, should panic
-    client.remove_identity(&fake_admin, &user);
+    client.remove(&fake_admin, &user);
 }
 
 #[test]
@@ -136,10 +136,10 @@ fn test_invalid_hash_should_panic() {
     let user = Address::generate(&env);
     
     env.mock_all_auths();
-    client.initialize(&admin);
+    client.init_registry(&admin);
     
     let zero_hash = BytesN::from_array(&env, &[0u8; 32]);
     
     // Should panic
-    client.add_identity(&admin, &user, &zero_hash);
+    client.add(&admin, &user, &zero_hash);
 }

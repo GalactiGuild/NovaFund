@@ -11,7 +11,7 @@
           "function": {
             "contract_fn": {
               "contract_address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM",
-              "function_name": "initialize",
+              "function_name": "init_registry",
               "args": [
                 {
                   "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4"
@@ -152,7 +152,7 @@
                 "bytes": "0000000000000000000000000000000000000000000000000000000000000001"
               },
               {
-                "symbol": "initialize"
+                "symbol": "init_registry"
               }
             ],
             "data": {
@@ -175,7 +175,7 @@
                 "symbol": "fn_return"
               },
               {
-                "symbol": "initialize"
+                "symbol": "init_registry"
               }
             ],
             "data": "void"
@@ -199,7 +199,7 @@
                 "bytes": "0000000000000000000000000000000000000000000000000000000000000001"
               },
               {
-                "symbol": "add_identity"
+                "symbol": "add"
               }
             ],
             "data": {
@@ -235,7 +235,7 @@
             "data": {
               "vec": [
                 {
-                  "string": "caught panic 'Unauthorized: Only admin can add identities' from contract function 'Symbol(obj#25)'"
+                  "string": "caught panic 'Unauthorized: Only admin can add identities' from contract function 'Symbol(add)'"
                 },
                 {
                   "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M"
@@ -301,7 +301,7 @@
                   "string": "contract call failed"
                 },
                 {
-                  "symbol": "add_identity"
+                  "symbol": "add"
                 },
                 {
                   "vec": [

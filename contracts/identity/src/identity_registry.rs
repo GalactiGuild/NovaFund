@@ -12,7 +12,7 @@ pub struct IdentityRegistryContract;
 #[contractimpl]
 impl IdentityRegistryContract {
     /// Initialize the registry with an admin address
-    pub fn initialize(env: Env, admin: Address) {
+    pub fn init_registry(env: Env, admin: Address) {
         if env.storage().instance().has(&RegistryDataKey::Admin) {
             panic!("Already initialized");
         }
@@ -21,7 +21,7 @@ impl IdentityRegistryContract {
     }
 
     /// Admin function to add or update an investor's KYC/AML hash
-    pub fn add_identity(env: Env, admin: Address, user: Address, kyc_hash: BytesN<32>) {
+    pub fn add(env: Env, admin: Address, user: Address, kyc_hash: BytesN<32>) {
         // Verify admin authorization
         let stored_admin: Address = env.storage().instance().get(&RegistryDataKey::Admin).expect("Not initialized");
         if admin != stored_admin {
@@ -41,7 +41,7 @@ impl IdentityRegistryContract {
     }
 
     /// Admin function to remove an investor's KYC/AML verification status
-    pub fn remove_identity(env: Env, admin: Address, user: Address) {
+    pub fn remove(env: Env, admin: Address, user: Address) {
         // Verify admin authorization
         let stored_admin: Address = env.storage().instance().get(&RegistryDataKey::Admin).expect("Not initialized");
         if admin != stored_admin {
@@ -55,7 +55,7 @@ impl IdentityRegistryContract {
 
     /// Publicly verifiable function to check if a user is verified
     /// Returns true if the user has a stored, non-zero KYC hash.
-    pub fn verify_identity(env: Env, user: Address) -> bool {
+    pub fn verify(env: Env, user: Address) -> bool {
         let key = RegistryDataKey::Identity(user);
         if let Some(hash) = env.storage().persistent().get::<_, BytesN<32>>(&key) {
             let zeros = BytesN::from_array(&env, &[0; 32]);

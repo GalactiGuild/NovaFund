@@ -11,7 +11,7 @@
           "function": {
             "contract_fn": {
               "contract_address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM",
-              "function_name": "initialize",
+              "function_name": "init_registry",
               "args": [
                 {
                   "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4"
@@ -31,7 +31,7 @@
           "function": {
             "contract_fn": {
               "contract_address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM",
-              "function_name": "add_identity",
+              "function_name": "add",
               "args": [
                 {
                   "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4"
@@ -256,7 +256,7 @@
                 "bytes": "0000000000000000000000000000000000000000000000000000000000000001"
               },
               {
-                "symbol": "initialize"
+                "symbol": "init_registry"
               }
             ],
             "data": {
@@ -279,7 +279,7 @@
                 "symbol": "fn_return"
               },
               {
-                "symbol": "initialize"
+                "symbol": "init_registry"
               }
             ],
             "data": "void"
@@ -303,7 +303,7 @@
                 "bytes": "0000000000000000000000000000000000000000000000000000000000000001"
               },
               {
-                "symbol": "verify_identity"
+                "symbol": "verify"
               }
             ],
             "data": {
@@ -326,7 +326,7 @@
                 "symbol": "fn_return"
               },
               {
-                "symbol": "verify_identity"
+                "symbol": "verify"
               }
             ],
             "data": {
@@ -352,7 +352,7 @@
                 "bytes": "0000000000000000000000000000000000000000000000000000000000000001"
               },
               {
-                "symbol": "add_identity"
+                "symbol": "add"
               }
             ],
             "data": {
@@ -385,7 +385,7 @@
                 "symbol": "fn_return"
               },
               {
-                "symbol": "add_identity"
+                "symbol": "add"
               }
             ],
             "data": "void"
@@ -409,7 +409,7 @@
                 "bytes": "0000000000000000000000000000000000000000000000000000000000000001"
               },
               {
-                "symbol": "verify_identity"
+                "symbol": "verify"
               }
             ],
             "data": {
@@ -432,7 +432,7 @@
                 "symbol": "fn_return"
               },
               {
-                "symbol": "verify_identity"
+                "symbol": "verify"
               }
             ],
             "data": {
