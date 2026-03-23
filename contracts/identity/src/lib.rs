@@ -85,3 +85,8 @@ impl IdentityContract {
 }
 
 mod test;
+
+pub mod identity_registry;
+
+#[cfg(test)]
+mod identity_registry_test;
