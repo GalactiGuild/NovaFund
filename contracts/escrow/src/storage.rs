@@ -18,6 +18,8 @@ const JUROR_PREFIX: &str = "juror";
 const DISPUTE_VOTE_PREFIX: &str = "d_vote";
 const JUROR_ASSIGNMENTS_PREFIX: &str = "j_assign";
 const ACTIVE_JURORS_KEY: &str = "act_jurors";
+const VESTING_PREFIX: &str = "vesting";
+
 
 /// Store platform admin
 pub fn set_admin(env: &Env, admin: &Address) {
@@ -340,3 +342,25 @@ pub fn clear_pending_upgrade(env: &Env) {
 pub fn has_pending_upgrade(env: &Env) -> bool {
     env.storage().instance().has(&PENDING_UPGRADE_KEY)
 }
+
+/// Store a vesting schedule for a project/milestone
+pub fn set_vesting_schedule(env: &Env, project_id: u64, milestone_id: u64, vesting: &VestingSchedule) {
+    let key = (VESTING_PREFIX, project_id, milestone_id);
+    env.storage().persistent().set(&key, vesting);
+}
+
+/// Retrieve a vesting schedule
+pub fn get_vesting_schedule(env: &Env, project_id: u64, milestone_id: u64) -> Result<VestingSchedule, Error> {
+    let key = (VESTING_PREFIX, project_id, milestone_id);
+    env.storage()
+        .persistent()
+        .get::<(&str, u64, u64), VestingSchedule>(&key)
+        .ok_or(Error::NotFound)
+}
+
+/// Remove a vesting schedule
+pub fn remove_vesting_schedule(env: &Env, project_id: u64, milestone_id: u64) {
+    let key = (VESTING_PREFIX, project_id, milestone_id);
+    env.storage().persistent().remove(&key);
+}
+

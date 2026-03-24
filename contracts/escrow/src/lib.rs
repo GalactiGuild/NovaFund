@@ -14,11 +14,15 @@ use soroban_sdk::{contract, contractimpl, token::TokenClient, Address, BytesN, E
 
 mod storage;
 mod validation;
+mod founder_vesting;
+
 
 #[cfg(test)]
 mod tests;
 
 use storage::*;
+use founder_vesting::*;
+
 
 #[contract]
 pub struct EscrowContract;
@@ -49,7 +53,9 @@ impl EscrowContract {
         token: Address,
         validators: Vec<Address>,
         approval_threshold: u32,
+        vesting_duration: u64,
     ) -> Result<(), Error> {
+
         creator.require_auth();
 
         // Validate inputs
@@ -75,7 +81,9 @@ impl EscrowContract {
             released_amount: 0,
             validators,
             approval_threshold,
+            vesting_duration,
         };
+
 
         // Store escrow
         set_escrow(&env, project_id, &escrow);
@@ -303,16 +311,19 @@ impl EscrowContract {
         if milestone.approval_count as u32 >= required_approvals {
             milestone.status = MilestoneStatus::Approved;
 
-            // Release funds
+            // Release funds (this updates escrow.released_amount)
             release_milestone_funds(&env, &mut escrow, &milestone)?;
 
-            // Perform token transfer to creator
-            let token_client = TokenClient::new(&env, &escrow.token);
-            token_client.transfer(
-                &env.current_contract_address(),
-                &escrow.creator,
-                &milestone.amount,
+            // Instead of direct transfer, create a vesting schedule
+            create_vesting(
+                &env,
+                project_id,
+                milestone_id,
+                escrow.creator.clone(),
+                milestone.amount,
+                escrow.vesting_duration,
             );
+
 
             // Store updated escrow
             set_escrow(&env, project_id, &escrow);
@@ -1091,13 +1102,17 @@ impl EscrowContract {
             release_milestone_funds(&env, &mut virtual_escrow, &virtual_milestone)?;
             escrow.released_amount = virtual_escrow.released_amount;
 
-            let token_client = TokenClient::new(&env, &escrow.token);
-            token_client.transfer(
-                &env.current_contract_address(),
-                &escrow.creator,
-                &release_amount,
+            // Instead of direct transfer, create vesting
+            create_vesting(
+                &env,
+                dispute.project_id,
+                dispute.milestone_id,
+                escrow.creator.clone(),
+                release_amount,
+                escrow.vesting_duration,
             );
         }
+
 
         set_milestone(env, dispute.project_id, dispute.milestone_id, &milestone);
         set_escrow(env, dispute.project_id, &escrow);
@@ -1235,7 +1250,38 @@ impl EscrowContract {
     pub fn get_pending_upgrade(env: Env) -> Option<PendingUpgrade> {
         storage::get_pending_upgrade(&env)
     }
+
+    /// Claim unlocked funds from a vesting schedule
+    pub fn claim_unlocked(
+        env: Env,
+        project_id: u64,
+        milestone_id: u64,
+    ) -> Result<Amount, Error> {
+        let (beneficiary, amount) = internal_claim_unlocked(&env, project_id, milestone_id)?;
+        
+        // Get escrow for the project to get token address
+        let escrow = get_escrow(&env, project_id)?;
+        
+        let token_client = TokenClient::new(&env, &escrow.token);
+        token_client.transfer(
+            &env.current_contract_address(),
+            &beneficiary,
+            &amount,
+        );
+        
+        Ok(amount)
+    }
+
+    /// Get vesting schedule information
+    pub fn get_vesting_info(
+        env: Env,
+        project_id: u64,
+        milestone_id: u64,
+    ) -> Result<VestingSchedule, Error> {
+        get_vesting(&env, project_id, milestone_id)
+    }
 }
+
 
 /// Helper function to release milestone funds
 fn release_milestone_funds(

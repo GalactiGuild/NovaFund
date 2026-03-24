@@ -59,10 +59,13 @@ mod tests {
         let client = EscrowContractClient::new(env, &contract_id);
 
         client.initialize_admin(&admin);
-        client.initialize(&1, &creator, &token, &validators, &DEFAULT_THRESHOLD);
+        client.initialize(&1, &creator, &token, &validators, &DEFAULT_THRESHOLD, &VESTING_DURATION);
 
         (admin, creator, token, validators, client)
     }
+
+    const VESTING_DURATION: u64 = 3600;
+
 
     /// Default threshold used by all existing tests (67%).
     const DEFAULT_THRESHOLD: u32 = 6700;
@@ -75,7 +78,7 @@ mod tests {
         let client = create_client(&env);
         env.mock_all_auths();
 
-        client.initialize(&1, &creator, &token, &validators, &DEFAULT_THRESHOLD);
+        client.initialize(&1, &creator, &token, &validators, &DEFAULT_THRESHOLD, &VESTING_DURATION);
 
         let escrow = client.get_escrow(&1);
         assert_eq!(escrow.project_id, 1);
@@ -96,7 +99,7 @@ mod tests {
         validators.push_back(Address::generate(&env));
 
         let client = create_client(&env);
-        let result = client.try_initialize(&1, &creator, &token, &validators, &DEFAULT_THRESHOLD);
+        let result = client.try_initialize(&1, &creator, &token, &validators, &DEFAULT_THRESHOLD, &VESTING_DURATION);
 
         assert!(result.is_err());
     }
@@ -107,9 +110,9 @@ mod tests {
         let client = create_client(&env);
         env.mock_all_auths();
 
-        client.initialize(&1, &creator, &token, &validators, &DEFAULT_THRESHOLD);
+        client.initialize(&1, &creator, &token, &validators, &DEFAULT_THRESHOLD, &VESTING_DURATION);
 
-        let result = client.try_initialize(&1, &creator, &token, &validators, &DEFAULT_THRESHOLD);
+        let result = client.try_initialize(&1, &creator, &token, &validators, &DEFAULT_THRESHOLD, &VESTING_DURATION);
         assert!(result.is_err());
     }
 
@@ -119,7 +122,7 @@ mod tests {
         let client = create_client(&env);
         env.mock_all_auths();
 
-        client.initialize(&1, &creator, &token, &validators, &DEFAULT_THRESHOLD);
+        client.initialize(&1, &creator, &token, &validators, &DEFAULT_THRESHOLD, &VESTING_DURATION);
 
         let deposit_amount: i128 = 1000;
         let result = client.try_deposit(&1, &deposit_amount);
@@ -136,7 +139,7 @@ mod tests {
         let client = create_client(&env);
         env.mock_all_auths();
 
-        client.initialize(&1, &creator, &token, &validators, &DEFAULT_THRESHOLD);
+        client.initialize(&1, &creator, &token, &validators, &DEFAULT_THRESHOLD, &VESTING_DURATION);
 
         let result = client.try_deposit(&1, &0);
         assert!(result.is_err());
@@ -151,7 +154,7 @@ mod tests {
         let client = create_client(&env);
 
         env.mock_all_auths();
-        client.initialize(&1, &creator, &token, &validators, &DEFAULT_THRESHOLD);
+        client.initialize(&1, &creator, &token, &validators, &DEFAULT_THRESHOLD, &VESTING_DURATION);
         client.deposit(&1, &1000);
 
         let description_hash = BytesN::from_array(&env, &[1u8; 32]);
@@ -171,7 +174,7 @@ mod tests {
         let client = create_client(&env);
 
         env.mock_all_auths();
-        client.initialize(&1, &creator, &token, &validators, &DEFAULT_THRESHOLD);
+        client.initialize(&1, &creator, &token, &validators, &DEFAULT_THRESHOLD, &VESTING_DURATION);
         client.deposit(&1, &500);
 
         let description_hash = BytesN::from_array(&env, &[2u8; 32]);
@@ -186,7 +189,7 @@ mod tests {
         let client = create_client(&env);
 
         env.mock_all_auths();
-        client.initialize(&1, &creator, &token, &validators, &DEFAULT_THRESHOLD);
+        client.initialize(&1, &creator, &token, &validators, &DEFAULT_THRESHOLD, &VESTING_DURATION);
         client.deposit(&1, &3000);
 
         let desc1 = BytesN::from_array(&env, &[1u8; 32]);
@@ -211,7 +214,7 @@ mod tests {
         let client = create_client(&env);
 
         env.mock_all_auths();
-        client.initialize(&1, &creator, &token, &validators, &DEFAULT_THRESHOLD);
+        client.initialize(&1, &creator, &token, &validators, &DEFAULT_THRESHOLD, &VESTING_DURATION);
         client.deposit(&1, &1000);
 
         let description_hash = BytesN::from_array(&env, &[1u8; 32]);
@@ -231,7 +234,7 @@ mod tests {
         let client = create_client(&env);
         env.mock_all_auths();
 
-        client.initialize(&1, &creator, &token, &validators, &DEFAULT_THRESHOLD);
+        client.initialize(&1, &creator, &token, &validators, &DEFAULT_THRESHOLD, &VESTING_DURATION);
         client.deposit(&1, &1000);
 
         let description_hash = BytesN::from_array(&env, &[1u8; 32]);
@@ -252,7 +255,7 @@ mod tests {
         let client = create_client(&env);
         env.mock_all_auths();
 
-        client.initialize(&1, &creator, &token, &validators, &DEFAULT_THRESHOLD);
+        client.initialize(&1, &creator, &token, &validators, &DEFAULT_THRESHOLD, &VESTING_DURATION);
 
         client.deposit(&1, &1000);
         let balance = client.get_available_balance(&1);
@@ -278,7 +281,7 @@ mod tests {
         let client = create_client(&env);
         env.mock_all_auths();
 
-        client.initialize(&1, &creator, &token, &validators, &DEFAULT_THRESHOLD);
+        client.initialize(&1, &creator, &token, &validators, &DEFAULT_THRESHOLD, &VESTING_DURATION);
 
         let result = client.try_get_milestone(&1, &999);
         assert!(result.is_err());
@@ -290,7 +293,7 @@ mod tests {
         let client = create_client(&env);
         env.mock_all_auths();
 
-        client.initialize(&1, &creator, &token, &validators, &DEFAULT_THRESHOLD);
+        client.initialize(&1, &creator, &token, &validators, &DEFAULT_THRESHOLD, &VESTING_DURATION);
         client.deposit(&1, &1000);
 
         let description_hash = BytesN::from_array(&env, &[1u8; 32]);
@@ -315,7 +318,7 @@ mod tests {
         let client = create_client(&env);
         env.mock_all_auths();
 
-        client.initialize(&1, &creator, &token, &validators, &DEFAULT_THRESHOLD);
+        client.initialize(&1, &creator, &token, &validators, &DEFAULT_THRESHOLD, &VESTING_DURATION);
 
         client.deposit(&1, &500);
         assert_eq!(client.get_escrow(&1).total_deposited, 500);
@@ -346,7 +349,7 @@ mod tests {
 
         let client = create_client(&env);
 
-        client.initialize(&1, &creator, &token, &validators, &DEFAULT_THRESHOLD);
+        client.initialize(&1, &creator, &token, &validators, &DEFAULT_THRESHOLD, &VESTING_DURATION);
 
         let escrow1 = client.get_escrow(&1);
         assert_eq!(escrow1.project_id, 1);
@@ -381,7 +384,7 @@ mod tests {
         let client = create_client(&env);
         env.mock_all_auths();
 
-        let result = client.try_initialize(&1, &creator, &token, &validators, &5000);
+        let result = client.try_initialize(&1, &creator, &token, &validators, &5000, &VESTING_DURATION);
         assert!(result.is_err(), "threshold below 51% should be rejected");
     }
 
@@ -391,7 +394,7 @@ mod tests {
         let client = create_client(&env);
         env.mock_all_auths();
 
-        let result = client.try_initialize(&1, &creator, &token, &validators, &10100);
+        let result = client.try_initialize(&1, &creator, &token, &validators, &10100, &VESTING_DURATION);
         assert!(result.is_err(), "threshold above 100% should be rejected");
     }
 
@@ -401,7 +404,7 @@ mod tests {
         let client = create_client(&env);
         env.mock_all_auths();
 
-        let result = client.try_initialize(&1, &creator, &token, &validators, &5100);
+        let result = client.try_initialize(&1, &creator, &token, &validators, &5100, &VESTING_DURATION);
         assert!(result.is_ok(), "5100 basis points (51%) should be accepted");
     }
 
@@ -411,7 +414,7 @@ mod tests {
         let client = create_client(&env);
         env.mock_all_auths();
 
-        let result = client.try_initialize(&1, &creator, &token, &validators, &10000);
+        let result = client.try_initialize(&1, &creator, &token, &validators, &10000, &VESTING_DURATION);
         assert!(result.is_ok(), "10000 basis points (100%) should be accepted");
     }
 
@@ -431,8 +434,8 @@ mod tests {
 
         let client = create_client(&env);
 
-        client.initialize(&1, &creator, &token, &validators, &6700);
-        client.initialize(&2, &creator, &token, &validators, &10000);
+        client.initialize(&1, &creator, &token, &validators, &6700, &VESTING_DURATION);
+        client.initialize(&2, &creator, &token, &validators, &10000, &VESTING_DURATION);
 
         assert_eq!(client.get_escrow(&1).approval_threshold, 6700);
         assert_eq!(client.get_escrow(&2).approval_threshold, 10000);
@@ -450,7 +453,7 @@ mod tests {
         client.configure_dispute_token(&juror_token);
 
         // Use 10000 (100%) threshold — requires ALL 3 validators to approve
-        client.initialize(&1, &creator, &token, &validators, &10000);
+        client.initialize(&1, &creator, &token, &validators, &10000, &VESTING_DURATION);
 
         let v1 = validators.get(0).unwrap();
         let v2 = validators.get(1).unwrap();
@@ -507,7 +510,7 @@ mod tests {
         client.configure_dispute_token(&juror_token);
 
         // Use DEFAULT_THRESHOLD (67%) — with 3 validators, 2 votes meets the threshold
-        client.initialize(&1, &creator, &token, &validators, &DEFAULT_THRESHOLD);
+        client.initialize(&1, &creator, &token, &validators, &DEFAULT_THRESHOLD, &VESTING_DURATION);
 
         let v1 = validators.get(0).unwrap();
         let v2 = validators.get(1).unwrap();
@@ -828,4 +831,49 @@ mod tests {
         let result = client.try_schedule_upgrade(&random, &wasm_hash);
         assert!(result.is_err());
     }
-}
+
+    #[test]
+    fn test_founder_vesting_linear() {
+        let (env, creator, token, _, validators) = create_test_env();
+        let client = create_client(&env);
+        env.mock_all_auths();
+
+        // 1 hour vesting duration
+        let duration = 3600;
+        client.initialize(&1, &creator, &token, &validators, &DEFAULT_THRESHOLD, &duration);
+        client.deposit(&1, &1000);
+
+        let desc = BytesN::from_array(&env, &[1u8; 32]);
+        client.create_milestone(&1, &desc, &1000);
+        let proof = BytesN::from_array(&env, &[9u8; 32]);
+        client.submit_milestone(&1, &0, &proof);
+
+        // Approve milestone (needs 2 out of 3 votes with 67% threshold)
+        client.vote_milestone(&1, &0, &validators.get(0).unwrap(), &true);
+        client.vote_milestone(&1, &0, &validators.get(1).unwrap(), &true);
+
+
+        // Milestone should be approved now
+        assert_eq!(client.get_milestone(&1, &0).status, MilestoneStatus::Approved);
+
+        // Check vesting info
+        let vesting = client.get_vesting_info(&1, &0);
+        assert_eq!(vesting.total_amount, 1000);
+        assert_eq!(vesting.claimed_amount, 0);
+
+        // Jump 30 mins (1800s)
+        env.ledger().set_timestamp(1000 + 1800);
+        
+        // Should be able to claim 50%
+        let claimed = client.claim_unlocked(&1, &0);
+        assert_eq!(claimed, 500);
+
+        // Jump to end
+        env.ledger().set_timestamp(1000 + 3600);
+        let claimed2 = client.claim_unlocked(&1, &0);
+        assert_eq!(claimed2, 500);
+
+        // Vesting should be cleared
+        assert!(client.try_get_vesting_info(&1, &0).is_err());
+    }
+}

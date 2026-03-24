@@ -54,7 +54,7 @@ pub enum Jurisdiction {
 }
 
 #[contracttype]
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct EscrowInfo {
     pub project_id: u64,
     pub creator: Address,
@@ -63,7 +63,21 @@ pub struct EscrowInfo {
     pub released_amount: Amount,
     pub validators: Vec<Address>,
     pub approval_threshold: u32,
+    pub vesting_duration: u64,
 }
+
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct VestingSchedule {
+    pub project_id: u64,
+    pub milestone_id: u64,
+    pub beneficiary: Address,
+    pub total_amount: Amount,
+    pub claimed_amount: Amount,
+    pub start_time: u64,
+    pub duration: u64,
+}
+
 
 #[contracttype]
 #[derive(Clone, Copy, PartialEq, Debug)]
