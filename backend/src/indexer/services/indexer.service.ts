@@ -80,6 +80,9 @@ export class IndexerService implements OnModuleInit, OnModuleDestroy {
     const reputation = this.configService.get<string>('REPUTATION_CONTRACT_ID');
     if (reputation) contracts.push(reputation);
 
+    const tokenFactory = this.configService.get<string>('TOKEN_FACTORY_CONTRACT_ID');
+    if (tokenFactory) contracts.push(tokenFactory);
+
     return contracts;
   }
 
@@ -247,7 +250,7 @@ export class IndexerService implements OnModuleInit, OnModuleDestroy {
   /**
    * Fetch events from Soroban RPC
    */
-  private async fetchEvents(startLedger: number, endLedger: number): Promise<SorobanEvent[]> {
+  private async fetchEvents(startLedger: number, _endLedger: number): Promise<SorobanEvent[]> {
     const events: SorobanEvent[] = [];
     let cursor: string | undefined;
 

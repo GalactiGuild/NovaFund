@@ -10,24 +10,28 @@
     "notifications:ws": "node scripts/ws-notification-server.js"
   },
   "dependencies": {
+    "@radix-ui/react-progress": "^1.1.8",
+    "@radix-ui/react-separator": "^1.1.8",
+    "@radix-ui/react-slot": "^1.2.4",
+    "@radix-ui/react-tooltip": "^1.2.8",
+    "clsx": "^2.1.1",
+    "framer-motion": "^11.0.3",
+    "lucide-react": "^0.330.0",
     "next": "14.1.0",
     "react": "^18",
     "react-dom": "^18",
-    "lucide-react": "^0.330.0",
-    "clsx": "^2.1.0",
-    "tailwind-merge": "^2.2.1",
-    "framer-motion": "^11.0.3"
+    "tailwind-merge": "^2.6.1"
   },
   "devDependencies": {
     "@types/node": "^20",
     "@types/react": "^18",
     "@types/react-dom": "^18",
     "autoprefixer": "^10.0.1",
+    "eslint": "^8",
+    "eslint-config-next": "14.1.0",
     "postcss": "^8",
     "tailwindcss": "^3.3.0",
     "typescript": "^5",
-    "eslint": "^8",
-    "eslint-config-next": "14.1.0",
     "ws": "^8.18.0"
   }
 }

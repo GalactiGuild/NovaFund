@@ -27,7 +27,7 @@ pub enum Error {
     ResTooEarly = 17,
     UpgNotSched = 18,
     UpgTooEarly = 19,
-    UpgReqPause = 20, 
+    UpgReqPause = 20,
 
     // Dispute Resolution Errors
     DispNF = 21,

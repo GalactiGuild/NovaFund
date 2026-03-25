@@ -91,7 +91,7 @@ impl CrossChainBridge {
         }
 
         let chain_config = ChainConfig {
-            chain_id: chain_id.clone(),
+            chain_id,
             name,
             bridge_contract_address: bridge_contract.clone(),
             confirmations_required,
@@ -154,7 +154,7 @@ impl CrossChainBridge {
         let asset = WrappedAssetInfo {
             asset_code: asset_code.clone(),
             issuer: issuer.clone(),
-            original_chain: original_chain.clone(),
+            original_chain,
             original_contract: original_contract.clone(),
             decimals,
             is_active: true,
@@ -225,7 +225,7 @@ impl CrossChainBridge {
 
         let transaction = BridgeTransaction {
             tx_id,
-            source_chain: source_chain.clone(),
+            source_chain,
             destination_chain: source_chain, // For deposits, the destination is conceptually the same chain (informational)
             operation: BridgeOperationType::Deposit,
             sender,
@@ -325,7 +325,7 @@ impl CrossChainBridge {
         let transaction = BridgeTransaction {
             tx_id,
             source_chain: ChainId::Ethereum, // Placeholder
-            destination_chain: destination_chain.clone(),
+            destination_chain,
             operation: BridgeOperationType::Withdraw,
             sender: BytesN::from_array(&env, &[0u8; 32]), // Placeholder
             recipient: sender.clone(),

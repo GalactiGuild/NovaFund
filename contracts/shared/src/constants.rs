@@ -19,6 +19,9 @@ pub const MAX_PROJECT_DURATION: u64 = 15552000;
 /// Minimum contribution amount
 pub const MIN_CONTRIBUTION: i128 = 100_000_000; // 10 XLM
 
+/// KYC Tier 1 contribution limit ($1,000 equivalent)
+pub const KYC_TIER_1_LIMIT: i128 = 10_000_000_000; // 1,000 XLM
+
 /// Voting threshold for milestone approval (60%)
 pub const MILESTONE_APPROVAL_THRESHOLD: u32 = 6000;
 

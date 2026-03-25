@@ -118,9 +118,7 @@ impl GovernanceContract {
         }
 
         let storage = env.storage().instance();
-        let gov_token: Address = storage
-            .get(&DataKey::GovToken)
-            .ok_or(Error::NotInit)?;
+        let gov_token: Address = storage.get(&DataKey::GovToken).ok_or(Error::NotInit)?;
 
         let token_client = token::Client::new(&env, &gov_token);
         let self_address = env.current_contract_address();
@@ -147,9 +145,7 @@ impl GovernanceContract {
         }
 
         let storage = env.storage().instance();
-        let gov_token: Address = storage
-            .get(&DataKey::GovToken)
-            .ok_or(Error::NotInit)?;
+        let gov_token: Address = storage.get(&DataKey::GovToken).ok_or(Error::NotInit)?;
 
         let mut current_stake: Amount = storage.get(&DataKey::Stake(voter.clone())).unwrap_or(0);
 

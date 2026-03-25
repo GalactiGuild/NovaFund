@@ -10,12 +10,14 @@ pub struct IdentityRecord {
     pub is_verified: bool,
     pub verified_at: u64,
     pub proof_hash: soroban_sdk::BytesN<32>,
+    pub tier: u32,
 }
 
 #[contracttype]
 pub enum DataKey {
     Admin,
     Verification(Address, Jurisdiction), // (Address, Jurisdiction) -> IdentityRecord
+    Oracle(Address), // Oracle Address -> bool (is whitelisted)
 }
 
 #[contract]
@@ -39,6 +41,7 @@ impl IdentityContract {
         jurisdiction: Jurisdiction,
         proof: Bytes,
         _public_inputs: Bytes,
+        tier: u32,
     ) {
         user.require_auth();
 
@@ -54,6 +57,7 @@ impl IdentityContract {
             is_verified: true,
             verified_at: env.ledger().timestamp(),
             proof_hash: env.crypto().sha256(&proof).into(),
+            tier,
         };
 
         env.storage()
@@ -63,12 +67,18 @@ impl IdentityContract {
 
     /// Checks if a user is verified for a specific jurisdiction
     pub fn is_verified(env: Env, user: Address, jurisdiction: Jurisdiction) -> bool {
+        Self::get_tier(env, user, jurisdiction) > 0
+    }
+
+    /// Checks the KYC tier level for a user for a specific jurisdiction
+    pub fn get_tier(env: Env, user: Address, jurisdiction: Jurisdiction) -> u32 {
         let key = DataKey::Verification(user, jurisdiction);
         if let Some(record) = env.storage().persistent().get::<_, IdentityRecord>(&key) {
-            record.is_verified
-        } else {
-            false
+            if record.is_verified {
+                return record.tier;
+            }
         }
+        0
     }
 
     /// Admin function to revoke verification
@@ -81,6 +91,57 @@ impl IdentityContract {
             record.is_verified = false;
             env.storage().persistent().set(&key, &record);
         }
+    }
+
+    /// Whitelists an oracle address
+    pub fn add_oracle(env: Env, admin: Address, oracle: Address) {
+        let stored_admin: Address = env.storage().instance().get(&DataKey::Admin).expect("Not initialized");
+        if admin != stored_admin {
+            panic!("Unauthorized");
+        }
+        admin.require_auth();
+        env.storage().instance().set(&DataKey::Oracle(oracle), &true);
+    }
+
+    /// Removes an oracle from the whitelist
+    pub fn remove_oracle(env: Env, admin: Address, oracle: Address) {
+        let stored_admin: Address = env.storage().instance().get(&DataKey::Admin).expect("Not initialized");
+        if admin != stored_admin {
+            panic!("Unauthorized");
+        }
+        admin.require_auth();
+        env.storage().instance().remove(&DataKey::Oracle(oracle));
+    }
+
+    /// Checks if an address is an authorized oracle
+    pub fn is_oracle(env: Env, oracle: Address) -> bool {
+        env.storage().instance().get::<_, bool>(&DataKey::Oracle(oracle)).unwrap_or(false)
+    }
+
+    /// Allows an authorized oracle to update user KYC status
+    pub fn update_status_via_oracle(
+        env: Env,
+        oracle: Address,
+        user: Address,
+        jurisdiction: Jurisdiction,
+        tier: u32,
+        proof_hash: soroban_sdk::BytesN<32>,
+    ) {
+        oracle.require_auth();
+        if !Self::is_oracle(env.clone(), oracle) {
+            panic!("Unauthorized: Not an authorized oracle");
+        }
+
+        let record = IdentityRecord {
+            is_verified: true,
+            verified_at: env.ledger().timestamp(),
+            proof_hash,
+            tier,
+        };
+
+        env.storage()
+            .persistent()
+            .set(&DataKey::Verification(user, jurisdiction), &record);
     }
 }
 

@@ -13,6 +13,7 @@ identity = { path = "../identity" }
 [dev-dependencies]
 soroban-sdk = { workspace = true, features = ["testutils"] }
 cross-chain-bridge = { path = "../cross-chain-bridge", features = ["testutils"] }
+identity = { path = "../identity", features = ["testutils"] }
 
 [lib]
 crate-type = ["cdylib"]

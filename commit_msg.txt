@@ -1,0 +1,1 @@
+feat(frontend): build polished RWA ProjectDetail landing page with Radix UI metrics

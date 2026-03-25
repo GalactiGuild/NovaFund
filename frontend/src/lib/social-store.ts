@@ -151,6 +151,13 @@ function seedMockData(): void {
     const followingCount = follows.filter(
       (f) => f.followerWallet === wallet
     ).length;
+    const reputationScore = 400 + Math.floor(Math.random() * 600);
+    const successRate = 60 + Math.floor(Math.random() * 40);
+    let badgeTier: "Bronze" | "Silver" | "Gold" | "Platinum" = "Bronze";
+    if (reputationScore > 900) badgeTier = "Platinum";
+    else if (reputationScore > 750) badgeTier = "Gold";
+    else if (reputationScore > 600) badgeTier = "Silver";
+
     profiles[wallet] = {
       walletAddress: wallet,
       displayName: MOCK_NAMES[wallet],
@@ -158,6 +165,9 @@ function seedMockData(): void {
       followingCount,
       projectsCreated: Math.floor(Math.random() * 3),
       projectsBacked: Math.floor(Math.random() * 8) + 1,
+      reputationScore,
+      successRate,
+      badgeTier,
     };
   }
 
@@ -338,6 +348,9 @@ export const socialStore = {
         followingCount: this.getFollowing(wallet).length,
         projectsCreated: 0,
         projectsBacked: 0,
+        reputationScore: 0,
+        successRate: 0,
+        badgeTier: "Bronze",
       }
     );
   },

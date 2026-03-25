@@ -1,5 +1,7 @@
 use shared::errors::Error;
-use shared::types::{Amount, Dispute, EscrowInfo, JurorInfo, Milestone, PauseState, PendingUpgrade, VoteCommitment};
+use shared::types::{
+    Amount, Dispute, EscrowInfo, JurorInfo, Milestone, PauseState, PendingUpgrade, VoteCommitment,
+};
 use soroban_sdk::{Address, Env, Vec};
 
 /// Storage keys for escrow data structures
@@ -160,9 +162,7 @@ pub fn get_total_milestone_amount(env: &Env, project_id: u64) -> Result<Amount, 
 
     for milestone_id in 0..counter {
         if let Ok(milestone) = get_milestone(env, project_id, milestone_id) {
-            total = total
-                .checked_add(milestone.amount)
-                .ok_or(Error::InvInput)?;
+            total = total.checked_add(milestone.amount).ok_or(Error::InvInput)?;
         }
     }
 

@@ -13,7 +13,7 @@ pub enum DataKey {
     Admin,
     Allowance(Address, Address), // (from, spender)
     Balance(Address),
-    Metadata, // TokenMetadata struct
+    Metadata,  // TokenMetadata struct
     FeeConfig, // FeeConfiguration struct
 }
 
@@ -33,14 +33,19 @@ pub struct FeeConfiguration {
 }
 
 fn read_balance(env: &Env, address: &Address) -> i128 {
-    env.storage().persistent().get(&DataKey::Balance(address.clone())).unwrap_or(0)
+    env.storage()
+        .persistent()
+        .get(&DataKey::Balance(address.clone()))
+        .unwrap_or(0)
 }
 
 fn write_balance(env: &Env, address: &Address, amount: i128) {
     if amount == 0 {
         return; // optimization
     }
-    env.storage().persistent().set(&DataKey::Balance(address.clone()), &amount);
+    env.storage()
+        .persistent()
+        .set(&DataKey::Balance(address.clone()), &amount);
 }
 
 fn read_allowance(env: &Env, from: &Address, spender: &Address) -> i128 {
@@ -74,12 +79,16 @@ impl BaseToken {
         if env.storage().instance().has(&DataKey::Admin) {
             panic!("Already initialized");
         }
-        
+
         env.storage().instance().set(&DataKey::Admin, &admin);
 
-        let metadata = TokenMetadata { decimal, name, symbol };
+        let metadata = TokenMetadata {
+            decimal,
+            name,
+            symbol,
+        };
         env.storage().instance().set(&DataKey::Metadata, &metadata);
-        
+
         if fee_basis_points > 10000 {
             panic!("Fee basis points cannot exceed 10000");
         }
@@ -88,33 +97,44 @@ impl BaseToken {
             recipient: fee_recipient,
             fee_basis_points,
         };
-        env.storage().instance().set(&DataKey::FeeConfig, &fee_config);
+        env.storage()
+            .instance()
+            .set(&DataKey::FeeConfig, &fee_config);
     }
 
     /// Admin can update fee configuration
     pub fn set_fee_config(env: Env, recipient: Address, fee_basis_points: u32) {
-        let admin: Address = env.storage().instance().get(&DataKey::Admin).expect("Not initialized");
+        let admin: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::Admin)
+            .expect("Not initialized");
         admin.require_auth();
-        
+
         if fee_basis_points > 10000 {
             panic!("Fee basis points cannot exceed 10000");
         }
-        
-        let fee_config = FeeConfiguration { recipient, fee_basis_points };
-        env.storage().instance().set(&DataKey::FeeConfig, &fee_config);
+
+        let fee_config = FeeConfiguration {
+            recipient,
+            fee_basis_points,
+        };
+        env.storage()
+            .instance()
+            .set(&DataKey::FeeConfig, &fee_config);
     }
 
     pub fn mint(env: Env, to: Address, amount: i128) {
         if amount < 0 {
             panic!("Negative amount");
         }
-        
+
         let admin: Address = env.storage().instance().get(&DataKey::Admin).unwrap();
         admin.require_auth();
 
         let bal = read_balance(&env, &to);
         write_balance(&env, &to, bal.checked_add(amount).unwrap());
-        
+
         Events::new(&env).mint(admin, to, amount);
     }
 
@@ -171,12 +191,12 @@ impl token::Interface for BaseToken {
         if amount < 0 {
             panic!("Negative amount");
         }
-        
+
         let bal = read_balance(&env, &from);
         if bal < amount {
             panic!("Insufficient balance");
         }
-        
+
         write_balance(&env, &from, bal - amount);
         Events::new(&env).burn(from, amount);
     }
@@ -186,17 +206,17 @@ impl token::Interface for BaseToken {
         if amount < 0 {
             panic!("Negative amount");
         }
-        
+
         let allowance = read_allowance(&env, &from, &spender);
         if allowance < amount {
             panic!("Insufficient allowance");
         }
-        
+
         let bal = read_balance(&env, &from);
         if bal < amount {
             panic!("Insufficient balance");
         }
-        
+
         write_allowance(&env, &from, &spender, allowance - amount);
         write_balance(&env, &from, bal - amount);
         Events::new(&env).burn(from, amount);
@@ -232,15 +252,19 @@ impl BaseToken {
         if bal < amount {
             panic!("Insufficient balance");
         }
-        
-        let fee_config: FeeConfiguration = env.storage().instance().get(&DataKey::FeeConfig).unwrap();
-        
+
+        let fee_config: FeeConfiguration =
+            env.storage().instance().get(&DataKey::FeeConfig).unwrap();
+
         // Calculate fee
         // fee = (amount * fee_basis_points) / 10000
-        let fee = (amount.checked_mul(fee_config.fee_basis_points as i128).unwrap()) / 10000;
-        
+        let fee = (amount
+            .checked_mul(fee_config.fee_basis_points as i128)
+            .unwrap())
+            / 10000;
+
         // Handle dust limits carefully:
-        // If transfer implies a fee, but due to integer math it evaluates to 0, 
+        // If transfer implies a fee, but due to integer math it evaluates to 0,
         // AND the user is not exempt, then small literal transfers bypass the fee.
         // For dust limits, we intercept this by forcing a minimum fee of 1 if fee evaluates to 0 but fee_basis_points > 0.
         // Exception: if the amount is 1, a fee of 1 is 100%, which destroys the transfer.

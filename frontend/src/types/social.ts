@@ -1,3 +1,4 @@
+export type BadgeTier = "Bronze" | "Silver" | "Gold" | "Platinum";
 export interface SocialUser {
   walletAddress: string;
   displayName?: string;
@@ -6,6 +7,9 @@ export interface SocialUser {
   followingCount: number;
   projectsCreated: number;
   projectsBacked: number;
+  reputationScore: number;
+  successRate: number;
+  badgeTier: BadgeTier;
 }
 
 export interface SocialComment {

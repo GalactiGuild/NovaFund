@@ -74,6 +74,11 @@ export enum ContractEventType {
   UPGRADE_SCHEDULED = 'upg_sched',
   UPGRADE_EXECUTED = 'upg_exec',
   UPGRADE_CANCELLED = 'upg_canc',
+
+  // Token factory / RWA token events
+  TOKEN_MINTED = 'rwa_token_minted',
+  // Standard SEP-41 mint event emitted by base-token via soroban_token_sdk
+  TOKEN_MINT = 'mint',
 }
 
 /**
@@ -151,4 +156,19 @@ export interface FundsReleasedEvent {
 export interface ProjectStatusEvent {
   projectId: number;
   status: 'completed' | 'failed';
+}
+
+/**
+ * Token minted event data (rwa_token_minted from RWA token contract,
+ * or standard SEP-41 "mint" from base-token via soroban_token_sdk)
+ */
+export interface TokenMintedEvent {
+  /** On-chain project ID (present in rwa_token_minted; undefined for plain mint) */
+  projectId?: number;
+  /** Recipient wallet address */
+  recipient: string;
+  /** Minted amount (raw i128 as string) */
+  amount: string;
+  /** Admin / minter address (present in SEP-41 mint events) */
+  admin?: string;
 }

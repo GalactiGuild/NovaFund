@@ -56,10 +56,12 @@ class MilestoneRejectedHandler implements IEventHandler {
           'MILESTONE',
           'Project Milestone Failed',
           `A project you back (${project.title}) has a failed milestone!`,
-          { projectId: project.id, milestoneId: data.milestoneId }
+          { projectId: project.id, milestoneId: data.milestoneId },
         );
       } catch (e) {
-        this.logger.error(`Failed to notify investor ${contribution.investorId} of milestone: ${e.message}`);
+        this.logger.error(
+          `Failed to notify investor ${contribution.investorId} of milestone: ${e.message}`,
+        );
       }
     }
 
@@ -80,6 +82,7 @@ import {
   MilestoneApprovedEvent,
   FundsReleasedEvent,
   ProjectStatusEvent,
+  TokenMintedEvent,
 } from '../types/event-types';
 import { IEventHandler, IEventHandlerRegistry } from '../interfaces/event-handler.interface';
 import { NotificationService } from '../../notification/services/notification.service';
@@ -92,7 +95,7 @@ class ProjectCreatedHandler implements IEventHandler {
   readonly eventType = ContractEventType.PROJECT_CREATED;
   private readonly logger = new Logger(ProjectCreatedHandler.name);
 
-  constructor(private readonly prisma: PrismaService) { }
+  constructor(private readonly prisma: PrismaService) {}
 
   validate(event: ParsedContractEvent): boolean {
     const data = event.data as unknown as ProjectCreatedEvent;
@@ -154,7 +157,7 @@ class ContributionMadeHandler implements IEventHandler {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notificationService: NotificationService,
-  ) { }
+  ) {}
 
   validate(event: ParsedContractEvent): boolean {
     const data = event.data as unknown as ContributionMadeEvent;
@@ -216,10 +219,12 @@ class ContributionMadeHandler implements IEventHandler {
         'CONTRIBUTION',
         'Contribution Successful!',
         `Your contribution of ${data.amount} to project ${project.title} was successful.`,
-        { projectId: project.id, amount: data.amount }
+        { projectId: project.id, amount: data.amount },
       );
     } catch (e) {
-      this.logger.error(`Failed to send contribution notification to user ${user.id}: ${e.message}`);
+      this.logger.error(
+        `Failed to send contribution notification to user ${user.id}: ${e.message}`,
+      );
     }
 
     this.logger.log(`Recorded contribution of ${data.amount} for project ${data.projectId}`);
@@ -237,7 +242,7 @@ class MilestoneApprovedHandler implements IEventHandler {
     private readonly prisma: PrismaService,
     private readonly notificationService: NotificationService,
     private readonly reputationService: ReputationService,
-  ) { }
+  ) {}
 
   validate(event: ParsedContractEvent): boolean {
     const data = event.data as unknown as MilestoneApprovedEvent;
@@ -288,10 +293,12 @@ class MilestoneApprovedHandler implements IEventHandler {
           'MILESTONE',
           'Project Milestone Reached!',
           `A project you back (${project.title}) has reached a new milestone!`,
-          { projectId: project.id, milestoneId: data.milestoneId }
+          { projectId: project.id, milestoneId: data.milestoneId },
         );
       } catch (e) {
-        this.logger.error(`Failed to notify investor ${contribution.investorId} of milestone: ${e.message}`);
+        this.logger.error(
+          `Failed to notify investor ${contribution.investorId} of milestone: ${e.message}`,
+        );
       }
     }
 
@@ -312,7 +319,7 @@ class FundsReleasedHandler implements IEventHandler {
   readonly eventType = ContractEventType.FUNDS_RELEASED;
   private readonly logger = new Logger(FundsReleasedHandler.name);
 
-  constructor(private readonly prisma: PrismaService) { }
+  constructor(private readonly prisma: PrismaService) {}
 
   validate(event: ParsedContractEvent): boolean {
     const data = event.data as unknown as FundsReleasedEvent;
@@ -357,7 +364,7 @@ class ProjectCompletedHandler implements IEventHandler {
   readonly eventType = ContractEventType.PROJECT_COMPLETED;
   private readonly logger = new Logger(ProjectCompletedHandler.name);
 
-  constructor(private readonly prisma: PrismaService) { }
+  constructor(private readonly prisma: PrismaService) {}
 
   validate(event: ParsedContractEvent): boolean {
     const data = event.data as unknown as ProjectStatusEvent;
@@ -385,7 +392,7 @@ class ProjectFailedHandler implements IEventHandler {
   readonly eventType = ContractEventType.PROJECT_FAILED;
   private readonly logger = new Logger(ProjectFailedHandler.name);
 
-  constructor(private readonly prisma: PrismaService) { }
+  constructor(private readonly prisma: PrismaService) {}
 
   validate(event: ParsedContractEvent): boolean {
     const data = event.data as unknown as ProjectStatusEvent;
@@ -403,6 +410,88 @@ class ProjectFailedHandler implements IEventHandler {
     });
 
     this.logger.log(`Marked project ${data.projectId} as failed/cancelled`);
+  }
+}
+
+/**
+ * Handler for TOKEN_MINTED events (rwa_token_minted from RWA token contract)
+ * and standard SEP-41 mint events from base-token.
+ * Persists each mint to the minted_tokens table for fast frontend queries.
+ */
+class TokenMintedHandler implements IEventHandler {
+  readonly eventType = ContractEventType.TOKEN_MINTED;
+  private readonly logger = new Logger(TokenMintedHandler.name);
+
+  constructor(private readonly prisma: PrismaService) {}
+
+  validate(event: ParsedContractEvent): boolean {
+    const data = event.data as unknown as TokenMintedEvent;
+    return !!(data.recipient && data.amount);
+  }
+
+  async handle(event: ParsedContractEvent): Promise<void> {
+    const data = event.data as unknown as TokenMintedEvent;
+
+    this.logger.log(
+      `Processing TOKEN_MINTED: ${data.amount} to ${data.recipient}` +
+        (data.projectId !== undefined ? ` for project ${data.projectId}` : ''),
+    );
+
+    await this.prisma.mintedToken.upsert({
+      where: { transactionHash: event.transactionHash },
+      update: {},
+      create: {
+        contractId: event.contractId,
+        transactionHash: event.transactionHash,
+        projectId: data.projectId !== undefined ? data.projectId.toString() : null,
+        recipient: data.recipient,
+        amount: BigInt(data.amount),
+        admin: data.admin ?? null,
+        ledgerSeq: event.ledgerSeq,
+        mintedAt: event.ledgerClosedAt,
+      },
+    });
+
+    this.logger.log(`Persisted mint of ${data.amount} to ${data.recipient}`);
+  }
+}
+
+/**
+ * Handler for standard SEP-41 "mint" events emitted by base-token.
+ * Delegates to the same persistence logic as TokenMintedHandler.
+ */
+class TokenMintSep41Handler implements IEventHandler {
+  readonly eventType = ContractEventType.TOKEN_MINT;
+  private readonly logger = new Logger(TokenMintSep41Handler.name);
+
+  constructor(private readonly prisma: PrismaService) {}
+
+  validate(event: ParsedContractEvent): boolean {
+    const data = event.data as unknown as TokenMintedEvent;
+    return !!(data.recipient && data.amount);
+  }
+
+  async handle(event: ParsedContractEvent): Promise<void> {
+    const data = event.data as unknown as TokenMintedEvent;
+
+    this.logger.log(`Processing TOKEN_MINT (SEP-41): ${data.amount} to ${data.recipient}`);
+
+    await this.prisma.mintedToken.upsert({
+      where: { transactionHash: event.transactionHash },
+      update: {},
+      create: {
+        contractId: event.contractId,
+        transactionHash: event.transactionHash,
+        projectId: null,
+        recipient: data.recipient,
+        amount: BigInt(data.amount),
+        admin: data.admin ?? null,
+        ledgerSeq: event.ledgerSeq,
+        mintedAt: event.ledgerClosedAt,
+      },
+    });
+
+    this.logger.log(`Persisted SEP-41 mint of ${data.amount} to ${data.recipient}`);
   }
 }
 
@@ -428,11 +517,17 @@ export class EventHandlerService implements IEventHandlerRegistry {
   private registerHandlers(): void {
     this.register(new ProjectCreatedHandler(this.prisma));
     this.register(new ContributionMadeHandler(this.prisma, this.notificationService));
-    this.register(new MilestoneApprovedHandler(this.prisma, this.notificationService, this.reputationService));
-    this.register(new MilestoneRejectedHandler(this.prisma, this.notificationService, this.reputationService));
+    this.register(
+      new MilestoneApprovedHandler(this.prisma, this.notificationService, this.reputationService),
+    );
+    this.register(
+      new MilestoneRejectedHandler(this.prisma, this.notificationService, this.reputationService),
+    );
     this.register(new FundsReleasedHandler(this.prisma));
     this.register(new ProjectCompletedHandler(this.prisma));
     this.register(new ProjectFailedHandler(this.prisma));
+    this.register(new TokenMintedHandler(this.prisma));
+    this.register(new TokenMintSep41Handler(this.prisma));
 
     this.logger.log(`Registered ${this.handlers.size} event handlers`);
   }

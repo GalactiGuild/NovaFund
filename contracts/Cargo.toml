@@ -15,6 +15,7 @@ members = [
     "shared",
     "identity",
     "oracle-network",
+    "auto-invest-pool",
     "base-token",
 ]
 

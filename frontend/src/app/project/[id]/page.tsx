@@ -11,6 +11,8 @@ import { SocialStats } from "@/components/social/SocialStats";
 import { UserProfileCard } from "@/components/social/UserProfileCard";
 import { BackerAvatars } from "@/components/social/BackerAvatars";
 import { CommentSection } from "@/components/social/CommentSection";
+import { AuditBadge } from "@/components/AuditBadge";
+import { ProjectDetail, type RWAProjectProps } from "@/components/ProjectDetail";
 
 type ContributionState = "idle" | "loading" | "success" | "error";
 
@@ -126,6 +128,19 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
   const fundingProgress = Math.round((fundsCommitted / fundingTarget) * 100);
   const releaseProgress = Math.round((fundsReleased / fundingTarget) * 100);
 
+  const rwaProjectData: RWAProjectProps = {
+    id: params.id,
+    name: projectProfile.name,
+    ticker: projectProfile.ticker,
+    category: projectProfile.category,
+    totalValueLocked: "$1.4M",
+    expectedYield: "12-18%",
+    maturityDate: "Q3 2028",
+    fundingTarget: fundingTarget,
+    fundsCommitted: fundsCommitted,
+    milestones: milestones
+  };
+
   const completedCount = milestones.filter(
     (milestone) => milestone.status === "completed"
   ).length;
@@ -190,95 +205,22 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
   return (
     <div className="min-h-screen max-w-screen overflow-hidden bg-slate-950 text-white">
       <div className="mx-auto max-w-8xl md:px-4 py-10">
-        <div className="rounded-4xl border border-white/5 bg-gradient-to-b from-slate-900/80 via-slate-900/60 to-slate-950/80 p-8 shadow-[0_25px_80px_rgba(2,6,23,0.65)]">
-          <div className="flex flex-col gap-3 text-sm text-white/60">
-            <div className="flex items-center gap-2 text-xs uppercase tracking-[0.4em] text-white/50">
-              <ShieldCheck className="h-4 w-4 text-purple-300" />
-              <span>Project ID #{params.id}</span>
-            </div>
-            <h1 className="text-4xl font-semibold text-white sm:text-5xl">
-              {projectProfile.name}{" "}
-              <span className="text-purple-300">({projectProfile.ticker})</span>
-            </h1>
-            <p className="max-w-3xl text-lg text-white/70">
-              {projectProfile.tagline}
-            </p>
-            <div className="flex flex-wrap items-center gap-3 text-xs uppercase tracking-[0.3em] text-white/60">
-              <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
-                {projectProfile.category}
-              </span>
-              <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
-                {completedCount}/{milestones.length} milestones released
-              </span>
-              <div className="flex items-center gap-2 normal-case tracking-normal">
+        <div className="mt-4 grid gap-10 lg:grid-cols-[1.65fr_0.9fr]">
+          <div className="space-y-10">
+            <ProjectDetail project={rwaProjectData} />
+            
+            {/* Social Stats & Community */}
+            <div className="flex flex-wrap items-center justify-between gap-4 rounded-3xl border border-white/10 bg-slate-900/60 px-8 py-6 shadow-2xl">
+              <SocialStats projectId={params.id} />
+              <div className="flex items-center gap-4">
                 <LikeButton projectId={params.id} />
-                <ShareButton
-                  projectId={params.id}
-                  projectTitle={projectProfile.name}
-                />
+                <ShareButton projectId={params.id} projectTitle={projectProfile.name} />
               </div>
-            </div>
-          </div>
-          <div className="mt-8 grid gap-6 rounded-3xl border border-white/5 bg-black/20 p-6 md:grid-cols-3">
-            <div>
-              <p className="text-xs uppercase tracking-[0.4em] text-white/50">
-                Raised
-              </p>
-              <p className="text-3xl font-semibold text-white">$870K</p>
-              <p className="text-xs text-white/60">62% of funding target</p>
-            </div>
-            <div>
-              <p className="text-xs uppercase tracking-[0.4em] text-white/50">
-                Released
-              </p>
-              <p className="text-3xl font-semibold text-purple-300">$620K</p>
-              <p className="text-xs text-white/60">4 of 5 tranches approved</p>
-            </div>
-            <div>
-              <p className="text-xs uppercase tracking-[0.4em] text-white/50">
-                Active milestone
-              </p>
-              <p className="text-2xl font-semibold text-white">
-                {activeMilestone?.title ?? "Awaiting staging"}
-              </p>
-            </div>
-          </div>
-
-          {/* Social Stats & Creator */}
-          <div className="mt-6 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-white/5 bg-black/10 px-6 py-4">
-            <SocialStats projectId={params.id} />
-            <BackerAvatars projectId={params.id} />
-          </div>
-        </div>
-
-        <section className="mt-10 grid gap-10 lg:grid-cols-[1.65fr_0.9fr]">
-          <div className="space-y-6">
-            <div className="rounded-3xl border border-white/10 bg-slate-900/60 p-3 md:p-6 shadow-xl">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs uppercase tracking-[0.4em] text-white/60">
-                    Milestone roadmap
-                  </p>
-                  <h2 className="text-3xl font-semibold text-white">
-                    Vertical fund releases
-                  </h2>
-                </div>
-                <span className="text-sm font-semibold text-white/70">
-                  {completedCount}/{milestones.length} released
-                </span>
-              </div>
-              <p className="mt-3 text-sm text-white/60">
-                Every milestone automatically gates fund releases through
-                validator votes and telemetry verification.
-              </p>
-            </div>
-
-            <div className="rounded-3xl border border-white/10 bg-slate-900/60 p-3 md:p-6 shadow-xl">
-              <MilestoneTimeline milestones={milestones} />
+              <BackerAvatars projectId={params.id} />
             </div>
 
             {/* Community Discussion */}
-            <div className="rounded-3xl border border-white/10 bg-slate-900/60 p-3 md:p-6 shadow-xl">
+            <div className="rounded-3xl border border-white/10 bg-slate-900/60 p-8 shadow-2xl">
               <CommentSection projectId={params.id} />
             </div>
           </div>
@@ -419,7 +361,7 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
               </p>
             </div>
           </aside>
-        </section>
+        </div>
       </div>
 
       {isModalOpen && (

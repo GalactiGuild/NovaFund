@@ -5,6 +5,7 @@ pub const PROJECT_CREATED: Symbol = symbol_short!("proj_new");
 pub const PROJECT_FUNDED: Symbol = symbol_short!("proj_fund");
 pub const PROJECT_COMPLETED: Symbol = symbol_short!("proj_done");
 pub const PROJECT_FAILED: Symbol = symbol_short!("proj_fail");
+pub const RWA_METADATA_UPDATED: Symbol = symbol_short!("rwa_meta");
 
 // Contribution events
 pub const CONTRIBUTION_MADE: Symbol = symbol_short!("contrib");

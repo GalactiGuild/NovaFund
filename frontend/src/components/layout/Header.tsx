@@ -59,6 +59,16 @@ const Header: React.FC = () => {
             Explore
           </Link>
           <Link
+            href="/bridge"
+            className={`text-sm font-medium transition-colors ${
+              isActive("/bridge")
+                ? "text-purple-400"
+                : "text-gray-300 hover:text-white"
+            }`}
+          >
+            Bridge
+          </Link>
+          <Link
             href="/create"
             className={`text-sm font-medium transition-colors ${
               isActive("/create")
@@ -143,6 +153,17 @@ const Header: React.FC = () => {
               onClick={() => setIsMenuOpen(false)}
             >
               Explore
+            </Link>
+            <Link
+              href="/bridge"
+              className={`block text-base font-medium transition-colors ${
+                isActive("/bridge")
+                  ? "text-purple-400"
+                  : "text-gray-300 hover:text-white"
+              }`}
+              onClick={() => setIsMenuOpen(false)}
+            >
+              Bridge
             </Link>
             <Link
               href="/create"

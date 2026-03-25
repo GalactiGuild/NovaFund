@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ArrowLeft, Briefcase, Heart, Users as UsersIcon } from "lucide-react";
 import { motion } from "framer-motion";
 import { UserProfileCard } from "@/components/social/UserProfileCard";
+import { ReputationCard } from "@/components/social/ReputationCard";
 import { FollowButton } from "@/components/social/FollowButton";
 import { useSocial } from "@/contexts/SocialContext";
 import { socialStore } from "@/lib/social-store";
@@ -71,6 +72,9 @@ export default function ProfilePage({
         </Link>
 
         <UserProfileCard walletAddress={wallet} showFollow />
+        <div className="mt-6">
+          <ReputationCard user={profile} />
+        </div>
 
         {/* Tabs */}
         <div className="mt-8 flex gap-1 rounded-xl border border-white/10 bg-white/5 p-1">
