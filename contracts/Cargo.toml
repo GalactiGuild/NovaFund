@@ -2,12 +2,14 @@
 resolver = "2"
 
 members = [
-    "project-launch",
     "escrow",
-    "profit-distribution",
-    "subscription-pool",
+    "governance",
     "multi-party-payment",
+    "profit-distribution",
+    "project-launch",
     "reputation",
+    "shared",
+    "subscription-pool",
     "governance",
     "cross-chain-bridge",
     "insurance-pool",
