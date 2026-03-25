@@ -10,6 +10,15 @@ members = [
     "reputation",
     "shared",
     "subscription-pool",
+    "governance",
+    "cross-chain-bridge",
+    "insurance-pool",
+    "amm-liquidity-pools",
+    "shared",
+    "identity",
+    "oracle-network",
+    "auto-invest-pool",
+    "base-token",
 ]
 
 [workspace.package]

@@ -1,9 +1,8 @@
-#![cfg(test)]
-
 use super::*;
 use soroban_sdk::{
     testutils::{Address as _, Ledger},
-    Address, Bytes, Env,
+    token::StellarAssetClient,
+    Address, Bytes, Env, Vec,
 };
 
 // Helper function to create test environment with registered contract
@@ -42,7 +41,7 @@ fn create_test_proposal(
     end_offset: u64,
 ) -> u64 {
     let current_time = env.ledger().timestamp();
-    let payload = Bytes::from_slice(&env, b"ipfs://QmTest123");
+    let payload = Bytes::from_slice(env, b"ipfs://QmTest123");
 
     client.create_proposal(
         creator,
@@ -99,7 +98,7 @@ fn test_create_proposal_success() {
     assert_eq!(proposal.creator, creator);
     assert_eq!(proposal.yes_votes, 0);
     assert_eq!(proposal.no_votes, 0);
-    assert_eq!(proposal.executed, false);
+    assert!(!proposal.executed);
 }
 
 #[test]
@@ -268,7 +267,7 @@ fn test_finalize_with_quorum_and_majority() {
     client.finalize(&proposal_id);
 
     let proposal = client.get_proposal(&proposal_id);
-    assert_eq!(proposal.executed, true);
+    assert!(proposal.executed);
 }
 
 #[test]
@@ -326,7 +325,7 @@ fn test_finalize_majority_not_reached() {
     client.finalize(&proposal_id);
 
     let proposal = client.get_proposal(&proposal_id);
-    assert_eq!(proposal.executed, false); // Rejected due to no majority
+    assert!(!proposal.executed); // Rejected due to no majority
 }
 
 #[test]
@@ -447,12 +446,72 @@ fn test_has_voted_helper() {
     let proposal_id = create_test_proposal(&env, &client, &creator, 0, 1000);
 
     // Before voting
-    assert_eq!(client.has_voted(&proposal_id, &voter), false);
+    assert!(!client.has_voted(&proposal_id, &voter));
 
     // Vote
     client.vote(&proposal_id, &voter, &true);
 
     // After voting
-    assert_eq!(client.has_voted(&proposal_id, &voter), true);
-    assert_eq!(client.has_voted(&proposal_id, &non_voter), false);
+    assert!(client.has_voted(&proposal_id, &voter));
+    assert!(!client.has_voted(&proposal_id, &non_voter));
+}
+
+#[test]
+fn test_token_weighted_voting_and_quorum_with_timelock() {
+    let (env, client, admin, creator, _) = setup_test_env();
+    initialize_contract(&client, &admin, 100);
+
+    // Register governance token with admin as token holder
+    let token_admin = admin.clone();
+    let token_id = env.register_stellar_asset_contract_v2(token_admin.clone());
+    let gov_token = token_id.address();
+
+    // Configure governance token with a timelock delay
+    client.configure_token(&admin, &gov_token, &60u64);
+
+    // Mint tokens to admin and distribute to two voters
+    let token_admin_client = StellarAssetClient::new(&env, &gov_token);
+    token_admin_client.mint(&token_admin, &1_000i128);
+
+    let voter1 = Address::generate(&env);
+    let voter2 = Address::generate(&env);
+
+    let recipients = Vec::from_array(&env, [voter1.clone(), voter2.clone()]);
+    let amounts = Vec::from_array(&env, [600_i128, 400_i128]);
+
+    client.distribute_tokens(&admin, &recipients, &amounts);
+
+    // Stake tokens for both voters
+    env.mock_all_auths();
+    client.stake(&voter1, &600_i128);
+    client.stake(&voter2, &400_i128);
+
+    let total_stake = client.get_total_stake();
+    assert_eq!(total_stake, 1_000_i128);
+
+    // Create a proposal that is immediately active
+    let proposal_id = create_test_proposal(&env, &client, &creator, 0, 100);
+
+    // Voter1 votes yes with weight 600, voter2 votes no with weight 400
+    client.vote(&proposal_id, &voter1, &true);
+    client.vote(&proposal_id, &voter2, &false);
+
+    let proposal = client.get_proposal(&proposal_id);
+    assert_eq!(proposal.yes_votes, 600_i128);
+    assert_eq!(proposal.no_votes, 400_i128);
+
+    // Move past end_time and finalize
+    let current_time = env.ledger().timestamp();
+    env.ledger().with_mut(|li| {
+        li.timestamp = current_time + 200;
+    });
+
+    client.finalize(&proposal_id);
+
+    let proposal = client.get_proposal(&proposal_id);
+    assert!(proposal.executed);
+
+    // Timelock should be recorded
+    let timelock = client.get_proposal_timelock(&proposal_id).unwrap();
+    assert!(timelock > current_time);
 }

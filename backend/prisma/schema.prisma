@@ -1,0 +1,222 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id              String   @id @default(cuid())
+  walletAddress   String   @unique @map("wallet_address")
+  profileData     Json?    @map("profile_data")
+  reputationScore Int      @default(0) @map("reputation_score")
+  trustScore      Int      @default(500) @map("trust_score")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  // Notification fields
+  email            String? @unique
+  pushSubscription Json?   @map("push_subscription")
+
+  // Relations
+  createdProjects      Project[]            @relation("ProjectCreator")
+  contributions        Contribution[]
+  reputationHistory    ReputationHistory[]
+  notificationSettings NotificationSetting?
+  notifications        Notification[]
+
+  @@map("users")
+}
+
+model Project {
+  id           String        @id @default(cuid())
+  contractId   String        @unique @map("contract_id")
+  creatorId    String        @map("creator_id")
+  creator      User          @relation("ProjectCreator", fields: [creatorId], references: [id])
+  title        String
+  description  String?
+  category     String
+  goal         BigInt
+  currentFunds BigInt        @default(0) @map("current_funds")
+  deadline     DateTime
+  ipfsHash     String?       @map("ipfs_hash")
+  status       ProjectStatus @default(ACTIVE)
+  createdAt    DateTime      @default(now()) @map("created_at")
+  updatedAt    DateTime      @updatedAt @map("updated_at")
+
+  // Relations
+  contributions Contribution[]
+  milestones    Milestone[]
+
+  @@map("projects")
+}
+
+model Contribution {
+  id              String   @id @default(cuid())
+  transactionHash String   @unique @map("transaction_hash")
+  investorId      String   @map("investor_id")
+  investor        User     @relation(fields: [investorId], references: [id])
+  projectId       String   @map("project_id")
+  project         Project  @relation(fields: [projectId], references: [id])
+  amount          BigInt
+  timestamp       DateTime @default(now())
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@map("contributions")
+}
+
+model Milestone {
+  id             String          @id @default(cuid())
+  projectId      String          @map("project_id")
+  project        Project         @relation(fields: [projectId], references: [id])
+  title          String
+  description    String?
+  fundingAmount  BigInt          @map("funding_amount")
+  status         MilestoneStatus @default(PENDING)
+  completionDate DateTime?       @map("completion_date")
+  createdAt      DateTime        @default(now()) @map("created_at")
+  updatedAt      DateTime        @updatedAt @map("updated_at")
+
+  @@map("milestones")
+}
+
+model ReputationHistory {
+  id          String   @id @default(cuid())
+  userId      String   @map("user_id")
+  user        User     @relation(fields: [userId], references: [id])
+  scoreChange Int      @map("score_change")
+  reason      String
+  timestamp   DateTime @default(now())
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("reputation_history")
+}
+
+model Category {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("categories")
+}
+
+enum ProjectStatus {
+  ACTIVE
+  COMPLETED
+  CANCELLED
+  SUSPENDED
+}
+
+enum MilestoneStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  COMPLETED
+  FUNDED
+}
+
+model LedgerCursor {
+  id             String   @id @default(cuid())
+  network        String   @unique
+  lastLedgerSeq  Int      @map("last_ledger_seq")
+  lastLedgerHash String?  @map("last_ledger_hash")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  @@map("ledger_cursors")
+}
+
+model ProcessedEvent {
+  id              String   @id @default(cuid())
+  eventId         String   @unique @map("event_id")
+  network         String
+  ledgerSeq       Int      @map("ledger_seq")
+  contractId      String   @map("contract_id")
+  eventType       String   @map("event_type")
+  transactionHash String   @map("transaction_hash")
+  processedAt     DateTime @default(now()) @map("processed_at")
+
+  @@index([network, ledgerSeq])
+  @@index([contractId, eventType])
+  @@map("processed_events")
+}
+
+model IndexerLog {
+  id        String   @id @default(cuid())
+  level     String
+  message   String
+  metadata  Json?
+  timestamp DateTime @default(now())
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([timestamp])
+  @@index([level])
+  @@map("indexer_logs")
+}
+
+model NotificationSetting {
+  id                  String   @id @default(cuid())
+  userId              String   @unique @map("user_id")
+  user                User     @relation(fields: [userId], references: [id])
+  emailEnabled        Boolean  @default(true) @map("email_enabled")
+  pushEnabled         Boolean  @default(false) @map("push_enabled")
+  notifyContributions Boolean  @default(true) @map("notify_contributions")
+  notifyMilestones    Boolean  @default(true) @map("notify_milestones")
+  notifyDeadlines     Boolean  @default(true) @map("notify_deadlines")
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  @@map("notification_settings")
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String           @map("user_id")
+  user      User             @relation(fields: [userId], references: [id])
+  type      NotificationType
+  title     String
+  message   String
+  read      Boolean          @default(false)
+  data      Json? // Optional metadata (e.g., projectId)
+  createdAt DateTime         @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@map("notifications")
+}
+
+model EmailOutbox {
+  id        String      @id @default(cuid())
+  to        String
+  subject   String
+  html      String
+  status    EmailStatus @default(PENDING)
+  attempts  Int         @default(0)
+  lastError String?     @map("last_error")
+  createdAt DateTime    @default(now()) @map("created_at")
+  updatedAt DateTime    @updatedAt @map("updated_at")
+
+  @@index([status])
+  @@map("email_outbox")
+}
+
+enum NotificationType {
+  CONTRIBUTION
+  MILESTONE
+  DEADLINE
+  SYSTEM
+}
+
+enum EmailStatus {
+  PENDING
+  SENT
+  FAILED
+}

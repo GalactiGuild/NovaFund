@@ -1,9 +1,6 @@
-use soroban_sdk::{Address, Env, Map};
+use soroban_sdk::{Address, Env};
 
-use crate::{
-    errors::ContractError,
-    types::{DataKey, InvestorShare},
-};
+use crate::types::{DataKey, InvestorShare};
 
 pub fn set_project_token(env: &Env, project_id: u64, token: &Address) {
     env.storage()

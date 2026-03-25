@@ -82,7 +82,98 @@ const InvestmentTable: React.FC<InvestmentTableProps> = ({
         </p>
       </div>
 
-      <div className="overflow-x-auto">
+      {/* Mobile Card View */}
+      <div className="md:hidden">
+        <div className="divide-y divide-gray-700">
+          {investments.map((investment) => {
+            const gainLoss = calculateGainLoss(
+              investment.currentValue,
+              investment.amount,
+            );
+            const isClaiming = claimingIds.has(investment.id);
+
+            return (
+              <div key={investment.id} className="p-4 space-y-3">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <div className="font-medium text-white">
+                      {investment.projectName}
+                    </div>
+                    <div className="text-sm text-muted-foreground">
+                      Invested {formatDate(investment.dateInvested)}
+                    </div>
+                  </div>
+                  {getStatusBadge(investment.status)}
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <div className="text-muted-foreground">Invested</div>
+                    <div className="font-medium">${investment.amount.toLocaleString()}</div>
+                  </div>
+                  <div>
+                    <div className="text-muted-foreground">Current Value</div>
+                    <div className="font-medium">${investment.currentValue.toLocaleString()}</div>
+                  </div>
+                  <div>
+                    <div className="text-muted-foreground">Gain/Loss</div>
+                    <div className={gainLoss.isPositive ? "text-green-400" : "text-red-400"}>
+                      {gainLoss.isPositive ? "+" : ""}${gainLoss.amount.toLocaleString()}
+                      <div className="text-xs">({gainLoss.isPositive ? "+" : ""}{gainLoss.percentage}%)</div>
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-muted-foreground">Claimable</div>
+                    <div className="text-purple-400 font-medium">
+                      ${investment.claimableReturns.toLocaleString()}
+                    </div>
+                  </div>
+                </div>
+
+                {investment.canClaim && investment.claimableReturns > 0 && (
+                  <Button
+                    size="sm"
+                    onClick={() => handleClaim(investment)}
+                    disabled={isClaiming}
+                    className="w-full"
+                  >
+                    {isClaiming ? (
+                      <div className="flex items-center justify-center">
+                        <svg
+                          className="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
+                          xmlns="http://www.w3.org/2000/svg"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                        >
+                          <circle
+                            className="opacity-25"
+                            cx="12"
+                            cy="12"
+                            r="10"
+                            stroke="currentColor"
+                            strokeWidth="4"
+                          ></circle>
+                          <path
+                            className="opacity-75"
+                            fill="currentColor"
+                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                          ></path>
+                        </svg>
+                        Claiming
+                      </div>
+                    ) : (
+                      "Claim Returns"
+                    )}
+                  </Button>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Desktop Table View */}
+      <div className="hidden md:block overflow-x-auto">
         <table className="w-full">
           <thead className="bg-gray-800/50">
             <tr>

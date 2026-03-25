@@ -8,10 +8,27 @@ license.workspace = true
 soroban-sdk = { workspace = true }
 soroban-token-sdk = { workspace = true }
 shared = { path = "../shared" }
+identity = { path = "../identity" }
 
 [dev-dependencies]
 # This adds testutils only when running 'cargo test'
 soroban-sdk = { workspace = true, features = ["testutils"] }
+cross-chain-bridge = { path = "../cross-chain-bridge", features = ["testutils"] }
+identity = { path = "../identity", features = ["testutils"] }
 
 [lib]
 crate-type = ["cdylib"]
+crate-type = ["cdylib"]
+
+[profile.release]
+opt-level = "z"
+overflow-checks = true
+debug = 0
+strip = "symbols"
+debug-assertions = false
+panic = "abort"
+codegen-units = 1
+lto = true
+
+[features]
+testutils = ["soroban-sdk/testutils"]
