@@ -65,6 +65,18 @@
                         "key": {
                           "vec": [
                             {
+                              "symbol": "Admin"
+                            }
+                          ]
+                        },
+                        "val": {
+                          "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4"
+                        }
+                      },
+                      {
+                        "key": {
+                          "vec": [
+                            {
                               "symbol": "TotalVoters"
                             }
                           ]
@@ -244,7 +256,7 @@
             ],
             "data": {
               "error": {
-                "contract": 4
+                "contract": 2
               }
             }
           }
@@ -265,7 +277,7 @@
               },
               {
                 "error": {
-                  "contract": 4
+                  "contract": 2
                 }
               }
             ],
@@ -290,7 +302,7 @@
               },
               {
                 "error": {
-                  "contract": 4
+                  "contract": 2
                 }
               }
             ],

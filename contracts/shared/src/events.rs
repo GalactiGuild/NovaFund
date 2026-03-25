@@ -5,6 +5,7 @@ pub const PROJECT_CREATED: Symbol = symbol_short!("proj_new");
 pub const PROJECT_FUNDED: Symbol = symbol_short!("proj_fund");
 pub const PROJECT_COMPLETED: Symbol = symbol_short!("proj_done");
 pub const PROJECT_FAILED: Symbol = symbol_short!("proj_fail");
+pub const RWA_METADATA_UPDATED: Symbol = symbol_short!("rwa_meta");
 
 // Contribution events
 pub const CONTRIBUTION_MADE: Symbol = symbol_short!("contrib");
@@ -20,6 +21,15 @@ pub const MILESTONE_APPROVED: Symbol = symbol_short!("m_apprv");
 pub const MILESTONE_REJECTED: Symbol = symbol_short!("m_reject");
 pub const MILESTONE_COMPLETED: Symbol = symbol_short!("milestone");
 pub const VALIDATORS_UPDATED: Symbol = symbol_short!("v_update");
+
+// Dispute events
+pub const JURY_SELECTED: Symbol = symbol_short!("j_select");
+pub const VOTE_COMMITTED: Symbol = symbol_short!("v_commit");
+pub const VOTE_REVEALED: Symbol = symbol_short!("v_reveal");
+pub const DISPUTE_RESOLVED: Symbol = symbol_short!("d_resolve");
+pub const DISPUTE_APPEALED: Symbol = symbol_short!("d_appeal");
+pub const APPEAL_RESOLVED: Symbol = symbol_short!("a_resolve");
+pub const JUROR_SLASHED: Symbol = symbol_short!("j_slashed");
 
 // Distribution events
 pub const PROFIT_DISTRIBUTED: Symbol = symbol_short!("profit");
@@ -39,3 +49,41 @@ pub const BADGE_EARNED: Symbol = symbol_short!("badge");
 pub const PAYMENT_SETUP: Symbol = symbol_short!("pay_setup");
 pub const PAYMENT_RECEIVED: Symbol = symbol_short!("pay_recv");
 pub const PAYMENT_WITHDRAWN: Symbol = symbol_short!("pay_withd");
+
+// Subscription events
+pub const SUBSCRIPTION_CREATED: Symbol = symbol_short!("subscr");
+pub const SUBSCRIPTION_CANCELLED: Symbol = symbol_short!("sub_cancl");
+pub const SUBSCRIPTION_MODIFIED: Symbol = symbol_short!("sub_mod");
+pub const SUBSCRIPTION_PAUSED: Symbol = symbol_short!("sub_pause");
+pub const SUBSCRIPTION_RESUMED: Symbol = symbol_short!("sub_resum");
+pub const PAYMENT_FAILED: Symbol = symbol_short!("pay_fail");
+pub const SUBSCRIPTION_PAYMENT: Symbol = symbol_short!("deposit");
+
+// Cross-chain bridge events
+pub const BRIDGE_INITIALIZED: Symbol = symbol_short!("br_init");
+pub const SUPPORTED_CHAIN_ADDED: Symbol = symbol_short!("chain_add");
+pub const SUPPORTED_CHAIN_REMOVED: Symbol = symbol_short!("chain_rem");
+pub const ASSET_WRAPPED: Symbol = symbol_short!("wrap");
+pub const ASSET_UNWRAPPED: Symbol = symbol_short!("unwrap");
+pub const BRIDGE_DEPOSIT: Symbol = symbol_short!("br_dep");
+pub const BRIDGE_WITHDRAW: Symbol = symbol_short!("br_wdraw");
+pub const BRIDGE_PAUSED: Symbol = symbol_short!("br_pause");
+pub const BRIDGE_UNPAUSED: Symbol = symbol_short!("br_res");
+pub const RELAYER_ADDED: Symbol = symbol_short!("rel_add");
+pub const RELAYER_REMOVED: Symbol = symbol_short!("rel_rem");
+pub const BRIDGE_TX_CONFIRMED: Symbol = symbol_short!("tx_conf");
+pub const BRIDGE_TX_FAILED: Symbol = symbol_short!("tx_fail");
+pub const CONTRACT_PAUSED: Symbol = symbol_short!("esc_pause");
+pub const CONTRACT_RESUMED: Symbol = symbol_short!("esc_resum");
+
+// Upgrade events
+pub const UPGRADE_SCHEDULED: Symbol = symbol_short!("upg_sched");
+pub const UPGRADE_EXECUTED: Symbol = symbol_short!("upg_exec");
+pub const UPGRADE_CANCELLED: Symbol = symbol_short!("upg_canc");
+
+// Oracle events
+pub const ORACLE_FEED_CREATED: Symbol = symbol_short!("or_feed");
+pub const ORACLE_FEED_UPDATED: Symbol = symbol_short!("or_upd");
+pub const ORACLE_ORACLE_STAKED: Symbol = symbol_short!("or_stak");
+pub const ORACLE_ORACLE_UNSTAKED: Symbol = symbol_short!("or_unst");
+pub const ORACLE_SLASHED: Symbol = symbol_short!("or_slsh");
