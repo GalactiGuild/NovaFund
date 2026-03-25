@@ -2,14 +2,14 @@
 resolver = "2"
 
 members = [
-    "project-launch",
     "escrow",
-    "profit-distribution",
-    "subscription-pool",
-    "multi-party-payment",
-    "reputation",
     "governance",
+    "multi-party-payment",
+    "profit-distribution",
+    "project-launch",
+    "reputation",
     "shared",
+    "subscription-pool",
 ]
 
 [workspace.package]
