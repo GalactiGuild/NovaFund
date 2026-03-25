@@ -517,12 +517,23 @@ mod tests {
             "two approvals should not be enough with 100% threshold"
         );
 
-        // With 100% threshold, all 3 votes trigger approval
+        // With 100% threshold, all 3 votes trigger queuing
         client.vote_milestone(&1, &0, &v3, &true);
+        let milestone = client.get_milestone(&1, &0);
+        assert_eq!(
+            milestone.status,
+            MilestoneStatus::Queued,
+            "all three approvals should trigger queuing with 100% threshold"
+        );
+
+        // Advance time to pass time-lock
+        env.ledger().set_timestamp(milestone.unlock_time + 1);
+        client.execute_release(&1, &0);
+
         assert_eq!(
             client.get_milestone(&1, &0).status,
             MilestoneStatus::Approved,
-            "all three approvals should trigger approval with 100% threshold"
+            "after time-lock and execute_release, milestone should be approved"
         );
     }
 
@@ -617,8 +628,19 @@ mod tests {
             "one approval should not meet the 67% threshold with 3 validators"
         );
 
-        // With 67% threshold and 3 validators, 2 votes (67%) meets the threshold
+        // With 67% threshold and 3 validators, 2 votes (67%) meets the threshold and queues
         client.vote_milestone(&1, &0, &v2, &true);
+        let milestone = client.get_milestone(&1, &0);
+        assert_eq!(
+            milestone.status,
+            MilestoneStatus::Queued,
+            "two approvals should meeting 67% threshold and queue it"
+        );
+
+        // Advance time and execute
+        env.ledger().set_timestamp(milestone.unlock_time + 1);
+        client.execute_release(&1, &0);
+
         assert_eq!(
             client.get_milestone(&1, &0).status,
             MilestoneStatus::Approved,
@@ -877,21 +899,61 @@ mod tests {
     }
 
     #[test]
+    fn test_milestone_time_lock() {
+        let (env, creator, token, _, validators) = create_test_env();
+        let client = create_client(&env);
+        env.mock_all_auths();
+
+        client.initialize(&1, &creator, &token, &validators, &DEFAULT_THRESHOLD, &0);
+        client.deposit(&1, &1000);
+
+        let description_hash = BytesN::from_array(&env, &[1u8; 32]);
+        client.create_milestone(&1, &description_hash, &500);
+
+        let proof_hash = BytesN::from_array(&env, &[9u8; 32]);
+        client.submit_milestone(&1, &0, &proof_hash);
+
+        let v1 = validators.get(0).unwrap();
+        let v2 = validators.get(1).unwrap();
+
+        // 2 votes should meet the 67% threshold and queue the release.
+        client.vote_milestone(&1, &0, &v1, &true);
+        client.vote_milestone(&1, &0, &v2, &true);
+
+        let milestone = client.get_milestone(&1, &0);
+        assert_eq!(milestone.status, MilestoneStatus::Queued);
+        assert!(milestone.unlock_time > env.ledger().timestamp());
+
+        // Try to execute release before time-lock expires.
+        let result = client.try_execute_release(&1, &0);
+        assert!(result.is_err(), "should not be able to execute release early");
+
+        // Advance ledger time and execute after unlock.
+        env.ledger().set_timestamp(milestone.unlock_time + 1);
+        client.execute_release(&1, &0);
+
+        let milestone = client.get_milestone(&1, &0);
+        assert_eq!(milestone.status, MilestoneStatus::Approved);
+
+        let escrow = client.get_escrow(&1);
+        assert_eq!(escrow.released_amount, 500);
+    }
+
+    #[test]
     fn test_claim_yield_happy_path() {
         let (env, creator, token, _, validators) = create_test_env();
         let client = create_client(&env);
         env.mock_all_auths();
 
         let profit_dist_id = env.register_contract(None, MockProfitDist);
-        
+
         // 5% management fee
         client.initialize(&1, &creator, &token, &validators, &DEFAULT_THRESHOLD, &500);
-        
+
         // Initial deposit of 1000
         client.deposit(&1, &1000);
-        
-        // MockToken::balance will return 1200 for the balance check
-        // Since MockToken::transfer does nothing, we just verify the call doesn't panic
+
+        // MockToken::balance returns 1200, so claim_yield should execute.
         client.claim_yield(&1, &profit_dist_id);
     }
 
@@ -900,10 +962,10 @@ mod tests {
         let (env, creator, token, _, validators) = create_test_env();
         let client = create_client(&env);
         env.mock_all_auths();
-        
+
         client.initialize(&1, &creator, &token, &validators, &DEFAULT_THRESHOLD, &500);
         let profit_dist_id = Address::generate(&env);
-        
+
         // No tokens in contract, should fail
         let result = client.try_claim_yield(&1, &profit_dist_id);
         assert!(result.is_err());
