@@ -10,6 +10,9 @@ use shared::{
     },
     MAX_APPROVAL_THRESHOLD, MIN_APPROVAL_THRESHOLD,
 };
+use shared::upgradeable::*;
+initialize_upgrade(&env, governance_address);
+use soroban_sdk::{contract, contractimpl, token::TokenClient, Address, BytesN, Env, Vec};
 use soroban_sdk::{contract, contractimpl, token::TokenClient, Address, BytesN, Env, IntoVal, Vec, Symbol};
 
 // Interface for ProfitDistribution
@@ -20,6 +23,7 @@ pub trait ProfitDistributionTrait {
 
 mod storage;
 mod validation;
+
 
 #[cfg(test)]
 mod tests;

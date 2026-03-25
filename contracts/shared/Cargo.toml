@@ -4,8 +4,11 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 
-[dependencies]
-soroban-sdk = { workspace = true }
-
 [lib]
-crate-type = ["rlib"]
+crate-type = ["rlib", "cdylib"]
+
+[dependencies]
+soroban-sdk = { workspace = true, default-features = false, features = ["alloc"] }
+
+[features]
+default = []
