@@ -132,19 +132,9 @@ export const LandingHero: React.FC = () => {
             variants={itemVariants}
             className="flex flex-col sm:flex-row gap-4 justify-center"
           >
-            <Link href="/bridge" className="inline-block">
-              <Button
-                variant="primary"
-                size="lg"
-                className="group inline-flex items-center gap-2 px-8 py-4 text-lg font-semibold bg-cyan-300 text-slate-950 hover:bg-cyan-200 focus:ring-cyan-300"
-              >
-                Bridge USDC
-                <ArrowRight className="w-5 h-5 transition-transform group-hover:translate-x-1" />
-              </Button>
-            </Link>
             <Link href="/explore" className="inline-block">
               <Button
-                variant="secondary"
+                variant="primary"
                 size="lg"
                 className="group inline-flex items-center gap-2 px-8 py-4 text-lg font-semibold"
               >
@@ -156,7 +146,7 @@ export const LandingHero: React.FC = () => {
               <Button
                 variant="secondary"
                 size="lg"
-                className="px-8 py-4 text-lg font-semibold border border-white/10 bg-white/5 hover:bg-white/10"
+                className="px-8 py-4 text-lg font-semibold"
               >
                 Launch Project
               </Button>
