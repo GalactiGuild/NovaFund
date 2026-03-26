@@ -76,4 +76,28 @@
   .shadow-\[0_25px_80px_rgba\(2\,6\,23\,0\.65\)\] {
     box-shadow: 0 25px 80px rgba(2,6,23,0.65);
   }
+
+  /* -------------------------------
+   CHART THEME VARIABLES
+-------------------------------- */
+
+/* Light Mode */
+:root {
+  --chart-bg: #ffffff;
+  --chart-text: #1f2937;
+  --chart-grid: #e5e7eb;
+  --chart-line: #7c3aed;
+  --chart-tooltip-bg: #ffffff;
+  --chart-tooltip-text: #111827;
+}
+
+/* Dark Mode */
+.dark {
+  --chart-bg: #0f172a;
+  --chart-text: #e5e7eb;
+  --chart-grid: #374151;
+  --chart-line: #a78bfa;
+  --chart-tooltip-bg: #1f2937;
+  --chart-tooltip-text: #f9fafb;
+}
 }
