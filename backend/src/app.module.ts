@@ -13,6 +13,7 @@ import { NotificationModule } from './notification/notification.module';
 import { BridgeModule } from './bridge/bridge.module';
 import { YieldModule } from './yield/yield.module';
 import { RelayModule } from './relay/relay.module';
+import { VerificationModule } from './verification/verification.module';
 
 @Module({
   imports: [
@@ -33,6 +34,7 @@ import { RelayModule } from './relay/relay.module';
     BridgeModule,
     YieldModule,
     RelayModule,
+    VerificationModule,
   ],
   controllers: [AppController, UserController],
   providers: [AppService],
