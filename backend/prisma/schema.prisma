@@ -282,3 +282,25 @@ model YieldEvent {
   @@index([isActive])
   @@map("yield_events")
 }
+
+model FiatDeposit {
+  id                   String    @id @default(cuid())
+  walletAddress        String    @map("wallet_address")
+  assetCode            String    @default("USDC") @map("asset_code")
+  amount               Float?
+  status               String
+  anchorProvider       String    @map("anchor_provider")
+  anchorTransactionId  String?   @unique @map("anchor_transaction_id")
+  stellarTransactionId String?   @map("stellar_transaction_id")
+  interactiveUrl       String    @map("interactive_url")
+  projectId            String?   @map("project_id")
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @updatedAt @map("updated_at")
+  completedAt          DateTime? @map("completed_at")
+
+  @@index([walletAddress])
+  @@index([status])
+  @@index([anchorTransactionId])
+  @@index([projectId])
+  @@map("fiat_deposits")
+}
