@@ -69,6 +69,16 @@ const Header: React.FC = () => {
             Bridge
           </Link>
           <Link
+            href="/onramp"
+            className={`text-sm font-medium transition-colors ${
+              isActive("/onramp")
+                ? "text-purple-400"
+                : "text-gray-300 hover:text-white"
+            }`}
+          >
+            Add Funds
+          </Link>
+          <Link
             href="/create"
             className={`text-sm font-medium transition-colors ${
               isActive("/create")
@@ -164,6 +174,17 @@ const Header: React.FC = () => {
               onClick={() => setIsMenuOpen(false)}
             >
               Bridge
+            </Link>
+            <Link
+              href="/onramp"
+              className={`block text-base font-medium transition-colors ${
+                isActive("/onramp")
+                  ? "text-purple-400"
+                  : "text-gray-300 hover:text-white"
+              }`}
+              onClick={() => setIsMenuOpen(false)}
+            >
+              Add Funds
             </Link>
             <Link
               href="/create"
