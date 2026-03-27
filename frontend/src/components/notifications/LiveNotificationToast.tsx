@@ -13,7 +13,7 @@ export function LiveNotificationToast() {
     if (preferences.pushEnabled && typeof document !== "undefined" && document.hidden) {
       showPushIfAllowed(lastReceived.title, { body: lastReceived.message });
     }
-  }, [lastReceived?.id, lastReceived?.title, lastReceived?.message, preferences.pushEnabled]);
+  }, [lastReceived, preferences.pushEnabled]);
 
   useEffect(() => {
     if (!lastReceived || !preferences.soundEnabled) return;
@@ -35,7 +35,7 @@ export function LiveNotificationToast() {
     } catch {
       // Ignore if AudioContext not supported
     }
-  }, [lastReceived?.id, preferences.soundEnabled]);
+  }, [lastReceived, preferences.soundEnabled]);
 
   if (!lastReceived) return null;
 

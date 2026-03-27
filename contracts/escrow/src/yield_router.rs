@@ -1,29 +1,26 @@
-/// ## Design principles
-/// - **Liquidity-first**: A configurable `liquidity_reserve_bps` (basis points, e.g. 2000 = 20%)
-///   of every escrow's balance is *never* deployed. This guarantees that routine
-///   milestone payouts never fail due to funds being locked in a lending protocol.
-/// - **Per-escrow accounting**: Each `project_id` tracks its own deposited principal
-///   separately from any yield accrued, so slippage or protocol losses are isolated.
-/// - **Placeholder lending interface**: `LendingPoolClient` wraps a generic Soroban
-///   cross-contract call pattern. Swap the `pool_contract` address at runtime to
-///   point at Blend Protocol, or any future Stellar-native lending pool that
-///   exposes `deposit` / `withdraw` / `get_balance`.
-/// - **Admin-gated routing**: Only the platform admin can enable yield routing for
-///   a project, set the reserve ratio, and change the pool address. This prevents
-///   a rogue creator from draining the contract via unexpected pool interactions.
+//! ## Design principles
+//! - **Liquidity-first**: A configurable `liquidity_reserve_bps` (basis points, e.g. 2000 = 20%)
+//!   of every escrow's balance is *never* deployed. This guarantees that routine
+//!   milestone payouts never fail due to funds being locked in a lending protocol.
+//! - **Per-escrow accounting**: Each `project_id` tracks its own deposited principal
+//!   separately from any yield accrued, so slippage or protocol losses are isolated.
+//! - **Placeholder lending interface**: `LendingPoolClient` wraps a generic Soroban
+//!   cross-contract call pattern. Swap the `pool_contract` address at runtime to
+//!   point at Blend Protocol, or any future Stellar-native lending pool that
+//!   exposes `deposit` / `withdraw` / `get_balance`.
+//! - **Admin-gated routing**: Only the platform admin can enable yield routing for
+//!   a project, set the reserve ratio, and change the pool address. This prevents
+//!   a rogue creator from draining the contract via unexpected pool interactions.
 
-#[allow(dead_code)]
 use shared::{
     errors::Error,
     types::{Amount, EscrowInfo},
 };
 use soroban_sdk::{
-    contract, contractimpl, contracttype, symbol_short, token::TokenClient, Address, Env, Symbol,
-    Val, Vec,
+    contracttype, symbol_short, token::TokenClient, Address, Env, IntoVal, Symbol, Val, Vec,
 };
 
 const YIELD_CONFIG_KEY: Symbol = symbol_short!("YLD_CFG");
-const YIELD_STATE_PREFIX: &str = "YLD_ST_";
 
 /// Global yield-router configuration (admin-controlled).
 #[contracttype]
@@ -72,8 +69,13 @@ impl<'a> LendingPoolClient<'a> {
 
     /// Deposit `amount` of the underlying token into the pool on behalf of
     /// `depositor` (the escrow contract itself).
+    #[allow(dead_code)]
     pub fn deposit(&self, depositor: &Address, amount: Amount) -> Result<(), Error> {
-        let args: Vec<Val> = soroban_sdk::vec![self.env, depositor.clone().into(), amount.into(),];
+        let args: Vec<Val> = soroban_sdk::vec![
+            self.env,
+            depositor.into_val(self.env),
+            amount.into_val(self.env),
+        ];
         // Cross-contract call — replace "deposit" with the pool's real symbol.
         let _: Val =
             self.env
@@ -83,7 +85,11 @@ impl<'a> LendingPoolClient<'a> {
 
     /// Withdraw `amount` from the pool back to `recipient`.
     pub fn withdraw(&self, recipient: &Address, amount: Amount) -> Result<(), Error> {
-        let args: Vec<Val> = soroban_sdk::vec![self.env, recipient.clone().into(), amount.into(),];
+        let args: Vec<Val> = soroban_sdk::vec![
+            self.env,
+            recipient.into_val(self.env),
+            amount.into_val(self.env),
+        ];
         let _: Val =
             self.env
                 .invoke_contract(self.contract_id, &Symbol::new(self.env, "withdraw"), args);
@@ -92,7 +98,7 @@ impl<'a> LendingPoolClient<'a> {
 
     /// Query how much the escrow contract has in the pool (principal + yield).
     pub fn get_balance(&self, account: &Address) -> Amount {
-        let args: Vec<Val> = soroban_sdk::vec![self.env, account.clone().into()];
+        let args: Vec<Val> = soroban_sdk::vec![self.env, account.into_val(self.env)];
         self.env.invoke_contract(
             self.contract_id,
             &Symbol::new(self.env, "get_balance"),
@@ -110,15 +116,6 @@ fn get_yield_config(env: &Env) -> Result<YieldRouterConfig, Error> {
 
 fn set_yield_config(env: &Env, cfg: &YieldRouterConfig) {
     env.storage().persistent().set(&YIELD_CONFIG_KEY, cfg);
-}
-
-fn yield_state_key(project_id: u64) -> soroban_sdk::Bytes {
-    // Build a deterministic key per project.
-    // In production use the same Symbol/tuple key pattern as the rest of the contract.
-    unimplemented!(
-        "Use (symbol_short!(\"YLD_ST\"), project_id) as the ledger key — \
-         replace this stub with your project's storage key helper."
-    )
 }
 
 fn get_yield_state(env: &Env, project_id: u64) -> EscrowYieldState {
@@ -193,6 +190,7 @@ pub fn disable_yield_for_escrow(env: &Env, project_id: u64) -> Result<(), Error>
 ///
 /// If `deployable ≤ 0` this is a no-op (nothing to deploy without breaching
 /// the liquidity reserve). The escrow contract calls this after every `deposit()`.
+#[allow(dead_code)]
 pub fn deploy_to_pool(env: &Env, escrow: &EscrowInfo, project_id: u64) -> Result<(), Error> {
     let cfg = get_yield_config(env)?;
     if !cfg.enabled {
@@ -300,6 +298,7 @@ pub fn withdraw_from_pool(env: &Env, project_id: u64) -> Result<Amount, Error> {
 /// Returns the actual amount withdrawn (may be `pool_balance` if the pool
 /// holds less than `required_amount`, which shouldn't happen under normal
 /// operation but is handled defensively).
+#[allow(dead_code)]
 pub fn withdraw_partial_from_pool(
     env: &Env,
     project_id: u64,
@@ -335,6 +334,41 @@ pub fn withdraw_partial_from_pool(
     );
 
     Ok(withdraw_amount)
+}
+
+/// Emergency withdrawal — ignore tracked yield state and pull everything back
+/// from the external pool into the escrow contract.
+///
+/// This is intentionally conservative: it does not attempt to attribute yield
+/// or rely on `deployed_principal` being correct. The function simply rescues
+/// whatever the pool reports for the escrow contract and disables routing.
+pub fn emergency_withdraw_from_pool(
+    env: &Env,
+    project_id: u64,
+    escrow: &EscrowInfo,
+) -> Result<Amount, Error> {
+    let cfg = get_yield_config(env)?;
+    if cfg.yield_token != escrow.token {
+        return Err(Error::InvInput);
+    }
+
+    let pool = LendingPoolClient::new(env, &cfg.pool_contract);
+    let pool_balance = pool.get_balance(&env.current_contract_address());
+    if pool_balance <= 0 {
+        return Err(Error::InsufFunds);
+    }
+
+    pool.withdraw(&env.current_contract_address(), pool_balance)?;
+
+    let mut state = get_yield_state(env, project_id);
+    state.deployed_principal = 0;
+    state.routing_enabled = false;
+    set_yield_state(env, project_id, &state);
+
+    env.events()
+        .publish((symbol_short!("YLD_EMG"),), (project_id, pool_balance));
+
+    Ok(pool_balance)
 }
 
 /// Returns the current yield state for a project (read-only query).

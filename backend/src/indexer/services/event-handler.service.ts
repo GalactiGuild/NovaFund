@@ -9,6 +9,7 @@ class MilestoneRejectedHandler implements IEventHandler {
     private readonly prisma: PrismaService,
     private readonly notificationService: NotificationService,
     private readonly reputationService: ReputationService,
+    private readonly redisService: RedisService,
   ) {}
 
   validate(event: ParsedContractEvent): boolean {
@@ -87,6 +88,7 @@ import {
 import { IEventHandler, IEventHandlerRegistry } from '../interfaces/event-handler.interface';
 import { NotificationService } from '../../notification/services/notification.service';
 import { ReputationService } from '../../reputation/reputation.service';
+import { RedisService } from '../../redis/redis.service';
 
 /**
  * Handler for PROJECT_CREATED events
@@ -95,7 +97,10 @@ class ProjectCreatedHandler implements IEventHandler {
   readonly eventType = ContractEventType.PROJECT_CREATED;
   private readonly logger = new Logger(ProjectCreatedHandler.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly redisService: RedisService,
+  ) {}
 
   validate(event: ParsedContractEvent): boolean {
     const data = event.data as unknown as ProjectCreatedEvent;
@@ -143,7 +148,18 @@ class ProjectCreatedHandler implements IEventHandler {
       },
     });
 
-    this.logger.log(`Created/updated project ${data.projectId}`);
+    // Get the created/updated project to invalidate cache
+    const project = await this.prisma.project.findUnique({
+      where: { contractId: data.projectId.toString() },
+    });
+
+    if (project) {
+      // Invalidate cache for this project and project lists
+      await this.redisService.invalidateProjectCache(project.id);
+      await this.redisService.invalidateUserCache(user.id);
+    }
+
+    this.logger.log(`Created/updated project ${data.projectId} and invalidated cache`);
   }
 }
 
@@ -157,6 +173,7 @@ class ContributionMadeHandler implements IEventHandler {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notificationService: NotificationService,
+    private readonly redisService: RedisService,
   ) {}
 
   validate(event: ParsedContractEvent): boolean {
@@ -227,7 +244,11 @@ class ContributionMadeHandler implements IEventHandler {
       );
     }
 
-    this.logger.log(`Recorded contribution of ${data.amount} for project ${data.projectId}`);
+    // Invalidate cache for this project and user
+    await this.redisService.invalidateProjectCache(project.id);
+    await this.redisService.invalidateUserCache(user.id);
+
+    this.logger.log(`Recorded contribution of ${data.amount} for project ${data.projectId} and invalidated cache`);
   }
 }
 
@@ -507,6 +528,7 @@ export class EventHandlerService implements IEventHandlerRegistry {
     private readonly prisma: PrismaService,
     private readonly notificationService: NotificationService,
     private readonly reputationService: ReputationService,
+    private readonly redisService: RedisService,
   ) {
     this.registerHandlers();
   }
@@ -515,13 +537,13 @@ export class EventHandlerService implements IEventHandlerRegistry {
    * Register all event handlers
    */
   private registerHandlers(): void {
-    this.register(new ProjectCreatedHandler(this.prisma));
-    this.register(new ContributionMadeHandler(this.prisma, this.notificationService));
+    this.register(new ProjectCreatedHandler(this.prisma, this.redisService));
+    this.register(new ContributionMadeHandler(this.prisma, this.notificationService, this.redisService));
     this.register(
       new MilestoneApprovedHandler(this.prisma, this.notificationService, this.reputationService),
     );
     this.register(
-      new MilestoneRejectedHandler(this.prisma, this.notificationService, this.reputationService),
+      new MilestoneRejectedHandler(this.prisma, this.notificationService, this.reputationService, this.redisService),
     );
     this.register(new FundsReleasedHandler(this.prisma));
     this.register(new ProjectCompletedHandler(this.prisma));

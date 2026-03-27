@@ -75,6 +75,8 @@ pub const BRIDGE_TX_CONFIRMED: Symbol = symbol_short!("tx_conf");
 pub const BRIDGE_TX_FAILED: Symbol = symbol_short!("tx_fail");
 pub const CONTRACT_PAUSED: Symbol = symbol_short!("esc_pause");
 pub const CONTRACT_RESUMED: Symbol = symbol_short!("esc_resum");
+pub const EMERGENCY_WITHDRAW_APPROVED: Symbol = symbol_short!("emg_appr");
+pub const EMERGENCY_WITHDRAW_EXECUTED: Symbol = symbol_short!("emg_exec");
 
 // Upgrade events
 pub const UPGRADE_SCHEDULED: Symbol = symbol_short!("upg_sched");

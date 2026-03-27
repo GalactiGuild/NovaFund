@@ -180,16 +180,16 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
     }
 
     setContributionStatus("loading");
-    setStatusMessage("");
+    setStatusMessage("Preparing transaction and requesting fee sponsorship...");
 
     setTimeout(() => {
-      const success = Math.random() > 0.2;
+      const success = Math.random() > 0.1;
       if (success) {
         setContributionStatus("success");
         setStatusMessage(
           insuranceSelected
-            ? "Contribution and insurance coverage queued. Expect the on-chain release window in 2 minutes."
-            : "Contribution queued. Expect the on-chain release window in 2 minutes."
+            ? "Contribution and insurance coverage successfully sponsored and submitted! Expect the on-chain release window in 2 minutes."
+            : "Contribution successfully sponsored and submitted! Expect the on-chain release window in 2 minutes."
         );
         setLatestContribution({
           amount: `${amount.toFixed(2)} XLM`,
@@ -197,9 +197,9 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
         });
       } else {
         setContributionStatus("error");
-        setStatusMessage("Network handshake failed. Please try again.");
+        setStatusMessage("Network handshake or sponsorship failed. Please try again.");
       }
-    }, 1400);
+    }, 2000);
   };
 
   return (
@@ -371,13 +371,18 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
               <h3 className="text-xl font-semibold text-white">
                 Contribute to {projectProfile.ticker}
               </h3>
-              <button
-                type="button"
-                onClick={closeModal}
-                className="rounded-full border border-white/10 px-3 py-1 text-xs text-white/60 transition hover:bg-white/10"
-              >
-                Close
-              </button>
+              <div className="flex items-center gap-2">
+                <span className="rounded-full border border-purple-400/20 bg-purple-400/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-purple-200">
+                  Fee Sponsored
+                </span>
+                <button
+                  type="button"
+                  onClick={closeModal}
+                  className="rounded-full border border-white/10 px-3 py-1 text-xs text-white/60 transition hover:bg-white/10"
+                >
+                  Close
+                </button>
+              </div>
             </div>
             <p className="mt-2 text-sm text-white/60">
               Contributions are simulated for now — an approval guard ensures

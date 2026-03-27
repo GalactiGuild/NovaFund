@@ -5,6 +5,7 @@ import { IndexerService } from './services/indexer.service';
 import { LedgerTrackerService } from './services/ledger-tracker.service';
 import { EventHandlerService } from './services/event-handler.service';
 import { DatabaseModule } from '../database.module';
+import { StellarModule } from '../stellar/stellar.module';
 import stellarConfig, { indexerConfig } from '../config/stellar.config';
 
 /**
@@ -19,6 +20,8 @@ import stellarConfig, { indexerConfig } from '../config/stellar.config';
     ScheduleModule.forRoot(),
     // Database access
     DatabaseModule,
+    // Stellar RPC fallback service
+    StellarModule,
     // Configuration
     ConfigModule.forFeature(stellarConfig),
     ConfigModule.forFeature(indexerConfig),

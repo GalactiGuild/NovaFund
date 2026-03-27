@@ -5,6 +5,7 @@ import { SorobanRpc } from '@stellar/stellar-sdk';
 import { PrismaService } from '../../prisma.service';
 import { LedgerTrackerService } from './ledger-tracker.service';
 import { EventHandlerService } from './event-handler.service';
+import { RpcFallbackService } from '../../stellar/rpc-fallback.service';
 import { SorobanEvent, ParsedContractEvent, ContractEventType } from '../types/event-types';
 import { LedgerInfo } from '../types/ledger.types';
 
@@ -15,7 +16,6 @@ import { LedgerInfo } from '../types/ledger.types';
 @Injectable()
 export class IndexerService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(IndexerService.name);
-  private readonly rpc: SorobanRpc.Server;
   private readonly network: string;
   private readonly pollIntervalMs: number;
   private readonly maxEventsPerFetch: number;
@@ -31,29 +31,17 @@ export class IndexerService implements OnModuleInit, OnModuleDestroy {
     private readonly prisma: PrismaService,
     private readonly ledgerTracker: LedgerTrackerService,
     private readonly eventHandler: EventHandlerService,
+    private readonly rpcFallbackService: RpcFallbackService,
   ) {
     // Initialize configuration
     this.network = this.configService.get<string>('STELLAR_NETWORK', 'testnet');
-    const rpcUrl = this.configService.get<string>(
-      'STELLAR_RPC_URL',
-      'https://soroban-testnet.stellar.org',
-    );
     this.pollIntervalMs = this.configService.get<number>('INDEXER_POLL_INTERVAL_MS', 5000);
     this.maxEventsPerFetch = this.configService.get<number>('INDEXER_MAX_EVENTS_PER_FETCH', 100);
     this.retryAttempts = this.configService.get<number>('INDEXER_RETRY_ATTEMPTS', 3);
     this.retryDelayMs = this.configService.get<number>('INDEXER_RETRY_DELAY_MS', 1000);
 
-    // Initialize RPC client
-    this.rpc = new SorobanRpc.Server(rpcUrl, {
-      allowHttp: rpcUrl.startsWith('http://'),
-    });
-
-    // Get contract IDs to monitor
+    // Get contract IDs from configuration
     this.contractIds = this.getContractIds();
-
-    this.logger.log(`Indexer initialized for ${this.network} network`);
-    this.logger.log(`RPC URL: ${rpcUrl}`);
-    this.logger.log(`Monitoring contracts: ${this.contractIds.join(', ') || 'none configured'}`);
   }
 
   /**
@@ -115,7 +103,10 @@ export class IndexerService implements OnModuleInit, OnModuleDestroy {
   private async initializeIndexer(): Promise<void> {
     try {
       // Test RPC connection
-      const health = await this.rpc.getHealth();
+      const health = await this.rpcFallbackService.executeRpcOperation(
+        async (server) => await server.getHealth(),
+        'getHealth'
+      );
       this.logger.log(`RPC Health: ${health.status}`);
 
       // Get latest ledger
@@ -280,7 +271,10 @@ export class IndexerService implements OnModuleInit, OnModuleDestroy {
         cursor,
       };
 
-      const response = await this.rpc.getEvents(request);
+      const response = await this.rpcFallbackService.executeRpcOperation(
+        async (server) => await server.getEvents(request),
+        'getEvents'
+      );
 
       if (response.events) {
         for (const event of response.events) {
@@ -430,7 +424,10 @@ export class IndexerService implements OnModuleInit, OnModuleDestroy {
    * Get latest ledger from RPC
    */
   private async getLatestLedger(): Promise<number> {
-    const latestLedger = await this.rpc.getLatestLedger();
+    const latestLedger = await this.rpcFallbackService.executeRpcOperation(
+      async (server) => await server.getLatestLedger(),
+      'getLatestLedger'
+    );
     return latestLedger.sequence;
   }
 

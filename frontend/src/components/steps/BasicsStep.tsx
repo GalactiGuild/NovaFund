@@ -14,7 +14,7 @@ export default function BasicsStep({ data, errors, onChange }: BasicsStepProps) 
       <div>
         <h2 className="text-2xl font-semibold text-foreground">Project Basics</h2>
         <p className="mt-2 text-muted-foreground">
-          Let's start with the fundamentals of your project. Give it a compelling title and description.
+          Let&apos;s start with the fundamentals of your project. Give it a compelling title and description.
         </p>
       </div>
 

@@ -8,8 +8,8 @@ use soroban_sdk::{
 
 use shared::{
     constants::{
-        MAX_PROJECT_DURATION, MIN_CONTRIBUTION, MIN_FUNDING_GOAL, MIN_PROJECT_DURATION,
-        RESUME_TIME_DELAY, UPGRADE_TIME_LOCK_SECS, KYC_TIER_1_LIMIT,
+        KYC_TIER_1_LIMIT, MAX_PROJECT_DURATION, MIN_CONTRIBUTION, MIN_FUNDING_GOAL,
+        MIN_PROJECT_DURATION, RESUME_TIME_DELAY, UPGRADE_TIME_LOCK_SECS,
     },
     errors::Error,
     events::{
@@ -237,13 +237,14 @@ impl ProjectLaunch {
                         user_tier = tier;
                     }
                 }
-                
+
                 if user_tier == 0 {
                     return Err(Error::Unauthorized);
                 }
 
                 if user_tier == 1 {
-                    let total_contributed = Self::get_user_contribution(env.clone(), project_id, contributor.clone());
+                    let total_contributed =
+                        Self::get_user_contribution(env.clone(), project_id, contributor.clone());
                     if total_contributed + amount > KYC_TIER_1_LIMIT {
                         return Err(Error::Unauthorized);
                     }
@@ -1398,19 +1399,31 @@ mod tests {
         // 2. Verify contributor_t1 as Tier 1
         let proof = Bytes::from_slice(&env, &[1, 2, 3]);
         let public_inputs = Bytes::from_slice(&env, &[0]);
-        identity_client.verify_identity(&contributor_t1, &Jurisdiction::Global, &proof, &public_inputs, &1);
+        identity_client.verify_identity(
+            &contributor_t1,
+            &Jurisdiction::Global,
+            &proof,
+            &public_inputs,
+            &1,
+        );
 
         // Tier 1 contribution within limit should succeed
-        client.contribute(&project_id, &contributor_t1, &KYC_TIER_1_LIMIT); 
+        client.contribute(&project_id, &contributor_t1, &KYC_TIER_1_LIMIT);
 
         // Next contribution should exceed limit
         let result = client.try_contribute(&project_id, &contributor_t1, &1);
         assert!(result.is_err());
 
         // 3. Verify contributor_t2 as Tier 2
-        identity_client.verify_identity(&contributor_t2, &Jurisdiction::Global, &proof, &public_inputs, &2);
+        identity_client.verify_identity(
+            &contributor_t2,
+            &Jurisdiction::Global,
+            &proof,
+            &public_inputs,
+            &2,
+        );
 
         // Tier 2 should have no limit (within project goals)
-        client.contribute(&project_id, &contributor_t2, &(KYC_TIER_1_LIMIT + 1)); 
+        client.contribute(&project_id, &contributor_t2, &(KYC_TIER_1_LIMIT + 1));
     }
 }

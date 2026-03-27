@@ -228,14 +228,13 @@ function RecoveryContent() {
             </div>
             
             <h2 className="text-2xl font-bold text-white mb-4">
-              Recovery Successful!
-            </h2>
-            
-            <p className="text-gray-300 mb-6">
-              Your wallet access has been restored. You'll be redirected to your dashboard in{" "}
-              <span className="font-semibold text-purple-400">{countdown}</span> seconds.
-            </p>
-            
+                Recovery Successful!
+              </h2>
+
+              <p className="text-gray-300 mb-6">
+                Your wallet access has been restored. You&apos;ll be redirected to your dashboard in{" "}
+                <span className="font-semibold text-purple-400">{countdown}</span> seconds.
+              </p>            
             <div className="bg-gray-800/50 rounded-lg p-4 border border-gray-700">
               <div className="flex items-center justify-center space-x-2">
                 <Loader2 className="w-4 h-4 text-purple-500 animate-spin" />

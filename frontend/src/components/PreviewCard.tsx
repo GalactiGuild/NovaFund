@@ -3,6 +3,7 @@
 import { ProjectFormData } from '@/types/project';
 import { formatCurrency } from '@/utils/validation';
 import { Calendar, Target, Wallet } from 'lucide-react';
+import Image from 'next/image';
 
 interface PreviewCardProps {
   data: ProjectFormData;
@@ -26,12 +27,14 @@ export default function PreviewCard({ data }: PreviewCardProps) {
       {/* Content */}
       <div className="p-6 space-y-6">
         {/* Project Image Placeholder */}
-        <div className="aspect-video bg-white/10 backdrop-blur-sm rounded-lg flex items-center justify-center border-2 border-white/20">
+        <div className="aspect-video bg-white/10 backdrop-blur-sm rounded-lg flex items-center justify-center border-2 border-white/20 relative overflow-hidden">
           {data.imageUrl ? (
-            <img 
+            <Image 
               src={data.imageUrl} 
               alt="Project preview" 
-              className="w-full h-full object-cover rounded-lg"
+              fill
+              className="object-cover rounded-lg"
+              unoptimized
             />
           ) : (
             <div className="text-center text-white/60">

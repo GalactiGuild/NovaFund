@@ -15,7 +15,7 @@ export default function FundingStep({ data, errors, onChange }: FundingStepProps
       <div>
         <h2 className="text-2xl font-semibold text-foreground">Funding Details</h2>
         <p className="mt-2 text-muted-foreground">
-          Set your funding goal and timeline. These help backers understand your project's scope.
+          Set your funding goal and timeline. These help backers understand your project&apos;s scope.
         </p>
       </div>
 
@@ -122,7 +122,7 @@ export default function FundingStep({ data, errors, onChange }: FundingStepProps
           <p className="text-sm text-red-500 mt-1">{errors.walletAddress}</p>
         )}
         <p className="text-xs text-muted-foreground mt-1">
-          Your Stellar public address where funds will be received. Must start with 'G'.
+          Your Stellar public address where funds will be received. Must start with &apos;G&apos;.
         </p>
       </div>
 
