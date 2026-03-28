@@ -12,6 +12,8 @@ export interface StellarNetworkConfig {
   subscriptionPoolContractId?: string;
   governanceContractId?: string;
   reputationContractId?: string;
+  usdcContractId?: string;
+  eurcContractId?: string;
 }
 
 export interface IndexerConfig {
@@ -35,6 +37,8 @@ export default registerAs('stellar', () => ({
   subscriptionPoolContractId: process.env.SUBSCRIPTION_POOL_CONTRACT_ID,
   governanceContractId: process.env.GOVERNANCE_CONTRACT_ID,
   reputationContractId: process.env.REPUTATION_CONTRACT_ID,
+  usdcContractId: process.env.STELLAR_USDC_CONTRACT_ID,
+  eurcContractId: process.env.STELLAR_EURC_CONTRACT_ID,
 }));
 
 export const indexerConfig = registerAs('indexer', () => ({

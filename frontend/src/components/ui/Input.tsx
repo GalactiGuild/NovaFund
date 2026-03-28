@@ -10,7 +10,7 @@ const Input: React.FC<InputProps> = ({ label, error, ...props }) => {
     "w-full px-3 py-3 border rounded focus:outline-none focus:ring-2 min-h-[44px] md:py-2 md:min-h-0";
   const errorStyle = error
     ? "border-red-500 focus:ring-red-400"
-    : "border-gray-700 focus:ring-purple-500";
+    : "border-input focus:ring-primary";
 
   return (
     <div className="flex flex-col mb-4">

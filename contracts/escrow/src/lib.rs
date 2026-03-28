@@ -134,6 +134,24 @@ impl EscrowContract {
         Ok(())
     }
 
+    fn calculate_required_signatures(milestone_amount: Amount, total_validators: u32) -> u32 {
+        let base_required = if milestone_amount <= 1_000 {
+            2
+        } else if milestone_amount <= 10_000 {
+            3
+        } else if milestone_amount <= 100_000 {
+            4
+        } else {
+            5
+        };
+
+        if total_validators < base_required {
+            total_validators
+        } else {
+            base_required
+        }
+    }
+
     /// Deposit funds into the escrow
     ///
     /// # Arguments
@@ -338,10 +356,13 @@ impl EscrowContract {
 
         // Check if milestone is approved or rejected
         let _total_votes = milestone.approval_count as u32 + milestone.rejection_count as u32;
-        // let required_approvals =
-        //     (escrow.validators.len() as u32 * MILESTONE_APPROVAL_THRESHOLD) / 10000;
-        let required_approvals =
-            (escrow.validators.len() as u32 * escrow.approval_threshold) / 10000;
+        let value_based_required = Self::calculate_required_signatures(milestone.amount, escrow.validators.len() as u32);
+        let threshold_required = (escrow.validators.len() as u32 * escrow.approval_threshold) / 10000;
+        let required_approvals = if value_based_required > threshold_required {
+            value_based_required
+        } else {
+            threshold_required
+        };
 
         // Check for majority approval
         if milestone.approval_count as u32 >= required_approvals {

@@ -46,6 +46,7 @@ model Project {
   deadline     DateTime
   ipfsHash     String?       @map("ipfs_hash")
   status       ProjectStatus @default(ACTIVE)
+  tokenAddress String?       @map("token_address")
   createdAt    DateTime      @default(now()) @map("created_at")
   updatedAt    DateTime      @updatedAt @map("updated_at")
 

@@ -12,7 +12,7 @@ const Badge: React.FC<BadgeProps> = ({
 }) => {
   const variants = {
     primary: "bg-purple-700 text-white",
-    secondary: "bg-gray-700 text-white",
+    secondary: "bg-muted text-muted-foreground",
     success: "bg-green-600 text-white",
     danger: "bg-red-600 text-white",
   };

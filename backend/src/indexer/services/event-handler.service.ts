@@ -74,6 +74,8 @@ class MilestoneRejectedHandler implements IEventHandler {
   }
 }
 import { Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { normalizeToStroops } from '../utils/asset-mapping';
 import { PrismaService } from '../../prisma.service';
 import {
   ParsedContractEvent,
@@ -84,6 +86,7 @@ import {
   FundsReleasedEvent,
   ProjectStatusEvent,
   TokenMintedEvent,
+  RefundIssuedEvent,
 } from '../types/event-types';
 import { IEventHandler, IEventHandlerRegistry } from '../interfaces/event-handler.interface';
 import { NotificationService } from '../../notification/services/notification.service';
@@ -100,6 +103,7 @@ class ProjectCreatedHandler implements IEventHandler {
   constructor(
     private readonly prisma: PrismaService,
     private readonly redisService: RedisService,
+    private readonly configService: ConfigService,
   ) {}
 
   validate(event: ParsedContractEvent): boolean {
@@ -133,18 +137,20 @@ class ProjectCreatedHandler implements IEventHandler {
       where: { contractId: data.projectId.toString() },
       update: {
         title: `Project ${data.projectId}`, // Will be updated with metadata
-        goal: BigInt(data.fundingGoal),
+        goal: normalizeToStroops(data.fundingGoal, data.token, this.configService),
         deadline: new Date(data.deadline * 1000),
         status: 'ACTIVE',
+        tokenAddress: data.token,
       },
       create: {
         contractId: data.projectId.toString(),
         creatorId: user.id,
         title: `Project ${data.projectId}`,
         category: 'uncategorized',
-        goal: BigInt(data.fundingGoal),
+        goal: normalizeToStroops(data.fundingGoal, data.token, this.configService),
         deadline: new Date(data.deadline * 1000),
         status: 'ACTIVE',
+        tokenAddress: data.token,
       },
     });
 
@@ -174,6 +180,7 @@ class ContributionMadeHandler implements IEventHandler {
     private readonly prisma: PrismaService,
     private readonly notificationService: NotificationService,
     private readonly redisService: RedisService,
+    private readonly configService: ConfigService,
   ) {}
 
   validate(event: ParsedContractEvent): boolean {
@@ -216,7 +223,7 @@ class ContributionMadeHandler implements IEventHandler {
         transactionHash: event.transactionHash,
         investorId: user.id,
         projectId: project.id,
-        amount: BigInt(data.amount),
+        amount: normalizeToStroops(data.amount, project.tokenAddress, this.configService),
         timestamp: event.ledgerClosedAt,
       },
     });
@@ -225,7 +232,7 @@ class ContributionMadeHandler implements IEventHandler {
     await this.prisma.project.update({
       where: { id: project.id },
       data: {
-        currentFunds: BigInt(data.totalRaised),
+        currentFunds: normalizeToStroops(data.totalRaised, project.tokenAddress, this.configService),
       },
     });
 
@@ -340,7 +347,7 @@ class FundsReleasedHandler implements IEventHandler {
   readonly eventType = ContractEventType.FUNDS_RELEASED;
   private readonly logger = new Logger(FundsReleasedHandler.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService, private readonly configService: ConfigService) {}
 
   validate(event: ParsedContractEvent): boolean {
     const data = event.data as unknown as FundsReleasedEvent;
@@ -350,9 +357,7 @@ class FundsReleasedHandler implements IEventHandler {
   async handle(event: ParsedContractEvent): Promise<void> {
     const data = event.data as unknown as FundsReleasedEvent;
 
-    this.logger.log(
-      `Processing FUNDS_RELEASED: ${data.amount} for project ${data.projectId}, milestone ${data.milestoneId}`,
-    );
+    
 
     const project = await this.prisma.project.findUnique({
       where: { contractId: data.projectId.toString() },
@@ -362,6 +367,8 @@ class FundsReleasedHandler implements IEventHandler {
       this.logger.warn(`Project ${data.projectId} not found for funds release`);
       return;
     }
+    const normalizedAmount = normalizeToStroops(data.amount, project.tokenAddress ?? '', this.configService);
+    this.logger.log(`Processing FUNDS_RELEASED: ${normalizedAmount} (normalized from ${data.amount}) for project ${data.projectId}, milestone ${data.milestoneId}`);
 
     // Update milestone to funded status
     await this.prisma.milestone.updateMany({
@@ -519,8 +526,69 @@ class TokenMintSep41Handler implements IEventHandler {
 /**
  * Service that manages event handlers and routes events to appropriate handlers
  */
+
+/**
+ * Handler for REFUND_ISSUED events
+ */
+class RefundIssuedHandler implements IEventHandler {
+  readonly eventType = ContractEventType.REFUND_ISSUED;
+  private readonly logger = new Logger(RefundIssuedHandler.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notificationService: NotificationService,
+    private readonly redisService: RedisService,
+    private readonly configService: ConfigService,
+  ) {}
+
+  validate(event: ParsedContractEvent): boolean {
+    const data = event.data as unknown as RefundIssuedEvent;
+    return !!(data.projectId !== undefined && data.investor && data.amount);
+  }
+
+  async handle(event: ParsedContractEvent): Promise<void> {
+    const data = event.data as unknown as RefundIssuedEvent;
+
+    const project = await this.prisma.project.findUnique({
+      where: { contractId: data.projectId.toString() },
+    });
+
+    if (!project) {
+      this.logger.warn(`Project ${data.projectId} not found for refund`);
+      return;
+    }
+
+    const normalizedAmount = normalizeToStroops(data.amount, project.tokenAddress ?? '', this.configService);
+    this.logger.log(`Processing REFUND_ISSUED: ${normalizedAmount} to ${data.investor} for project ${project.id}`);
+
+    const user = await this.prisma.user.findUnique({
+      where: { walletAddress: data.investor },
+    });
+
+    if (user) {
+      try {
+        await this.notificationService.notify(
+          user.id,
+          'SYSTEM',
+          'Refund Issued',
+          `You have been refunded ${data.amount} for project ${project.title}.`,
+          { projectId: project.id, amount: data.amount },
+        );
+      } catch (e) {
+        this.logger.error(`Failed to notify user ${user.id} of refund: ${e.message}`);
+      }
+      
+      await this.redisService.invalidateUserCache(user.id);
+    }
+
+    await this.redisService.invalidateProjectCache(project.id);
+    this.logger.log(`Refund processed for project ${data.projectId} and invalidated cache`);
+  }
+}
+
 @Injectable()
 export class EventHandlerService implements IEventHandlerRegistry {
+
   private readonly logger = new Logger(EventHandlerService.name);
   private readonly handlers = new Map<string, IEventHandler>();
 
@@ -529,6 +597,7 @@ export class EventHandlerService implements IEventHandlerRegistry {
     private readonly notificationService: NotificationService,
     private readonly reputationService: ReputationService,
     private readonly redisService: RedisService,
+    private readonly configService: ConfigService,
   ) {
     this.registerHandlers();
   }
@@ -537,19 +606,20 @@ export class EventHandlerService implements IEventHandlerRegistry {
    * Register all event handlers
    */
   private registerHandlers(): void {
-    this.register(new ProjectCreatedHandler(this.prisma, this.redisService));
-    this.register(new ContributionMadeHandler(this.prisma, this.notificationService, this.redisService));
+    this.register(new ProjectCreatedHandler(this.prisma, this.redisService, this.configService));
+    this.register(new ContributionMadeHandler(this.prisma, this.notificationService, this.redisService, this.configService));
     this.register(
       new MilestoneApprovedHandler(this.prisma, this.notificationService, this.reputationService),
     );
     this.register(
       new MilestoneRejectedHandler(this.prisma, this.notificationService, this.reputationService, this.redisService),
     );
-    this.register(new FundsReleasedHandler(this.prisma));
+    this.register(new FundsReleasedHandler(this.prisma, this.configService));
     this.register(new ProjectCompletedHandler(this.prisma));
     this.register(new ProjectFailedHandler(this.prisma));
     this.register(new TokenMintedHandler(this.prisma));
     this.register(new TokenMintSep41Handler(this.prisma));
+    this.register(new RefundIssuedHandler(this.prisma, this.notificationService, this.redisService, this.configService));
 
     this.logger.log(`Registered ${this.handlers.size} event handlers`);
   }

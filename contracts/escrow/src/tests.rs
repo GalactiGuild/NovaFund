@@ -558,6 +558,58 @@ fn test_dispute_happy_path() {
 }
 
 #[test]
+fn test_dynamic_quorum_based_on_milestone_amount() {
+    let (env, creator, token, _, validators) = create_test_env();
+    let client = create_client(&env);
+    env.mock_all_auths();
+
+    client.initialize(&1, &creator, &token, &validators, &DEFAULT_THRESHOLD, &0);
+
+    client.deposit(&1, &1000);
+    let description_hash = BytesN::from_array(&env, &[1u8; 32]);
+
+    // Low-value milestone (requires 2 signatures)
+    client.create_milestone(&1, &description_hash, &500);
+    let proof_hash = BytesN::from_array(&env, &[11u8; 32]);
+    client.submit_milestone(&1, &0, &proof_hash);
+
+    client.vote_milestone(&1, &0, &validators.get(0).unwrap(), &true);
+    assert_eq!(
+        client.get_milestone(&1, &0).status,
+        MilestoneStatus::Submitted,
+        "1 vote should not approve low-value milestone when quorum is 2"
+    );
+
+    client.vote_milestone(&1, &0, &validators.get(1).unwrap(), &true);
+    assert_eq!(
+        client.get_milestone(&1, &0).status,
+        MilestoneStatus::Approved,
+        "2 votes should approve low-value milestone"
+    );
+
+    // High-value milestone (requires 5 but fallback to 3 since only 3 validators exist)
+    client.deposit(&1, &300_000);
+    client.create_milestone(&1, &description_hash, &200_000);
+    let proof_hash_high = BytesN::from_array(&env, &[12u8; 32]);
+    client.submit_milestone(&1, &1, &proof_hash_high);
+
+    client.vote_milestone(&1, &1, &validators.get(0).unwrap(), &true);
+    client.vote_milestone(&1, &1, &validators.get(1).unwrap(), &true);
+    assert_eq!(
+        client.get_milestone(&1, &1).status,
+        MilestoneStatus::Submitted,
+        "2 votes should not approve high-value milestone when quorum falls back to 3"
+    );
+
+    client.vote_milestone(&1, &1, &validators.get(2).unwrap(), &true);
+    assert_eq!(
+        client.get_milestone(&1, &1).status,
+        MilestoneStatus::Approved,
+        "3 votes should approve high-value milestone with fallback quorum"
+    );
+}
+
+#[test]
 fn test_dispute_appeals_path() {
     let (env, creator, token, _, validators) = create_test_env();
     let client = create_client(&env);
