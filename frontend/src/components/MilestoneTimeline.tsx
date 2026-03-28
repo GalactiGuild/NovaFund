@@ -1,18 +1,15 @@
 "use client";
 
-import { Activity, Check, Lock } from "lucide-react";
+import { Check, Clock, Lock, AlertTriangle } from "lucide-react";
 
-export type MilestoneStatus = "completed" | "active" | "locked";
+export type MilestoneStatus = "completed" | "active" | "pending" | "disputed";
 
 export type Milestone = {
   id: string;
   title: string;
+  date: string;
   description: string;
-  amount: string;
-  due: string;
   status: MilestoneStatus;
-  progress: number;
-  releaseDetails: string;
 };
 
 const statusMeta: Record<
@@ -20,34 +17,56 @@ const statusMeta: Record<
   {
     label: string;
     iconBg: string;
-    text: string;
     iconColor: string;
+    borderColor: string;
+    badgeBg: string;
+    badgeText: string;
+    isLocked: boolean;
   }
 > = {
   completed: {
-    label: "Released",
-    iconBg: "bg-emerald-500/15 text-emerald-300 border-emerald-300/60",
-    text: "Funds disbursed",
-    iconColor: "text-emerald-300",
+    label: "Completed",
+    iconBg: "bg-emerald-500",
+    iconColor: "text-white",
+    borderColor: "border-emerald-500",
+    badgeBg: "bg-emerald-500/20",
+    badgeText: "text-emerald-300",
+    isLocked: false,
   },
   active: {
-    label: "Active",
-    iconBg: "bg-amber-500/15 text-amber-300 border-amber-300/60 animate-pulse",
-    text: "Pending verification",
-    iconColor: "text-amber-400",
+    label: "In Progress",
+    iconBg: "bg-amber-500",
+    iconColor: "text-white",
+    borderColor: "border-amber-400",
+    badgeBg: "bg-amber-500/20",
+    badgeText: "text-amber-300",
+    isLocked: false,
   },
-  locked: {
-    label: "Locked",
-    iconBg: "bg-slate-700/60 text-slate-200 border-slate-500/40",
-    text: "Awaiting prior milestones",
-    iconColor: "text-slate-200",
+  pending: {
+    label: "Pending",
+    iconBg: "bg-transparent",
+    iconColor: "text-slate-400",
+    borderColor: "border-slate-500",
+    badgeBg: "bg-slate-500/20",
+    badgeText: "text-slate-400",
+    isLocked: true,
+  },
+  disputed: {
+    label: "Disputed",
+    iconBg: "bg-rose-500",
+    iconColor: "text-white",
+    borderColor: "border-rose-500",
+    badgeBg: "bg-rose-500/20",
+    badgeText: "text-rose-300",
+    isLocked: false,
   },
 };
 
 const iconMap: Record<MilestoneStatus, typeof Check> = {
   completed: Check,
-  active: Activity,
-  locked: Lock,
+  active: Clock,
+  pending: Lock,
+  disputed: AlertTriangle,
 };
 
 type MilestoneTimelineProps = {
@@ -55,55 +74,81 @@ type MilestoneTimelineProps = {
 };
 
 export default function MilestoneTimeline({ milestones }: MilestoneTimelineProps) {
+  const today = new Date();
+
   return (
-    <div className="relative  md:pl-8">
+    <div className="relative w-full max-w-2xl">
       <div
         aria-hidden="true"
-        className="absolute  top-5 h-[calc(83%-1.25rem)] w-px bg-white/50"
+        className="absolute left-6 top-8 bottom-8 w-0.5 bg-gradient-to-b from-emerald-500/50 via-amber-500/50 to-slate-600/30"
       />
-      <div className="space-y-10">
-        {milestones.map((milestone) => {
+
+      <div className="space-y-8">
+        {milestones.map((milestone, index) => {
           const meta = statusMeta[milestone.status];
           const StatusIcon = iconMap[milestone.status];
+          const milestoneDate = new Date(milestone.date);
+          const isFuture = milestoneDate > today && meta.isLocked;
 
           return (
-            <div key={milestone.id} className="relative">
-              <div className="absolute left-0 top-1">
+            <div
+              key={milestone.id}
+              className={`relative flex gap-6 ${index === milestones.length - 1 ? "" : ""}`}
+            >
+              <div className="relative z-10 flex-shrink-0">
                 <div
-                  className={`flex h-12 w-12 items-center justify-center rounded-2xl border p-2 ${meta.iconBg}`}
+                  className={`
+                    flex h-12 w-12 items-center justify-center rounded-full border-2
+                    ${milestone.status === "active" ? "animate-pulse" : ""}
+                    ${milestone.status === "completed" ? "bg-emerald-500 border-emerald-500" : ""}
+                    ${milestone.status === "active" ? `bg-amber-500 ${meta.borderColor}` : ""}
+                    ${milestone.status === "pending" ? `border-2 border-slate-500 bg-slate-900/50` : ""}
+                    ${milestone.status === "disputed" ? `bg-rose-500 ${meta.borderColor}` : ""}
+                  `}
                 >
                   <StatusIcon className={`h-5 w-5 ${meta.iconColor}`} />
                 </div>
               </div>
 
-              <div className="ml-14 rounded-3xl border border-white/10 bg-white/5 p-6 shadow-[0px_30px_60px_rgba(2,6,23,0.35)]">
-                <div className="flex items-center justify-between gap-6">
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-white/60">
-                      {meta.label}
+              <div
+                className={`
+                  relative flex-1 rounded-xl border p-5
+                  ${milestone.status === "completed" ? "border-emerald-500/30 bg-emerald-500/5" : ""}
+                  ${milestone.status === "active" ? "border-amber-400/50 bg-amber-500/5 shadow-[0_0_20px_rgba(251,191,36,0.1)]" : ""}
+                  ${milestone.status === "pending" ? "border-slate-600/30 bg-slate-800/30" : ""}
+                  ${milestone.status === "disputed" ? "border-rose-500/30 bg-rose-500/5" : ""}
+                `}
+              >
+                {isFuture && (
+                  <div className="absolute inset-0 rounded-xl bg-slate-900/60 backdrop-blur-[2px] flex items-center justify-center">
+                    <div className="flex items-center gap-2 text-slate-400">
+                      <Lock className="h-4 w-4" />
+                      <span className="text-sm font-medium">Locked until due date</span>
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="text-lg font-semibold text-white truncate">
+                        {milestone.title}
+                      </h3>
+                      <span
+                        className={`
+                          inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+                          ${meta.badgeBg} ${meta.badgeText}
+                        `}
+                      >
+                        {meta.label}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-sm text-slate-400">{milestone.date}</p>
+                    <p className="mt-2 text-sm text-slate-300 leading-relaxed">
+                      {milestone.description}
                     </p>
-                    <h3 className="text-xl font-semibold leading-snug text-white">{milestone.title}</h3>
-                  </div>
-                  <span className="text-sm font-semibold text-white/70">{milestone.amount}</span>
-                </div>
-                <p className="mt-3 text-sm text-white/70">{milestone.description}</p>
-                <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-xs text-white/60">
-                  <span>{milestone.due}</span>
-                  <span>{milestone.releaseDetails}</span>
-                </div>
-                <div className="mt-4 flex flex-col gap-2">
-                  <div className="flex items-center justify-between text-xs font-medium text-white/70">
-                    <span>Progress</span>
-                    <span>{milestone.progress}%</span>
-                  </div>
-                  <div className="h-2 rounded-full bg-white/10">
-                    <div
-                      className="h-2 rounded-full bg-gradient-to-r from-amber-500 via-amber-400 to-rose-500 transition-all"
-                      style={{ width: `${milestone.progress}%` }}
-                    />
                   </div>
                 </div>
-                <p className="mt-4 text-xs text-white/60">{meta.text}</p>
               </div>
             </div>
           );
