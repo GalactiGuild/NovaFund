@@ -44,9 +44,7 @@ export class DepositPollTask {
           try {
             await this.sep24Service.getDepositStatus(deposit.id);
           } catch (error) {
-            this.logger.error(
-              `Failed to poll deposit ${deposit.id}: ${error.message}`,
-            );
+            this.logger.error(`Failed to poll deposit ${deposit.id}: ${error.message}`);
           }
         }),
       );

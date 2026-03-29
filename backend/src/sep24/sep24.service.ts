@@ -73,7 +73,7 @@ export class Sep24Service {
       const anchorStatus = await this.anchorService.getTransactionStatus(
         deposit.anchorTransactionId,
       );
-      
+
       // Update if status changed
       if (anchorStatus.status !== deposit.status) {
         await this.updateDepositStatus(depositId, anchorStatus.status, anchorStatus);
@@ -97,11 +97,7 @@ export class Sep24Service {
     };
   }
 
-  async updateDepositStatus(
-    depositId: string,
-    status: string,
-    anchorData?: any,
-  ) {
+  async updateDepositStatus(depositId: string, status: string, anchorData?: any) {
     const deposit = await this.prisma.fiatDeposit.update({
       where: { id: depositId },
       data: {
@@ -113,11 +109,7 @@ export class Sep24Service {
     });
 
     // Update cache
-    await this.redisService.set(
-      `sep24:deposit:${depositId}`,
-      deposit,
-      3600,
-    );
+    await this.redisService.set(`sep24:deposit:${depositId}`, deposit, 3600);
 
     // Invalidate related caches
     if (deposit.projectId) {

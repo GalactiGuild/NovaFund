@@ -56,12 +56,9 @@ export class AnchorService {
       const toml = this.parseToml(infoResponse.data);
       const transferServerUrl = toml.TRANSFER_SERVER_SEP0024 || `${this.anchorUrl}/sep24`;
 
-      const response = await axios.get(
-        `${transferServerUrl}/transaction`,
-        {
-          params: { id: transactionId },
-        },
-      );
+      const response = await axios.get(`${transferServerUrl}/transaction`, {
+        params: { id: transactionId },
+      });
 
       return response.data.transaction;
     } catch (error) {
@@ -73,18 +70,21 @@ export class AnchorService {
   private parseToml(tomlString: string): Record<string, string> {
     const result: Record<string, string> = {};
     const lines = tomlString.split('\n');
-    
+
     for (const line of lines) {
       const trimmed = line.trim();
       if (trimmed && !trimmed.startsWith('#')) {
         const [key, ...valueParts] = trimmed.split('=');
         if (key && valueParts.length > 0) {
-          const value = valueParts.join('=').trim().replace(/^["']|["']$/g, '');
+          const value = valueParts
+            .join('=')
+            .trim()
+            .replace(/^["']|["']$/g, '');
           result[key.trim()] = value;
         }
       }
     }
-    
+
     return result;
   }
 }
