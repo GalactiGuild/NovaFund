@@ -12,11 +12,14 @@ members = [
     "cross-chain-bridge",
     "insurance-pool",
     "amm-liquidity-pools",
+    "limit-orders",
+    "smart-wallet",
     "shared",
     "identity",
     "oracle-network",
     "auto-invest-pool",
     "base-token",
+    "rwa-revaluation-oracle",
 ]
 
 [workspace.package]
@@ -42,3 +45,8 @@ lto = true
 [profile.release-with-logs]
 inherits = "release"
 debug-assertions = true
+
+[patch.crates-io]
+# Windows: published crate uses `crate-type = ["cdylib", "rlib"]`, which breaks `cargo test`
+# (PE >65k exports). Path crate is `rlib` only; WASM release builds for contracts are unaffected.
+soroban-token-sdk = { path = "patches/soroban-token-sdk" }

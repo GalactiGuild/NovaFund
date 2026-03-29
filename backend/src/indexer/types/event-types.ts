@@ -133,6 +133,15 @@ export interface ContributionMadeEvent {
 }
 
 /**
+ * Refund issued event data
+ */
+export interface RefundIssuedEvent {
+  projectId: number;
+  investor: string;
+  amount: string;
+}
+
+/**
  * Milestone approved event data
  */
 export interface MilestoneApprovedEvent {

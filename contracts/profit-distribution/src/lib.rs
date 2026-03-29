@@ -24,6 +24,7 @@ use crate::{
 };
 
 const PRECISION: i128 = 1_000_000_000_000;
+const DEV_FUND_TAX_BPS: u32 = 500; // 5% tax (500 basis points)
 
 contractmeta!(key = "name", val = "Profit Distribution Contract");
 
@@ -40,6 +41,22 @@ impl ProfitDistribution {
         admin.require_auth();
         set_admin(&env, &admin);
         Ok(())
+    }
+
+    /// Set the Developer Fund address (Admin only)
+    pub fn set_dev_fund(env: Env, admin: Address, dev_fund_address: Address) -> Result<(), ContractError> {
+        let stored_admin = get_admin(&env).ok_or(ContractError::NotInitialized)?;
+        if stored_admin != admin {
+            return Err(ContractError::Unauthorized);
+        }
+        admin.require_auth();
+        set_dev_fund_address(&env, &dev_fund_address);
+        Ok(())
+    }
+
+    /// Get the Developer Fund address
+    pub fn get_dev_fund(env: Env) -> Option<Address> {
+        get_dev_fund_address(&env)
     }
 
     /// Register the token used for project profits
@@ -86,7 +103,7 @@ impl ProfitDistribution {
         Ok(())
     }
 
-    /// Deposit profits to be distributed among investors
+    /// Deposit profits to be distributed among investors (with 5% tax to Developer Fund)
     pub fn deposit_profits(
         env: Env,
         project_id: u64,
@@ -108,19 +125,33 @@ impl ProfitDistribution {
             return Err(ContractError::InvalidAmount);
         }
 
+        // Calculate Developer Fund tax (5%)
+        let dev_fund_tax = (amount * DEV_FUND_TAX_BPS as i128) / 10_000;
+        let distribution_amount = amount - dev_fund_tax;
+
         // Transfer tokens to contract
         let token_client = TokenClient::new(&env, &token_address);
         token_client.transfer(&depositor, &env.current_contract_address(), &amount);
 
-        // Update global accumulated profit
+        // Transfer tax to Developer Fund if configured
+        if let Some(dev_fund) = get_dev_fund_address(&env) {
+            token_client.transfer(&env.current_contract_address(), &dev_fund, &dev_fund_tax);
+            // Emit developer fund tax event
+            env.events().publish(
+                (soroban_sdk::symbol_short!("dev_tax"),),
+                (project_id, dev_fund_tax, dev_fund),
+            );
+        }
+
+        // Update global accumulated profit (only distribution amount)
         let current_acc = get_acc_profit_per_share(&env, project_id);
-        let delta = (amount
+        let delta = (distribution_amount
             .checked_mul(PRECISION)
             .ok_or(ContractError::InvalidAmount)?)
             / (total_shares as i128);
         set_acc_profit_per_share(&env, project_id, current_acc + delta);
 
-        emit_deposit_event(&env, project_id, amount);
+        emit_deposit_event(&env, project_id, distribution_amount);
         Ok(())
     }
 

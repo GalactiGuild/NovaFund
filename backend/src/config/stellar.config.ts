@@ -3,13 +3,17 @@ import { registerAs } from '@nestjs/config';
 export interface StellarNetworkConfig {
   network: string;
   rpcUrl: string;
+  horizonUrl: string;
   networkPassphrase: string;
+  sponsorSecretKey: string;
   projectLaunchContractId: string;
   escrowContractId: string;
   profitDistributionContractId?: string;
   subscriptionPoolContractId?: string;
   governanceContractId?: string;
   reputationContractId?: string;
+  usdcContractId?: string;
+  eurcContractId?: string;
 }
 
 export interface IndexerConfig {
@@ -24,13 +28,17 @@ export interface IndexerConfig {
 export default registerAs('stellar', () => ({
   network: process.env.STELLAR_NETWORK || 'testnet',
   rpcUrl: process.env.STELLAR_RPC_URL || 'https://soroban-testnet.stellar.org',
+  horizonUrl: process.env.STELLAR_HORIZON_URL || 'https://horizon-testnet.stellar.org',
   networkPassphrase: process.env.STELLAR_NETWORK_PASSPHRASE || 'Test SDF Network ; September 2015',
+  sponsorSecretKey: process.env.STELLAR_SPONSOR_SECRET_KEY || '',
   projectLaunchContractId: process.env.PROJECT_LAUNCH_CONTRACT_ID || '',
   escrowContractId: process.env.ESCROW_CONTRACT_ID || '',
   profitDistributionContractId: process.env.PROFIT_DISTRIBUTION_CONTRACT_ID,
   subscriptionPoolContractId: process.env.SUBSCRIPTION_POOL_CONTRACT_ID,
   governanceContractId: process.env.GOVERNANCE_CONTRACT_ID,
   reputationContractId: process.env.REPUTATION_CONTRACT_ID,
+  usdcContractId: process.env.STELLAR_USDC_CONTRACT_ID,
+  eurcContractId: process.env.STELLAR_EURC_CONTRACT_ID,
 }));
 
 export const indexerConfig = registerAs('indexer', () => ({

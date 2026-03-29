@@ -10,21 +10,53 @@ use shared::{
     },
     MAX_APPROVAL_THRESHOLD, MIN_APPROVAL_THRESHOLD,
 };
-use soroban_sdk::{contract, contractimpl, token::TokenClient, Address, BytesN, Env, IntoVal, Vec, Symbol};
+use soroban_sdk::{
+    contract, contractimpl, contracttype, token::TokenClient, Address, BytesN, Env, IntoVal,
+    Symbol, Vec,
+};
 
 // Interface for ProfitDistribution
 #[soroban_sdk::contractclient(name = "ProfitDistributionClient")]
 pub trait ProfitDistributionTrait {
-    fn deposit_profits(env: Env, project_id: u64, depositor: Address, amount: i128) -> Result<(), shared::errors::Error>;
+    fn deposit_profits(
+        env: Env,
+        project_id: u64,
+        depositor: Address,
+        amount: i128,
+    ) -> Result<(), shared::errors::Error>;
 }
 
 mod storage;
 mod validation;
+mod yield_router;
 
 #[cfg(test)]
 mod tests;
 
 use storage::*;
+use yield_router::{
+    configure_yield_router as configure_router, disable_yield_for_escrow as disable_yield_router,
+    emergency_withdraw_from_pool, enable_yield_for_escrow as enable_yield_router,
+    get_escrow_yield_state as get_yield_state, get_yield_router_config as get_router_config,
+    EscrowYieldState, YieldRouterConfig,
+};
+
+#[contracttype]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum EmergencyWithdrawStatus {
+    Idle = 0,
+    Pending = 1,
+    Executed = 2,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct EmergencyWithdrawState {
+    pub status: EmergencyWithdrawStatus,
+    pub approvals: Vec<Address>,
+    pub rescued_amount: Amount,
+    pub executed_at: u64,
+}
 
 #[contract]
 pub struct EscrowContract;
@@ -60,7 +92,7 @@ impl EscrowContract {
         creator.require_auth();
 
         // Validate inputs
-        if (validators.len() as u32) < MIN_VALIDATORS {
+        if validators.len() < MIN_VALIDATORS {
             return Err(Error::InvInput);
         }
 
@@ -73,9 +105,7 @@ impl EscrowContract {
             return Err(Error::AlreadyInit);
         }
 
-        if approval_threshold < MIN_APPROVAL_THRESHOLD
-            || approval_threshold > MAX_APPROVAL_THRESHOLD
-        {
+        if !(MIN_APPROVAL_THRESHOLD..=MAX_APPROVAL_THRESHOLD).contains(&approval_threshold) {
             return Err(Error::InvInput);
         }
 
@@ -102,6 +132,24 @@ impl EscrowContract {
             .publish((ESCROW_INITIALIZED,), (project_id, creator, token));
 
         Ok(())
+    }
+
+    fn calculate_required_signatures(milestone_amount: Amount, total_validators: u32) -> u32 {
+        let base_required = if milestone_amount <= 1_000 {
+            2
+        } else if milestone_amount <= 10_000 {
+            3
+        } else if milestone_amount <= 100_000 {
+            4
+        } else {
+            5
+        };
+
+        if total_validators < base_required {
+            total_validators
+        } else {
+            base_required
+        }
     }
 
     /// Deposit funds into the escrow
@@ -308,10 +356,13 @@ impl EscrowContract {
 
         // Check if milestone is approved or rejected
         let _total_votes = milestone.approval_count as u32 + milestone.rejection_count as u32;
-        // let required_approvals =
-        //     (escrow.validators.len() as u32 * MILESTONE_APPROVAL_THRESHOLD) / 10000;
-        let required_approvals =
-            (escrow.validators.len() as u32 * escrow.approval_threshold) / 10000;
+        let value_based_required = Self::calculate_required_signatures(milestone.amount, escrow.validators.len() as u32);
+        let threshold_required = (escrow.validators.len() as u32 * escrow.approval_threshold) / 10000;
+        let required_approvals = if value_based_required > threshold_required {
+            value_based_required
+        } else {
+            threshold_required
+        };
 
         // Check for majority approval
         if milestone.approval_count as u32 >= required_approvals {
@@ -429,7 +480,7 @@ impl EscrowContract {
         admin.require_auth();
 
         // Validate new validators
-        if (new_validators.len() as u32) < MIN_VALIDATORS {
+        if new_validators.len() < MIN_VALIDATORS {
             return Err(Error::InvInput);
         }
 
@@ -447,6 +498,73 @@ impl EscrowContract {
             .publish((VALIDATORS_UPDATED,), (project_id, new_validators));
 
         Ok(())
+    }
+
+    /// Configure the global yield router. Admin only.
+    pub fn configure_yield_router(
+        env: Env,
+        admin: Address,
+        pool_contract: Address,
+        yield_token: Address,
+        liquidity_reserve_bps: u32,
+    ) -> Result<(), Error> {
+        let stored_admin = get_admin(&env)?;
+        if stored_admin != admin {
+            return Err(Error::Unauthorized);
+        }
+        admin.require_auth();
+        configure_router(
+            &env,
+            &admin,
+            pool_contract,
+            yield_token,
+            liquidity_reserve_bps,
+        )
+    }
+
+    /// Enable yield routing for a specific escrow. Admin only.
+    pub fn enable_yield_for_escrow(env: Env, project_id: u64, admin: Address) -> Result<(), Error> {
+        let stored_admin = get_admin(&env)?;
+        if stored_admin != admin {
+            return Err(Error::Unauthorized);
+        }
+        admin.require_auth();
+        enable_yield_router(&env, project_id)?;
+        set_emergency_withdraw_state(
+            &env,
+            project_id,
+            &EmergencyWithdrawState {
+                status: EmergencyWithdrawStatus::Idle,
+                approvals: Vec::new(&env),
+                rescued_amount: 0,
+                executed_at: 0,
+            },
+        );
+        Ok(())
+    }
+
+    /// Disable yield routing for a specific escrow. Admin only.
+    pub fn disable_yield_for_escrow(
+        env: Env,
+        project_id: u64,
+        admin: Address,
+    ) -> Result<(), Error> {
+        let stored_admin = get_admin(&env)?;
+        if stored_admin != admin {
+            return Err(Error::Unauthorized);
+        }
+        admin.require_auth();
+        disable_yield_router(&env, project_id)
+    }
+
+    /// Read the global yield-router configuration.
+    pub fn get_yield_router_config(env: Env) -> Result<YieldRouterConfig, Error> {
+        get_router_config(&env)
+    }
+
+    /// Read per-project yield-routing state.
+    pub fn get_escrow_yield_state(env: Env, project_id: u64) -> EscrowYieldState {
+        get_yield_state(&env, project_id)
     }
 
     // ==================== Dispute Resolution System ====================
@@ -538,6 +656,45 @@ impl EscrowContract {
         Ok(())
     }
 
+    /// Record a validator co-signature for an emergency yield rescue.
+    ///
+    /// Execution remains admin-only, but enough escrow validators must approve
+    /// first to satisfy the escrow's configured approval threshold.
+    pub fn approve_emergency_withdraw(
+        env: Env,
+        project_id: u64,
+        validator: Address,
+    ) -> Result<u32, Error> {
+        if !is_paused(&env) {
+            return Err(Error::InvStatus);
+        }
+
+        validator.require_auth();
+
+        let escrow = get_escrow(&env, project_id)?;
+        validation::validate_validator(&escrow, &validator)?;
+
+        let mut state = get_emergency_withdraw_state(&env, project_id);
+        if state.status == EmergencyWithdrawStatus::Executed {
+            return Err(Error::InvStatus);
+        }
+        if state.approvals.iter().any(|approved| approved == validator) {
+            return Err(Error::AlreadyVoted);
+        }
+
+        state.approvals.push_back(validator.clone());
+        state.status = EmergencyWithdrawStatus::Pending;
+        let approval_count = state.approvals.len() as u32;
+
+        set_emergency_withdraw_state(&env, project_id, &state);
+        env.events().publish(
+            (EMERGENCY_WITHDRAW_APPROVED,),
+            (project_id, validator, approval_count),
+        );
+
+        Ok(approval_count)
+    }
+
     /// Deregister as a juror
     ///
     /// # Arguments
@@ -608,6 +765,58 @@ impl EscrowContract {
         env.events().publish((CONTRACT_RESUMED,), (admin, now));
 
         Ok(())
+    }
+
+    /// Emergency admin rescue of all funds currently sitting in the yield pool.
+    ///
+    /// This ignores tracked yield state and simply pulls everything the external
+    /// pool reports for the escrow contract back into the base escrow balance.
+    /// Execution requires:
+    /// - the contract to be paused
+    /// - admin authorization
+    /// - validator co-signatures meeting the escrow approval threshold
+    pub fn admin_emergency_withdraw(
+        env: Env,
+        project_id: u64,
+        admin: Address,
+    ) -> Result<Amount, Error> {
+        let stored_admin = get_admin(&env)?;
+        if stored_admin != admin {
+            return Err(Error::Unauthorized);
+        }
+        if !is_paused(&env) {
+            return Err(Error::InvStatus);
+        }
+        admin.require_auth();
+
+        let escrow = get_escrow(&env, project_id)?;
+        let mut state = get_emergency_withdraw_state(&env, project_id);
+        if state.status == EmergencyWithdrawStatus::Executed {
+            return Err(Error::InvStatus);
+        }
+
+        let required_approvals = required_emergency_approvals(&escrow);
+        if state.approvals.len() < required_approvals {
+            return Err(Error::Unauthorized);
+        }
+
+        let rescued_amount = emergency_withdraw_from_pool(&env, project_id, &escrow)?;
+        state.status = EmergencyWithdrawStatus::Executed;
+        state.rescued_amount = rescued_amount;
+        state.executed_at = env.ledger().timestamp();
+        set_emergency_withdraw_state(&env, project_id, &state);
+
+        env.events().publish(
+            (EMERGENCY_WITHDRAW_EXECUTED,),
+            (project_id, admin, rescued_amount),
+        );
+
+        Ok(rescued_amount)
+    }
+
+    /// Inspect the current emergency rescue state for a project.
+    pub fn get_emergency_withdraw_state(env: Env, project_id: u64) -> EmergencyWithdrawState {
+        storage::get_emergency_withdraw_state(&env, project_id)
     }
 
     /// Initiate a dispute on a milestone
@@ -717,7 +926,7 @@ impl EscrowContract {
 
         let prng = env.prng();
 
-        while selected_jurors.len() < jury_size && available_jurors.len() > 0 {
+        while selected_jurors.len() < jury_size && !available_jurors.is_empty() {
             let index = prng.gen_range::<u64>(0..available_jurors.len() as u64) as u32;
             let juror = available_jurors.get(index).unwrap();
 
@@ -883,7 +1092,7 @@ impl EscrowContract {
         }
 
         commitment.revealed = true;
-        commitment.vote = vote.clone();
+        commitment.vote = vote;
         commitment.vote_payload = payload;
         set_dispute_vote(&env, dispute_id, &juror, &commitment);
 
@@ -931,11 +1140,11 @@ impl EscrowContract {
         for juror in assignments.iter() {
             if let Ok(commitment) = get_dispute_vote(&env, dispute_id, &juror) {
                 if commitment.revealed {
-                    let vote = commitment.vote.clone();
-                    let v_val: soroban_sdk::Val = vote.clone().into_val(&env);
-                    let count = votes.get(v_val.clone()).unwrap_or(0);
-                    votes.set(v_val.clone(), count + 1);
-                    payloads.set(v_val.clone(), commitment.vote_payload);
+                    let vote = commitment.vote;
+                    let v_val: soroban_sdk::Val = vote.into_val(&env);
+                    let count = votes.get(v_val).unwrap_or(0);
+                    votes.set(v_val, count + 1);
+                    payloads.set(v_val, commitment.vote_payload);
 
                     if count + 1 > max_votes {
                         max_votes = count + 1;
@@ -958,10 +1167,8 @@ impl EscrowContract {
         for juror in assignments.iter() {
             let mut is_majority = false;
             if let Ok(commitment) = get_dispute_vote(&env, dispute_id, &juror) {
-                if commitment.revealed {
-                    if commitment.vote == resolution {
-                        is_majority = true;
-                    }
+                if commitment.revealed && commitment.vote == resolution {
+                    is_majority = true;
                 }
             }
 
@@ -985,23 +1192,14 @@ impl EscrowContract {
 
         Self::reward_jurors(&env, &majority_jurors)?;
 
-        dispute.resolution = resolution.clone();
+        dispute.resolution = resolution;
         dispute.resolution_payload = resolution_payload;
         dispute.status = DisputeStatus::Resolved;
         dispute.created_at = env.ledger().timestamp(); // Reset time for appeal window
         set_dispute(&env, dispute_id, &dispute);
 
         env.events()
-            .publish((DISPUTE_RESOLVED,), (dispute_id, resolution.clone()));
-
-        // Enforce immediately if max appeals reached
-        if dispute.appeal_count >= shared::constants::MAX_APPEALS as u32 {
-            dispute.status = DisputeStatus::FinalResolved;
-            set_dispute(&env, dispute_id, &dispute);
-            Self::enforce_resolution(&env, &dispute, &resolution)?;
-            env.events()
-                .publish((APPEAL_RESOLVED,), (dispute_id, resolution));
-        }
+            .publish((DISPUTE_RESOLVED,), (dispute_id, resolution));
 
         Ok(())
     }
@@ -1026,14 +1224,28 @@ impl EscrowContract {
         }
 
         let current_time = env.ledger().timestamp();
-        if current_time <= dispute.created_at + shared::constants::APPEAL_WINDOW_PERIOD {
+        // Dispute resolution time-lock:
+        // - While appeals remain available, wait for the appeal window to elapse (and also satisfy the minimum lock).
+        // - Once max appeals are exhausted, enforcements still must wait for the resolution time-lock.
+        //
+        // `created_at` is reset in `tally_votes` and marks the start of these windows.
+        let required_delay = if dispute.appeal_count >= shared::constants::MAX_APPEALS as u32 {
+            shared::constants::RESOLUTION_TIME_LOCK
+        } else {
+            core::cmp::max(
+                shared::constants::RESOLUTION_TIME_LOCK,
+                shared::constants::APPEAL_WINDOW_PERIOD,
+            )
+        };
+
+        if current_time <= dispute.created_at + required_delay {
             return Err(Error::AppealWinCl); // Reusing for window still open
         }
 
         dispute.status = DisputeStatus::FinalResolved;
         set_dispute(&env, dispute_id, &dispute);
 
-        let res = dispute.resolution.clone();
+        let res = dispute.resolution;
         Self::enforce_resolution(&env, &dispute, &res)?;
         env.events().publish((APPEAL_RESOLVED,), (dispute_id, res));
 
@@ -1117,10 +1329,10 @@ impl EscrowContract {
                 ..milestone.clone()
             };
             let mut virtual_escrow = escrow.clone();
-            release_milestone_funds(&env, &mut virtual_escrow, &virtual_milestone)?;
+            release_milestone_funds(env, &mut virtual_escrow, &virtual_milestone)?;
             escrow.released_amount = virtual_escrow.released_amount;
 
-            let token_client = TokenClient::new(&env, &escrow.token);
+            let token_client = TokenClient::new(env, &escrow.token);
             token_client.transfer(
                 &env.current_contract_address(),
                 &escrow.creator,
@@ -1276,7 +1488,7 @@ impl EscrowContract {
         project_id: u64,
         profit_dist_contract: Address,
     ) -> Result<(), Error> {
-        let mut escrow = get_escrow(&env, project_id)?;
+        let escrow = get_escrow(&env, project_id)?;
         escrow.creator.require_auth();
 
         if is_paused(&env) {
@@ -1297,7 +1509,9 @@ impl EscrowContract {
         if actual_balance <= required_funds {
             return Err(Error::NoClaim);
         }
-        let total_yield = actual_balance.checked_sub(required_funds).ok_or(Error::InvInput)?;
+        let total_yield = actual_balance
+            .checked_sub(required_funds)
+            .ok_or(Error::InvInput)?;
 
         // Split yield
         let fee_amount = (total_yield * (escrow.management_fee_bps as i128)) / 10000;
@@ -1305,17 +1519,29 @@ impl EscrowContract {
 
         // 1. Distribute fee to creator
         if fee_amount > 0 {
-            token_client.transfer(&env.current_contract_address(), &escrow.creator, &fee_amount);
+            token_client.transfer(
+                &env.current_contract_address(),
+                &escrow.creator,
+                &fee_amount,
+            );
         }
 
         // 2. Distribute remainder to investors via ProfitDistribution
         if investor_amount > 0 {
             let profit_dist_client = ProfitDistributionClient::new(&env, &profit_dist_contract);
             // Transfer to profit distribution contract
-            token_client.transfer(&env.current_contract_address(), &profit_dist_contract, &investor_amount);
-            
+            token_client.transfer(
+                &env.current_contract_address(),
+                &profit_dist_contract,
+                &investor_amount,
+            );
+
             // Notify profit distribution contract
-            let _ = profit_dist_client.deposit_profits(&project_id, &env.current_contract_address(), &investor_amount);
+            profit_dist_client.deposit_profits(
+                &project_id,
+                &env.current_contract_address(),
+                &investor_amount,
+            );
         }
 
         // Emit yield event
@@ -1346,4 +1572,13 @@ fn release_milestone_funds(
 
     escrow.released_amount = new_released;
     Ok(())
+}
+
+fn required_emergency_approvals(escrow: &EscrowInfo) -> u32 {
+    let required = (escrow.validators.len() * escrow.approval_threshold) / 10_000;
+    if required == 0 {
+        1
+    } else {
+        required
+    }
 }

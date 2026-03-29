@@ -37,6 +37,9 @@
                 },
                 {
                   "u32": 6700
+                },
+                {
+                  "u32": 500
                 }
               ]
             }
@@ -173,6 +176,14 @@
                       },
                       "val": {
                         "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM"
+                      }
+                    },
+                    {
+                      "key": {
+                        "symbol": "management_fee_bps"
+                      },
+                      "val": {
+                        "u32": 500
                       }
                     },
                     {
@@ -385,6 +396,9 @@
                 },
                 {
                   "u32": 6700
+                },
+                {
+                  "u32": 500
                 }
               ]
             }
@@ -501,6 +515,14 @@
                   },
                   "val": {
                     "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM"
+                  }
+                },
+                {
+                  "key": {
+                    "symbol": "management_fee_bps"
+                  },
+                  "val": {
+                    "u32": 500
                   }
                 },
                 {

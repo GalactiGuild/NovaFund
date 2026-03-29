@@ -50,9 +50,9 @@ fn test_add_and_verify_identity() {
     let hash = BytesN::from_array(&env, &hash_data);
 
     assert!(!client.verify(&user));
-    
+
     client.add(&admin, &user, &hash, &1);
-    
+
     assert!(client.verify(&user));
     assert_eq!(client.get_registry_tier(&user), 1);
 }
@@ -72,7 +72,7 @@ fn test_remove_identity() {
     let mut hash_data = [0u8; 32];
     hash_data[1] = 2;
     let hash = BytesN::from_array(&env, &hash_data);
-    
+
     client.add(&admin, &user, &hash, &1);
     assert!(client.verify(&user));
 
@@ -119,9 +119,9 @@ fn test_unauthorized_remove_identity() {
     let mut hash_data = [0u8; 32];
     hash_data[0] = 5;
     let hash = BytesN::from_array(&env, &hash_data);
-    
+
     client.add(&admin, &user, &hash, &1);
-    
+
     // Fake admin attempts to remove, should panic
     client.remove(&fake_admin, &user);
 }

@@ -5,6 +5,40 @@
  * Replace with actual @stellar/stellar-sdk implementation when available.
  */
 
+import { Transaction } from '@stellar/stellar-sdk';
+
+/**
+ * Submits a transaction to the backend relay for fee sponsorship
+ */
+export async function submitSponsoringTransaction(transaction: Transaction): Promise<{ hash: string; error?: string }> {
+  try {
+    const xdr = transaction.toXDR();
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api/v1';
+    
+    const response = await fetch(`${apiUrl}/relay/fee-bump`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ xdr }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || 'Failed to submit sponsoring transaction');
+    }
+
+    const data = await response.json();
+    return { hash: data.hash };
+  } catch (error) {
+    console.error('Sponsoring transaction failed:', error);
+    return {
+      hash: '',
+      error: error instanceof Error ? error.message : 'Unknown error occurred',
+    };
+  }
+}
+
 export interface StellarRecoveryResult {
   success: boolean;
   walletAddress?: string;

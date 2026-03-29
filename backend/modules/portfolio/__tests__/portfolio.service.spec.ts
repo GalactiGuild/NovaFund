@@ -1,8 +1,8 @@
-import { PortfolioService } from "../portfolio.service";
-import { PortfolioRepository } from "../portfolio.repository";
+import { PortfolioService } from '../portfolio.service';
+import { PortfolioRepository } from '../portfolio.repository';
 
-describe("PortfolioService", () => {
-  it("returns ROI data", async () => {
+describe('PortfolioService', () => {
+  it('returns ROI data', async () => {
     const mockRepo: Partial<PortfolioRepository> = {
       getUserROI: jest.fn().mockResolvedValue({
         totalInvested: 1000,
@@ -12,11 +12,9 @@ describe("PortfolioService", () => {
       }),
     };
 
-    const service = new PortfolioService(
-      mockRepo as PortfolioRepository
-    );
+    const service = new PortfolioService(mockRepo as PortfolioRepository);
 
-    const result = await service.getUserPortfolioROI("0x123");
+    const result = await service.getUserPortfolioROI('0x123');
 
     expect(result.roi).toBe(0.3);
     expect(result.totalInvested).toBe(1000);

@@ -58,3 +58,11 @@ pub fn set_admin(env: &Env, admin: &Address) {
 pub fn get_admin(env: &Env) -> Option<Address> {
     env.storage().instance().get(&DataKey::Admin)
 }
+
+pub fn set_dev_fund_address(env: &Env, dev_fund: &Address) {
+    env.storage().instance().set(&DataKey::DevFund, dev_fund);
+}
+
+pub fn get_dev_fund_address(env: &Env) -> Option<Address> {
+    env.storage().instance().get(&DataKey::DevFund)
+}

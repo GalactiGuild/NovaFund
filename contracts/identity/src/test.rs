@@ -25,7 +25,13 @@ fn test_verification_flow() {
     let public_inputs = Bytes::from_slice(&env, &[0]);
 
     // Verify as Tier 1
-    client.verify_identity(&user, &Jurisdiction::UnitedStates, &proof, &public_inputs, &1);
+    client.verify_identity(
+        &user,
+        &Jurisdiction::UnitedStates,
+        &proof,
+        &public_inputs,
+        &1,
+    );
 
     assert_eq!(client.get_tier(&user, &Jurisdiction::UnitedStates), 1);
     assert!(client.is_verified(&user, &Jurisdiction::UnitedStates));
@@ -68,7 +74,8 @@ fn test_oracle_flow() {
     assert!(!client.is_oracle(&oracle));
 
     // Removed oracle attempts to update status (should panic)
-    let result = client.try_update_status_via_oracle(&oracle, &user, &Jurisdiction::Global, &3, &proof_hash);
+    let result =
+        client.try_update_status_via_oracle(&oracle, &user, &Jurisdiction::Global, &3, &proof_hash);
     assert!(result.is_err());
 }
 

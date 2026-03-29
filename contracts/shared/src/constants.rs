@@ -59,6 +59,9 @@ pub const VOTING_REVEAL_PERIOD: u64 = 172800;
 /// Appeal window period (e.g., 5 days in seconds)
 pub const APPEAL_WINDOW_PERIOD: u64 = 432000;
 
+/// Minimum time-lock before a jury dispute outcome can be enforced on-chain (seconds)
+pub const RESOLUTION_TIME_LOCK: u64 = 259200; // 72 hours
+
 /// Flat fee for filing an appeal
 pub const APPEAL_FEE: i128 = 1_000_000_000;
 

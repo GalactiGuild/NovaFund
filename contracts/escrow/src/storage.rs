@@ -4,6 +4,8 @@ use shared::types::{
 };
 use soroban_sdk::{Address, Env, Vec};
 
+use crate::{EmergencyWithdrawState, EmergencyWithdrawStatus};
+
 /// Storage keys for escrow data structures
 const ESCROW_PREFIX: &str = "escrow";
 const MILESTONE_PREFIX: &str = "milestone";
@@ -20,6 +22,7 @@ const JUROR_PREFIX: &str = "juror";
 const DISPUTE_VOTE_PREFIX: &str = "d_vote";
 const JUROR_ASSIGNMENTS_PREFIX: &str = "j_assign";
 const ACTIVE_JURORS_KEY: &str = "act_jurors";
+const EMERGENCY_WITHDRAW_PREFIX: &str = "emg_withdraw";
 
 /// Store platform admin
 pub fn set_admin(env: &Env, admin: &Address) {
@@ -288,7 +291,7 @@ pub fn get_active_jurors(env: &Env) -> Vec<Address> {
     env.storage()
         .persistent()
         .get::<&str, Vec<Address>>(&ACTIVE_JURORS_KEY)
-        .unwrap_or(Vec::new(&env))
+        .unwrap_or(Vec::new(env))
 }
 
 /// Store the active juror addresses list
@@ -339,4 +342,22 @@ pub fn clear_pending_upgrade(env: &Env) {
 /// Check if an upgrade is scheduled
 pub fn has_pending_upgrade(env: &Env) -> bool {
     env.storage().instance().has(&PENDING_UPGRADE_KEY)
+}
+
+pub fn get_emergency_withdraw_state(env: &Env, project_id: u64) -> EmergencyWithdrawState {
+    let key = (EMERGENCY_WITHDRAW_PREFIX, project_id);
+    env.storage()
+        .persistent()
+        .get::<(&str, u64), EmergencyWithdrawState>(&key)
+        .unwrap_or(EmergencyWithdrawState {
+            status: EmergencyWithdrawStatus::Idle,
+            approvals: Vec::new(env),
+            rescued_amount: 0,
+            executed_at: 0,
+        })
+}
+
+pub fn set_emergency_withdraw_state(env: &Env, project_id: u64, state: &EmergencyWithdrawState) {
+    let key = (EMERGENCY_WITHDRAW_PREFIX, project_id);
+    env.storage().persistent().set(&key, state);
 }

@@ -266,6 +266,56 @@ pub fn get_milestone(
 
 ---
 
+## Emergency Yield Rescue
+
+The escrow contract supports an emergency flow for pulling capital back from an
+external yield protocol if that protocol is suspected to be compromised.
+
+### Emergency Rescue States
+
+`EmergencyWithdrawStatus` defines the rescue lifecycle for each project escrow:
+
+```rust
+pub enum EmergencyWithdrawStatus {
+        Idle = 0,
+        Pending = 1,
+        Executed = 2,
+}
+```
+
+- `Idle`: No emergency rescue is in progress for the escrow.
+- `Pending`: One or more escrow validators have approved an emergency rescue,
+    but the approval threshold has not yet been executed by admin.
+- `Executed`: Admin completed the rescue and all funds visible in the yield pool
+    were withdrawn back to the base escrow.
+
+### Emergency Flow
+
+1. Pause the contract with `pause(admin)`.
+2. Escrow validators co-sign with `approve_emergency_withdraw(project_id, validator)`.
+3. Once approvals meet the escrow's configured `approval_threshold`, admin calls
+     `admin_emergency_withdraw(project_id, admin)`.
+4. The contract ignores tracked yield principal state, withdraws the full balance
+     reported by the pool back to escrow, and disables routing for that escrow.
+
+### Access Control
+
+- `admin_emergency_withdraw` is admin-only.
+- Execution requires validator co-signatures that satisfy the escrow's own
+    approval threshold, giving a multi-sig control plane without introducing a
+    second admin key system.
+- Validator approvals are only accepted while the contract is paused.
+
+### Notes
+
+- The rescue path is intentionally conservative: it does not depend on
+    `deployed_principal` being accurate.
+- Rescued funds are returned to the escrow contract, not distributed directly.
+- Yield routing is disabled after execution so capital remains in base escrow
+    until operators deliberately re-enable routing.
+
+---
+
 ### get_total_milestone_amount
 
 Calculates total amount allocated to all milestones.

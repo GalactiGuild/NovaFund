@@ -3,6 +3,7 @@
 import { ProjectFormData } from '@/types/project';
 import { formatCurrency } from '@/utils/validation';
 import { CheckCircle2, Edit } from 'lucide-react';
+import Image from 'next/image';
 
 interface ReviewStepProps {
   data: ProjectFormData;
@@ -55,11 +56,15 @@ export default function ReviewStep({ data, onEdit }: ReviewStepProps) {
           {data.imageUrl && (
             <div>
               <p className="text-xs font-medium text-white/70 uppercase tracking-wide">Image</p>
-              <img 
-                src={data.imageUrl} 
-                alt="Project" 
-                className="mt-2 w-full max-w-md h-48 object-cover rounded-lg border-2 border-white/30"
-              />
+              <div className="mt-2 relative w-full max-w-md h-48 rounded-lg overflow-hidden border-2 border-white/30">
+                <Image 
+                  src={data.imageUrl} 
+                  alt="Project" 
+                  fill
+                  className="object-cover"
+                  unoptimized
+                />
+              </div>
             </div>
           )}
         </div>

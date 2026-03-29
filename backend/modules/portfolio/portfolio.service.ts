@@ -1,5 +1,5 @@
-import { PortfolioRepository } from "./portfolio.repository";
-import { RoiResult } from "./portfolio.types";
+import { PortfolioRepository } from './portfolio.repository';
+import { RoiResult } from './portfolio.types';
 
 export class PortfolioService {
   constructor(private readonly repo: PortfolioRepository) {}

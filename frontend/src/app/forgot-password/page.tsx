@@ -85,7 +85,7 @@ export default function ForgotPasswordPage() {
               </h2>
               
               <p className="text-gray-400">
-                Enter your email address and we'll send you a recovery link
+                Enter your email address and we&apos;ll send you a recovery link
               </p>
             </div>
 
@@ -164,7 +164,7 @@ export default function ForgotPasswordPage() {
               </h2>
               
               <p className="text-gray-400 mb-4">
-                We've sent a recovery link to{" "}
+                We&apos;ve sent a recovery link to{" "}
                 <span className="font-semibold text-white">{email}</span>
               </p>
               

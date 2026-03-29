@@ -89,7 +89,7 @@ impl IdentityRegistryContract {
         }
         false
     }
-    
+
     /// Publicly verifiable function to get a user's KYC tier
     pub fn get_registry_tier(env: Env, user: Address) -> u32 {
         let key = RegistryDataKey::Identity(user);
