@@ -41,6 +41,9 @@
                 },
                 {
                   "bytes": "0100000000000000000000000000000000000000000000000000000000000000"
+                },
+                {
+                  "u32": 1
                 }
               ]
             }
@@ -49,6 +52,7 @@
         }
       ]
     ],
+    [],
     []
   ],
   "ledger": {
@@ -97,7 +101,36 @@
                 },
                 "durability": "persistent",
                 "val": {
-                  "bytes": "0100000000000000000000000000000000000000000000000000000000000000"
+                  "map": [
+                    {
+                      "key": {
+                        "symbol": "hash"
+                      },
+                      "val": {
+                        "bytes": "0100000000000000000000000000000000000000000000000000000000000000"
+                      }
+                    },
+                    {
+                      "key": {
+                        "symbol": "status"
+                      },
+                      "val": {
+                        "vec": [
+                          {
+                            "symbol": "Verified"
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "key": {
+                        "symbol": "tier"
+                      },
+                      "val": {
+                        "u32": 1
+                      }
+                    }
+                  ]
                 }
               }
             },
@@ -365,6 +398,9 @@
                 },
                 {
                   "bytes": "0100000000000000000000000000000000000000000000000000000000000000"
+                },
+                {
+                  "u32": 1
                 }
               ]
             }
@@ -437,6 +473,55 @@
             ],
             "data": {
               "bool": true
+            }
+          }
+        }
+      },
+      "failed_call": false
+    },
+    {
+      "event": {
+        "ext": "v0",
+        "contract_id": null,
+        "type_": "diagnostic",
+        "body": {
+          "v0": {
+            "topics": [
+              {
+                "symbol": "fn_call"
+              },
+              {
+                "bytes": "0000000000000000000000000000000000000000000000000000000000000001"
+              },
+              {
+                "symbol": "get_registry_tier"
+              }
+            ],
+            "data": {
+              "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M"
+            }
+          }
+        }
+      },
+      "failed_call": false
+    },
+    {
+      "event": {
+        "ext": "v0",
+        "contract_id": "0000000000000000000000000000000000000000000000000000000000000001",
+        "type_": "diagnostic",
+        "body": {
+          "v0": {
+            "topics": [
+              {
+                "symbol": "fn_return"
+              },
+              {
+                "symbol": "get_registry_tier"
+              }
+            ],
+            "data": {
+              "u32": 1
             }
           }
         }

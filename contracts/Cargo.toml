@@ -12,12 +12,14 @@ members = [
     "cross-chain-bridge",
     "insurance-pool",
     "amm-liquidity-pools",
+    "limit-orders",
+    "smart-wallet",
     "shared",
     "identity",
     "oracle-network",
     "auto-invest-pool",
     "base-token",
-    "milestone-oracle",
+    "rwa-revaluation-oracle",
 ]
 
 [workspace.package]

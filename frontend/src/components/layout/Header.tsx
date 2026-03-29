@@ -37,7 +37,7 @@ const Header: React.FC = () => {
   }, []);
 
   return (
-    <header className="bg-black text-white shadow-md fixed top-0 left-0 right-0 z-50">
+    <header className="bg-background text-foreground shadow-md fixed top-0 left-0 right-0 z-50">
       <nav className="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center h-16">
         <Link
           href="/"
@@ -52,8 +52,8 @@ const Header: React.FC = () => {
             href="/explore"
             className={`text-sm font-medium transition-colors ${
               isActive("/explore")
-                ? "text-purple-400"
-                : "text-gray-300 hover:text-white"
+                ? "text-primary"
+                : "text-muted-foreground hover:text-foreground"
             }`}
           >
             Explore
@@ -62,8 +62,8 @@ const Header: React.FC = () => {
             href="/bridge"
             className={`text-sm font-medium transition-colors ${
               isActive("/bridge")
-                ? "text-purple-400"
-                : "text-gray-300 hover:text-white"
+                ? "text-primary"
+                : "text-muted-foreground hover:text-foreground"
             }`}
           >
             Bridge
@@ -72,8 +72,8 @@ const Header: React.FC = () => {
             href="/create"
             className={`text-sm font-medium transition-colors ${
               isActive("/create")
-                ? "text-purple-400"
-                : "text-gray-300 hover:text-white"
+                ? "text-primary"
+                : "text-muted-foreground hover:text-foreground"
             }`}
           >
             Create
@@ -82,8 +82,8 @@ const Header: React.FC = () => {
             href="/dashboard"
             className={`text-sm font-medium transition-colors ${
               isActive("/dashboard")
-                ? "text-purple-400"
-                : "text-gray-300 hover:text-white"
+                ? "text-primary"
+                : "text-muted-foreground hover:text-foreground"
             }`}
           >
             Dashboard
@@ -93,7 +93,7 @@ const Header: React.FC = () => {
             <button
               type="button"
               onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
-              className="flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-gray-300 transition-colors hover:bg-white/10"
+              className="flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-white/10 dark:hover:bg-black/20"
             >
               <User className="h-4 w-4" />
               <span className="font-mono text-xs">
@@ -132,7 +132,7 @@ const Header: React.FC = () => {
         {/* Mobile Menu Button */}
         <button
           onClick={toggleMenu}
-          className="md:hidden p-2 rounded-md text-gray-300 hover:text-white hover:bg-gray-800 transition-colors"
+          className="md:hidden p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
           aria-label="Toggle menu"
         >
           {isMenuOpen ? <X size={24} /> : <Menu size={24} />}

@@ -18,4 +18,5 @@ pub enum DataKey {
     TotalShares(u64),            // project_id -> total registered shares
     AccProfitPerShare(u64),      // project_id -> accumulated profit per share
     Admin,
+    DevFund,                     // Developer Fund address
 }

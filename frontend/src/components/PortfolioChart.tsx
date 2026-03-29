@@ -47,7 +47,7 @@ const PortfolioChart: React.FC<PortfolioChartProps> = ({ investments }) => {
               {item.projectName}
             </div>
             <div className="flex-1 mx-3">
-              <div className="bg-gray-700 rounded-full h-3 overflow-hidden">
+              <div className="bg-gray-300 dark:bg-gray-700 rounded-full h-3 overflow-hidden">
                 <div
                   className={`h-full ${colors[index % colors.length]} transition-all duration-500`}
                   style={{ width: `${item.percentage}%` }}

@@ -93,7 +93,7 @@ export const FeaturedProjects: React.FC = () => {
                   Featured Projects
                 </h2>
                 <div className="h-1 w-20 bg-gradient-to-r from-purple-400 to-cyan-400 rounded-full" />
-                <p className="mt-6 max-w-2xl text-lg text-gray-300">
+                <p className="mt-6 max-w-2xl text-lg text-muted-foreground">
                   Discover groundbreaking projects that are reshaping industries 
                   and creating positive impact around the world.
                 </p>
@@ -143,7 +143,7 @@ export const FeaturedProjects: React.FC = () => {
             <h3 className="text-2xl sm:text-3xl font-bold text-white mb-4">
               Ready to invest in innovation?
             </h3>
-            <p className="text-gray-300 mb-8 max-w-xl mx-auto">
+            <p className="text-muted-foreground mb-8 max-w-xl mx-auto">
               Join thousands of community members funding the future. Start with 
               as little as $1 and become part of the investment revolution.
             </p>

@@ -41,17 +41,17 @@ fn test_full_distribution_flow() {
 
     client.register_investors(&1, &investors);
 
-    // Deposit profits
+    // Deposit profits (1000 - 5% tax = 950 distributed)
     let profit_provider = Address::generate(&env);
     token_admin.mint(&profit_provider, &1000);
     client.deposit_profits(&1, &profit_provider, &1000);
 
-    // Check pending
+    // Check pending (after 5% tax: 950 total)
     let share1 = client.get_investor_share(&1, &investor1);
     let share2 = client.get_investor_share(&1, &investor2);
 
-    assert_eq!(share1.claimable_amount, 600);
-    assert_eq!(share2.claimable_amount, 400);
+    assert_eq!(share1.claimable_amount, 570); // 60% of 950
+    assert_eq!(share2.claimable_amount, 380); // 40% of 950
 
     // Claim
     client.claim_dividends(&1, &investor1);
@@ -59,19 +59,19 @@ fn test_full_distribution_flow() {
         client.get_investor_share(&1, &investor1).claimable_amount,
         0
     );
-    assert_eq!(client.get_investor_share(&1, &investor1).total_claimed, 600);
+    assert_eq!(client.get_investor_share(&1, &investor1).total_claimed, 570);
 
-    // Deposit more
+    // Deposit more (500 - 5% tax = 475 distributed)
     token_admin.mint(&profit_provider, &500);
     client.deposit_profits(&1, &profit_provider, &500);
 
     // Check again
     assert_eq!(
         client.get_investor_share(&1, &investor1).claimable_amount,
-        300
-    ); // 60% of 500
+        285
+    ); // 60% of 475
     assert_eq!(
         client.get_investor_share(&1, &investor2).claimable_amount,
-        600
-    ); // 400 + 40% of 500 = 400+200=600
+        570
+    ); // 380 + 40% of 475 = 380+190=570
 }
