@@ -25,6 +25,7 @@
     "prepare": "cd .. && husky install backend/.husky"
   },
   "dependencies": {
+    "axios": "^1.7.9",
     "@apollo/server": "^4.13.0",
     "@sentry/node": "^8.0.0",
     "@nest-lab/throttler-storage-redis": "^1.2.0",

@@ -17,6 +17,7 @@ import { VerificationModule } from './verification/verification.module';
 import { RedisModule } from './redis/redis.module';
 import { ProjectModule } from './project/project.module';
 import { StellarModule } from './stellar/stellar.module';
+import { OracleModule } from './oracle/oracle.module';
 import { GraphQLRateLimitModule } from './graphql/graphql-rate-limit.module';
 
 @Module({
@@ -43,6 +44,7 @@ import { GraphQLRateLimitModule } from './graphql/graphql-rate-limit.module';
     RelayModule,
     VerificationModule,
     ProjectModule,
+    OracleModule,
   ],
   controllers: [AppController, UserController],
   providers: [AppService],

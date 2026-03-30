@@ -1,5 +1,5 @@
 import { plainToInstance } from 'class-transformer';
-import { IsEnum, IsNumber, IsString, validateSync } from 'class-validator';
+import { IsEnum, IsNumber, IsOptional, IsString, validateSync } from 'class-validator';
 
 enum Environment {
   Development = 'development',
@@ -100,6 +100,27 @@ class EnvironmentVariables {
 
   @IsNumber()
   INDEXER_REORG_DEPTH_THRESHOLD: number;
+
+  // Price Oracle (all optional — public endpoints work without keys)
+  @IsOptional()
+  @IsString()
+  BINANCE_API_KEY?: string;
+
+  @IsOptional()
+  @IsString()
+  KRAKEN_API_KEY?: string;
+
+  @IsOptional()
+  @IsString()
+  COINBASE_API_KEY?: string;
+
+  @IsOptional()
+  @IsString()
+  ORACLE_SUPPORTED_TOKENS?: string;
+
+  @IsOptional()
+  @IsNumber()
+  PRICE_FETCH_INTERVAL_MINUTES?: number;
 }
 
 export function validateEnv(config: Record<string, unknown>) {
