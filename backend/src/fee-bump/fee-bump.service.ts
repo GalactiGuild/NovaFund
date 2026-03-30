@@ -16,6 +16,7 @@ import {
 } from '@stellar/stellar-sdk';
 import { FeeBumpWhitelistService } from './fee-bump-whitelist.service';
 import { FeeBumpAuditService } from './fee-bump-audit.Service';
+import { FeeBumpResubmissionService } from './fee-bump-resubmission.service';
 import { SignFeeBumpDto, SignFeeBumpResponseDto } from './sign-fee-bump.dto';
 
 @Injectable()
@@ -39,6 +40,7 @@ export class FeeBumpService {
     private readonly config: ConfigService,
     private readonly whitelist: FeeBumpWhitelistService,
     private readonly audit: FeeBumpAuditService,
+    private readonly resubmission: FeeBumpResubmissionService,
   ) {
     // ------------------------------------------------------------------ //
     //  KEY ISOLATION — this is the only place a secret key is ever loaded //
@@ -192,6 +194,14 @@ export class FeeBumpService {
     this.logger.log(
       `Signed FeeBump | hash=${feeBumpHash} | op=${dto.operationType} | ` +
         `wallet=${dto.walletAddress} | fee=${totalMaxFee}`,
+    );
+
+    // Submit with retry logic (handles tx_bad_seq and timeouts)
+    await this.resubmission.submitWithRetry(
+      feeBumpXdr,
+      innerTx,
+      this.feePayerKeypair,
+      totalMaxFee,
     );
 
     return {

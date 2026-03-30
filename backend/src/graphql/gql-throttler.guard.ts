@@ -1,14 +1,13 @@
 import { ExecutionContext, Injectable } from '@nestjs/common';
 import { GqlExecutionContext } from '@nestjs/graphql';
-import { ThrottlerGuard } from '@nestjs/throttler';
+import { ThrottlerGuard, ThrottlerOptions } from '@nestjs/throttler';
 import { Request } from 'express';
 
 @Injectable()
 export class GqlThrottlerGuard extends ThrottlerGuard {
   getRequestResponse(context: ExecutionContext) {
     const ctx = GqlExecutionContext.create(context);
-    const req: Request = ctx.getContext().req;
-    return { req, res: ctx.getContext().res };
+    return { req: ctx.getContext().req as Request, res: ctx.getContext().res };
   }
 
   protected async getTracker(req: Record<string, unknown>): Promise<string> {
@@ -18,10 +17,15 @@ export class GqlThrottlerGuard extends ThrottlerGuard {
       (typeof forwarded === 'string' ? forwarded.split(',')[0].trim() : null) ??
       request.ip ??
       'unknown';
-
-    // Prefer authenticated user ID when available for user-based limiting
     const userId: string | undefined = (request as any).user?.id;
     return userId ? `user:${userId}` : `ip:${ip}`;
+  }
+
+  // Resolvers with @Throttle({ aggregate }) get both tiers; others only get 'default'
+  protected async getThrottlers(context: ExecutionContext): Promise<ThrottlerOptions[]> {
+    const all = await super.getThrottlers(context);
+    const hasExplicit = Reflect.getMetadata('THROTTLER:THROTTLERS', context.getHandler());
+    return hasExplicit ? all : all.filter((t) => t.name === 'default');
   }
 
   protected throwThrottlingException(): never {
