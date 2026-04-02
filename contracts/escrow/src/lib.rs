@@ -409,7 +409,22 @@ impl EscrowContract {
                 (project_id, milestone_id, milestone.rejection_count),
             );
         } else {
-            // Store updated milestone (vote recorded, but not yet finalized)
+            // Check if approval threshold is met
+            let required_approvals =
+                (escrow.validators.len() as u32 * escrow.approval_threshold) / 10000;
+
+            if milestone.approval_count as u32 >= required_approvals {
+                milestone.status = MilestoneStatus::Queued;
+                milestone.unlock_time = env.ledger().timestamp() + shared::constants::RESOLUTION_TIME_LOCK;
+
+                // Emit queued event
+                env.events().publish(
+                    (MILESTONE_QUEUED,),
+                    (project_id, milestone_id, milestone.unlock_time),
+                );
+            }
+
+            // Store updated milestone
             set_milestone(&env, project_id, milestone_id, &milestone);
         }
 
