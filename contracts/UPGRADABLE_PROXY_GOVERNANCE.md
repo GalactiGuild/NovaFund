@@ -1,287 +1,246 @@
-# Upgradable Proxy Governance Implementation
 
-## Overview
+Skip to content
 
-This document describes the implementation of governance-controlled upgrades for NovaFund smart contracts, ensuring that contract evolution is controlled exclusively by the Governance DAO voting mechanism rather than centralized admin keys.
+New chat
+Agents
+Spaces
+Spark
+Preview
 
-## Architecture
+Copilot Chat
+On-chain audit log for contract upgrades
+You said: Create 'On-Chain Audit Log' for Contract Upgrades
+Create 'On-Chain Audit Log' for Contract Upgrades
+Copilot said: I'll help you create an 'On-Chain Audit
 
-### Key Components
+I'll help you create an 'On-Chain Audit Log' for Contract Upgrades. However, I need some additional information to proceed:
 
-1. **Governance DAO Contract**: The central decision-making body that votes on upgrade proposals
-2. **ProjectLaunch Contract**: Core contract with governance-controlled upgrade capability
-3. **Escrow Contract**: Can be similarly upgraded using the same pattern
+    Repository: Which repository should this issue be created in? (format: owner/repo)
 
-### Upgrade Flow
+    Description details: What specific aspects should the audit log cover? For example:
+        Who deployed/upgraded the contract?
+        When was it upgraded?
+        What changes were made?
+        Which functions were modified?
+        Any other important audit information?
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    Governance DAO Voting                     │
-│  1. Proposal created to upgrade specific contract           │
-│  2. Token holders vote on proposal                          │
-│  3. Proposal executed if quorum reached and majority yes    │
-└─────────────────────────────────────────────────────────────┘
-                            ↓
-┌─────────────────────────────────────────────────────────────┐
-│              Schedule Upgrade (DAO Participant)              │
-│  1. Verify governance contract is configured                │
-│  2. Verify proposal exists and is executed (approved)       │
-│  3. Verify participant voted on the proposal                │
-│  4. Set pending upgrade with 48-hour time-lock              │
-│  5. Contract must be paused before execution                │
-└─────────────────────────────────────────────────────────────┘
-                            ↓
-┌─────────────────────────────────────────────────────────────┐
-│            Execute Upgrade (After 48h Time-Lock)             │
-│  1. Verify contract is paused                               │
-│  2. Verify time-lock period has passed                      │
-│  3. Update contract WASM using Soroban native upgrade      │
-│  4. Clear pending upgrade state                             │
-└─────────────────────────────────────────────────────────────┘
-```
+    Additional context:
+        Is this for a specific blockchain platform (Ethereum, Solana, etc.)?
+        Should it include event logging, transaction tracking, or both?
+        Any acceptance criteria or requirements?
 
-## Implementation Details
+Please provide these details so I can create the issue for you.
+You said: Context Transparency in platform evolution. Problem Upgrades happen but aren't
+Context
 
-### New Storage Key
+Transparency in platform evolution.
+Problem
 
-```rust
-DataKey::GovernanceContract = 11  // Address of the Governance DAO contract
-```
+Upgrades happen but aren't easily trackable on-chain.
+Suggested Execution
 
-### New Functions
+    Emitted detailed events for every 'upgrade_wasm' call.
+    Include 'old_hash', 'new_hash', and 'proposal_id'.
 
-#### `set_governance_contract(admin, governance_contract)`
+Acceptance Criteria
 
-Sets the Governance DAO contract address. Admin-only function.
+    Clear trail of platform changes.
+    Auditable history.
 
-**Parameters:**
-- `admin`: Current admin address
-- `governance_contract`: Address of the Governance DAO contract
+References
 
-**Access Control:** Admin only
+    contracts/shared/src/upgrade.rs
+Copilot finished thinking
+Copilot said: I found your GitHub account. To create
 
-#### `get_governance_contract()`
+I found your GitHub account. To create the issue, I need to know which repository you'd like to create it in. Could you please provide the repository name?
 
-Returns the configured Governance DAO contract address (if any).
+For context, I can see you have a GitHub account at https://github.com/wolfyres. Do you have a specific contract or platform repository where this audit log feature should be tracked?
 
-**Returns:** `Option<Address>` - None if not configured
+Once you provide the repository name (in owner/repo format), I'll create the issue with all the details you've provided:
 
-### Modified Functions
+    Title: On-Chain Audit Log for Contract Upgrades
+    Problem: Upgrades happen but aren't easily trackable on-chain
+    Solution: Emit detailed events for every 'upgrade_wasm' call with old_hash, new_hash, and proposal_id
+    Acceptance Criteria: Clear trail of platform changes and auditable history
+    Reference: contracts/shared/src/upgrade.rs
 
-#### `schedule_upgrade(proposer, new_wasm_hash, proposal_id)`
+wolfyres/NovaFund
+You said: @wolfyres/NovaFund is the repo
+@wolfyres/NovaFund is the repo
+Copilot finished thinking
+Copilot said: I encountered an issue: **Issues are disabled
 
-**Changes from previous version:**
-- Now requires a valid proposal ID instead of just admin authorization
-- Verifies the proposal was executed (approved by DAO)
-- Verifies the proposer participated in the vote
-- No longer requires admin role - any DAO voter can schedule
+I encountered an issue: Issues are disabled in the wolfyres/NovaFund repository, so I cannot create an issue directly there.
 
-**Parameters:**
-- `proposer`: Address of a DAO participant who voted on the proposal
-- `new_wasm_hash`: WASM hash of the new contract code
-- `proposal_id`: ID of the executed governance proposal approving this upgrade
+To proceed, you have a few options:
 
-**Validation:**
-1. Governance contract must be configured
-2. Proposal must exist and be in "executed" state
-3. Proposer must have voted on this proposal
-4. Proposer must authorize the transaction
+    Enable Issues in the repository:
+        Go to your repository settings at https://github.com/wolfyres/NovaFund/settings
+        Find the "Features" section and enable "Issues"
 
-**Time-Lock:** 48 hours (172,800 seconds) before execution can occur
+    Create it in a different repository where issues are enabled
 
-#### `execute_upgrade(executor)`
+    Use an alternative approach like:
+        Creating a discussion if that's enabled
+        Adding it as a pull request description
+        Using a project board or wiki
 
-**Changes from previous version:**
-- Can be called by anyone (not just admin) after time-lock
-- Still requires contract to be paused for security
-- Relies on governance approval done at scheduling stage
+Would you like to enable issues in the NovaFund repository, or would you prefer to create this issue elsewhere?
+GalactiGuild/NovaFund
+You said: check @GalactiGuild/NovaFund for the issue, i
+check  @GalactiGuild/NovaFund for the issue, i forked this project from that repo
+Copilot finished thinking
+Copilot said: I've drafted an issue for the GalactiGuild/NovaFund
 
-**Parameters:**
-- `executor`: Any address (typically the scheduler or admin)
+I've drafted an issue for the GalactiGuild/NovaFund repository. Please review it:
 
-**Validation:**
-1. Executor must authorize the transaction
-2. Contract must be paused
-3. Pending upgrade must exist
-4. Time-lock period must have elapsed
+Would you like me to include relevant code snippets from the contracts/shared/src/upgrade.rs file to provide additional context in the issue?
 
-#### `cancel_upgrade(admin)`
+Copilot is powered by AI, so mistakes are possible. Leave feedback via the 👍 👎 to help improve the experience.
+You said: correct, you can go on. provide full
+correct, you can go on. provide full solution to this issue and include the entire steps to solving it
+Copilot finished thinking
+Copilot said: Perfect! The issue has been created. Now
 
-**No changes** - Remains admin-only for emergency cancellation
+Perfect! The issue has been created. Now let me provide you with a comprehensive solution including all implementation steps:
+On-Chain Audit Log for Contract Upgrades - Complete Solution
 
-### Constants
+Now I'll guide you through the complete implementation steps:
+Step 1: Extend Events in contracts/shared/src/events.rs
+GalactiGuild / NovaFund / contracts / shared / src / events.rs
 
-```rust
-UPGRADE_TIME_LOCK_SECS = 172800  // 48 hours
-RESUME_TIME_DELAY = 86400        // 24 hours (for pause/resume)
-```
+// Add comprehensive upgrade event constants
+pub const UPGRADE_INITIATED: Symbol = symbol_short!("upg_init");      // When upgrade is proposed
+pub const UPGRADE_SCHEDULED: Symbol = symbol_short!("upg_sched");     // When upgrade is scheduled with time-lock
+pub const UPGRADE_EXECUTED: Symbol = symbol_short!("upg_exec");       // When upgrade is executed
+pub const UPGRADE_CANCELLED: Symbol = symbol_short!("upg_canc");      // When upgrade is cancelled
+pub const UPGRADE_FAILED: Symbol = symbol_short!("upg_fail");         // When upgrade fails
 
-## Security Considerations
+Step 2: Create Audit Log Type in contracts/shared/src/types.rs
 
-### Multi-Layer Security
+Add this new struct to track upgrade audit information:
+GalactiGuild / NovaFund / contracts / shared / src / types.rs
 
-1. **Governance Approval**: Requires majority vote from token holders
-2. **Time-Lock**: 48-hour delay allows community review
-3. **Pause Requirement**: Contract must be paused during upgrade (emergency brake)
-4. **Resume Delay**: 24-hour delay after pausing before resuming operations
+/// Upgrade audit log entry - tracks all upgrade attempts on-chain
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct UpgradeAuditLog {
+    pub upgrade_id: u64,              // Unique identifier for this upgrade
+    pub old_hash: Hash,               // Previous contract WASM hash
 
-### Attack Mitigation
+Step 3: Create Upgrade Module in contracts/shared/src/
 
-- **Flash Loan Attacks**: Voting power based on staked tokens prevents flash loan manipulation
-- **Rug Pulls**: Admin cannot unilaterally upgrade - requires DAO approval
-- **Rushed Upgrades**: 48-hour time-lock ensures adequate review period
-- **Malicious Execution**: Contract pause required, allowing community intervention
+Create a new file contracts/shared/src/upgrade_audit.rs:
+upgrade_audit.rs
 
-## Usage Example
+use soroban_sdk::{Address, Env, Symbol, symbol_short, Vec};
+use crate::types::{Hash, Timestamp, UpgradeAuditLog, UpgradeStatus};
+use crate::events::*;
 
-### Step 1: Configure Governance Contract
+pub struct UpgradeAuditLog;
 
-```rust
-// Admin sets up governance integration
-client.set_governance_contract(
-    &admin,
-    &governance_contract_address
-);
-```
+Step 4: Update contracts/shared/src/lib.rs
+lib.rs
 
-### Step 2: Create Governance Proposal
+pub mod constants;
+pub mod errors;
+pub mod events;
+pub mod types;
+pub mod utils;
+pub mod upgrade_audit;  // Add this line
 
-```rust
-// In Governance contract:
-let proposal_id = governance_client.create_proposal(
-    &proposer,
-    &upgrade_proposal_payload,  // Contains new WASM hash
-    &start_time,
-    &end_time,
-);
-```
+Step 5: Integrate into Project Launch Contract
 
-### Step 3: DAO Votes
+Update your project-launch contract to use audit logging:
+project_launch_upgrade.rs
 
-```rust
-// Token holders vote on the proposal
-governance_client.vote(&proposal_id, &voter, &true); // true = support upgrade
-```
+use soroban_sdk::{contract, contractimpl, Address, Env, symbol_short};
+use nova_fund_shared::{UpgradeAuditLog, UpgradeStatus, Hash, types::PendingUpgrade};
 
-### Step 4: Finalize Proposal
+#[contract]
+pub struct ProjectLaunchContract;
 
-```rust
-// After voting period ends
-governance_client.finalize(&proposal_id);
-// Proposal is now "executed" if it passed
-```
+Step 6: Create Audit Log Query Contract (Optional but recommended)
 
-### Step 5: Schedule Upgrade
+Create contracts/upgrade-audit-query/src/lib.rs for querying upgrade history:
+upgrade_audit_query.rs
 
-```rust
-// Any voter can schedule the upgrade
-project_launch_client.schedule_upgrade(
-    &voter_who_participated,
-    &new_wasm_hash,
-    &proposal_id,
-);
-```
+use soroban_sdk::{contract, contractimpl, Env, Vec, Address};
+use nova_fund_shared::{types::Hash, UpgradeAuditLog};
 
-### Step 6: Pause Contract
+#[contract]
+pub struct UpgradeAuditQueryContract;
 
-```rust
-// Wait for time-lock, then pause
-project_launch_client.pause(&admin);
-```
+Step 7: Create Tests in contracts/project-launch/src/test.rs
+test_upgrade_audit.rs
 
-### Step 7: Execute Upgrade
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-```rust
-// After 48-hour time-lock
-project_launch_client.execute_upgrade(&anyone);
-```
+    #[test]
+    fn test_upgrade_scheduled_emits_audit_event() {
 
-### Step 8: Resume Operations
+Step 8: Documentation Update
 
-```rust
-// After 24-hour resume delay
-project_launch_client.resume(&admin);
-```
+Update contracts/UPGRADABLE_PROXY_GOVERNANCE.md with audit log section:
+UPGRADABLE_PROXY_GOVERNANCE.md
 
-## Testing
+## On-Chain Audit Log
 
-Comprehensive tests are included in `project-launch/src/lib.rs`:
+All upgrade operations emit comprehensive audit events containing:
 
-```bash
-cd contracts
-cargo test --package project-launch
-```
+- **upgrade_id**: Unique identifier for tracking
+- **old_hash**: Previous contract WASM hash
 
-**Test Coverage:**
-- ✅ Setting governance contract
-- ✅ Scheduling upgrade without governance fails
-- ✅ Scheduling upgrade with invalid proposal fails
-- ✅ Scheduling upgrade without voting participation fails
-- ✅ Scheduling upgrade with valid proposal succeeds
-- ✅ Executing upgrade before time-lock fails
-- ✅ Executing upgrade without pause fails
-- ✅ Executing upgrade after time-lock succeeds
-- ✅ Cancelling upgrade clears pending state
+Step 9: Deployment Checklist
 
-## Migration Path
+    Add new event constants to contracts/shared/src/events.rs
+    Add upgrade types to contracts/shared/src/types.rs
+    Create contracts/shared/src/upgrade_audit.rs module
+    Update contracts/shared/src/lib.rs exports
+    Integrate audit logging into all upgrade functions
+    Write comprehensive tests
+    Update governance documentation
+    Deploy to testnet first
+    Verify events are emitted correctly
+    Deploy to mainnet
 
-For existing deployments:
+This complete solution provides: ✅ Clear audit trail - All upgrades tracked with full metadata
+✅ Proposal linking - Upgrades connected to governance proposals
+✅ Executor identification - Records who performed each action
+✅ Immutable history - On-chain permanent record
+✅ Compliance ready - Full audit trail for regulatory requirements
+UPGRADABLE_PROXY_GOVERNANCE.mdL1-L26
+Workbench
+Press Delete to close the focussed tab.
 
-1. **Current State**: Admin-controlled upgrades
-2. **Transition**: Admin calls `set_governance_contract()` to enable governance control
-3. **Future State**: All upgrades require DAO approval
+26 lines · 948 bytes
+On-Chain Audit Log
 
-**Backward Compatibility**: If governance contract is not set, the contract can maintain backward compatibility mode (optional, based on implementation choice).
+All upgrade operations emit comprehensive audit events containing:
 
-## Integration with Other Contracts
+    upgrade_id: Unique identifier for tracking
+    old_hash: Previous contract WASM hash
+    new_hash: New contract WASM hash
+    proposal_id: Associated governance proposal
+    executor: Address performing the action
+    timestamp: When action occurred
+    status: Current upgrade status
 
-The same pattern can be applied to:
+Audit Events
 
-- **Escrow Contract**: For milestone-based fund release logic upgrades
-- **Profit Distribution**: For changing distribution algorithms
-- **AMM Liquidity Pools**: For fee structure or formula updates
+    UPGRADE_INITIATED - Proposal created
+    UPGRADE_SCHEDULED - Upgrade scheduled (time-lock begins)
+    UPGRADE_EXECUTED - Upgrade successfully applied
+    UPGRADE_CANCELLED - Upgrade cancelled with reason
+    UPGRADE_FAILED - Upgrade execution failed
 
-Each contract should:
-1. Add `GovernanceContract` storage key
-2. Implement `set_governance_contract()`
-3. Modify upgrade functions to require DAO approval
-4. Add comprehensive tests
+Compliance Benefits
 
-## Audit Recommendations
+    Immutable Trail: All upgrades permanently recorded on-chain
+    Traceability: Link upgrades to governance proposals
+    Accountability: Executor identification for each action
+    Auditability: Complete history for regulatory compliance
 
-Before production deployment:
-
-1. **Third-Party Audit**: Engage a reputable smart contract audit firm
-2. **Bug Bounty**: Launch a bug bounty program for the upgrade mechanism
-3. **Community Review**: Allow sufficient time for community analysis
-4. **Testnet Deployment**: Deploy and test on Stellar testnet first
-5. **Gradual Rollout**: Start with non-critical contracts
-
-## Governance Best Practices
-
-### Proposal Content
-Upgrade proposals should include:
-- Detailed description of changes
-- Security audit reports
-- Test coverage summary
-- Migration plan (if breaking changes)
-- Rollback plan (if issues discovered)
-
-### Voting Period
-Recommended minimum 7 days for upgrade proposals to ensure:
-- Adequate community discussion
-- Time for technical review
-- Global participation across time zones
-
-### Quorum Requirements
-Consider requiring higher quorum for upgrades (e.g., 20% of total supply) vs. regular proposals.
-
-## Conclusion
-
-This implementation ensures NovaFund contracts can evolve through decentralized governance while maintaining strong security guarantees. The multi-layer approach (governance approval + time-lock + pause mechanism) provides robust protection against malicious upgrades while enabling legitimate protocol improvements.
-
----
-
-**Document Version**: 1.0  
-**Last Updated**: March 27, 2026  
-**Author**: NovaFund Development Team
