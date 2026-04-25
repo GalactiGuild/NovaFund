@@ -1,13 +1,16 @@
 use soroban_sdk::Env;
 
+use crate::math::checked_bps;
 use crate::types::{Amount, BasisPoints};
 
-/// Calculate percentage of an amount
+/// Calculate percentage of an amount using basis points.
+/// Returns 0 on overflow instead of panicking.
 pub fn calculate_percentage(amount: Amount, basis_points: BasisPoints) -> Amount {
-    (amount * basis_points as i128) / 10000
+    checked_bps(amount, basis_points).unwrap_or(0)
 }
 
-/// Calculate fee from amount
+/// Calculate fee from amount using basis points.
+/// Returns 0 on overflow instead of panicking.
 pub fn calculate_fee(amount: Amount, fee_rate: BasisPoints) -> Amount {
     calculate_percentage(amount, fee_rate)
 }
@@ -22,7 +25,8 @@ pub fn verify_past_timestamp(env: &Env, timestamp: u64) -> bool {
     timestamp <= env.ledger().timestamp()
 }
 
-/// Calculate proportional share
+/// Calculate proportional share.
+/// Returns 0 on overflow instead of panicking.
 pub fn calculate_share(total_amount: Amount, share_percentage: BasisPoints) -> Amount {
     calculate_percentage(total_amount, share_percentage)
 }

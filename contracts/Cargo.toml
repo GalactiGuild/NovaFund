@@ -3,6 +3,7 @@ resolver = "2"
 
 members = [
     "project-launch",
+    "treasury",
     "escrow",
     "profit-distribution",
     "subscription-pool",

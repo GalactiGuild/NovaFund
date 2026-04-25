@@ -22,6 +22,7 @@ use crate::{
     storage::*,
     types::InvestorShare,
 };
+use shared::math::{checked_add_i128, checked_bps, checked_muldiv, checked_sub_i128};
 
 const PRECISION: i128 = 1_000_000_000_000;
 const DEV_FUND_TAX_BPS: u32 = 500; // 5% tax (500 basis points)
@@ -126,8 +127,10 @@ impl ProfitDistribution {
         }
 
         // Calculate Developer Fund tax (5%)
-        let dev_fund_tax = (amount * DEV_FUND_TAX_BPS as i128) / 10_000;
-        let distribution_amount = amount - dev_fund_tax;
+        let dev_fund_tax = checked_bps(amount, DEV_FUND_TAX_BPS)
+            .ok_or(ContractError::Overflow)?;
+        let distribution_amount = checked_sub_i128(amount, dev_fund_tax)
+            .ok_or(ContractError::Overflow)?;
 
         // Transfer tokens to contract
         let token_client = TokenClient::new(&env, &token_address);
@@ -145,11 +148,11 @@ impl ProfitDistribution {
 
         // Update global accumulated profit (only distribution amount)
         let current_acc = get_acc_profit_per_share(&env, project_id);
-        let delta = (distribution_amount
-            .checked_mul(PRECISION)
-            .ok_or(ContractError::InvalidAmount)?)
-            / (total_shares as i128);
-        set_acc_profit_per_share(&env, project_id, current_acc + delta);
+        let delta = checked_muldiv(distribution_amount, PRECISION, total_shares as i128)
+            .ok_or(ContractError::Overflow)?;
+        let new_acc = checked_add_i128(current_acc, delta)
+            .ok_or(ContractError::Overflow)?;
+        set_acc_profit_per_share(&env, project_id, new_acc);
 
         emit_deposit_event(&env, project_id, distribution_amount);
         Ok(())
@@ -171,10 +174,12 @@ impl ProfitDistribution {
         let current_acc = get_acc_profit_per_share(&env, project_id);
 
         // Calculate pending amount
-        let pending = (share.share_percentage as i128
-            * (current_acc - share.accumulated_at_last_update))
-            / PRECISION;
-        let total_claimable = share.claimable_amount + pending;
+        let acc_delta = checked_sub_i128(current_acc, share.accumulated_at_last_update)
+            .ok_or(ContractError::Overflow)?;
+        let pending = checked_muldiv(share.share_percentage as i128, acc_delta, PRECISION)
+            .ok_or(ContractError::Overflow)?;
+        let total_claimable = checked_add_i128(share.claimable_amount, pending)
+            .ok_or(ContractError::Overflow)?;
 
         if total_claimable <= 0 {
             return Err(ContractError::NothingToClaim);
@@ -183,7 +188,8 @@ impl ProfitDistribution {
         // Update user state
         share.claimable_amount = 0;
         share.accumulated_at_last_update = current_acc;
-        share.total_claimed += total_claimable;
+        share.total_claimed = checked_add_i128(share.total_claimed, total_claimable)
+            .ok_or(ContractError::Overflow)?;
         set_investor_share(&env, project_id, &investor, &share);
 
         // Transfer funds
@@ -204,10 +210,12 @@ impl ProfitDistribution {
             get_investor_share(&env, project_id, &investor).ok_or(ContractError::Unauthorized)?;
 
         let current_acc = get_acc_profit_per_share(&env, project_id);
-        let pending = (share.share_percentage as i128
-            * (current_acc - share.accumulated_at_last_update))
-            / PRECISION;
-        share.claimable_amount += pending;
+        let acc_delta = checked_sub_i128(current_acc, share.accumulated_at_last_update)
+            .unwrap_or(0);
+        let pending = checked_muldiv(share.share_percentage as i128, acc_delta, PRECISION)
+            .unwrap_or(0);
+        share.claimable_amount = checked_add_i128(share.claimable_amount, pending)
+            .unwrap_or(share.claimable_amount);
 
         Ok(share)
     }

@@ -52,7 +52,6 @@ fn test_full_distribution_flow() {
 
     assert_eq!(share1.claimable_amount, 570); // 60% of 950
     assert_eq!(share2.claimable_amount, 380); // 40% of 950
-
     // Claim
     client.claim_dividends(&1, &investor1);
     assert_eq!(
@@ -74,4 +73,47 @@ fn test_full_distribution_flow() {
         client.get_investor_share(&1, &investor2).claimable_amount,
         570
     ); // 380 + 40% of 475 = 380+190=570
+}
+
+/// Verify that depositing an astronomically large amount returns Overflow
+/// instead of panicking.
+#[test]
+fn test_deposit_overflow_returns_error() {
+    let (env, client, admin, token) = setup_test();
+    let token_admin = StellarAssetClient::new(&env, &token);
+
+    client.initialize(&admin);
+    client.set_token(&1, &token);
+
+    let investor = Address::generate(&env);
+    let mut investors = Map::new(&env);
+    investors.set(investor.clone(), 10000);
+    client.register_investors(&1, &investors);
+
+    let depositor = Address::generate(&env);
+    // Mint i128::MAX tokens – the checked_mul inside deposit_profits will overflow
+    token_admin.mint(&depositor, &i128::MAX);
+
+    let result = client.try_deposit_profits(&1, &depositor, &i128::MAX);
+    assert!(result.is_err(), "expected Overflow error, got Ok");
+}
+
+/// Verify that math::checked_bps and checked_muldiv behave correctly at
+/// boundary values (unit tests for the shared math module).
+#[test]
+fn test_shared_math_boundaries() {
+    use shared::math::{checked_bps, checked_muldiv};
+
+    // Normal case
+    assert_eq!(checked_bps(1_000_000, 500), Some(50_000));
+
+    // Overflow case
+    assert_eq!(checked_bps(i128::MAX, 10_000), None);
+
+    // Division by zero
+    assert_eq!(checked_muldiv(1_000, 500, 0), None);
+
+    // Large but valid: (i128::MAX / 10_000) * 1 should not overflow
+    let safe_amount = i128::MAX / 10_000;
+    assert!(checked_bps(safe_amount, 10_000).is_some());
 }
