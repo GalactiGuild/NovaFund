@@ -4,7 +4,7 @@ import React, { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Menu, X, User, ChevronDown } from "lucide-react";
-import { Button } from "../ui";
+import { Button, ThemeToggle } from "../ui";
 import { NotificationCenter } from "../notifications/NotificationCenter";
 import { useSocial } from "@/contexts/SocialContext";
 
@@ -88,6 +88,7 @@ const Header: React.FC = () => {
           >
             Dashboard
           </Link>
+          <ThemeToggle />
           <NotificationCenter />
           <div ref={userMenuRef} className="relative">
             <button
@@ -187,7 +188,8 @@ const Header: React.FC = () => {
             >
               Dashboard
             </Link>
-            <div className="flex justify-center">
+            <div className="flex justify-center gap-4">
+              <ThemeToggle />
               <NotificationCenter />
             </div>
             <Button
