@@ -1,6 +1,7 @@
 #![no_std]
 
 mod rwa_metadata;
+mod whitelist;
 
 use soroban_sdk::{
     contract, contractimpl, contracttype, token::TokenClient, Address, Bytes, Env, String,
@@ -80,6 +81,8 @@ pub enum DataKey {
     PendingUpgrade = 9,
     RwaMetadataCid = 10, // (DataKey::RwaMetadataCid, project_id) -> String
     GovernanceContract = 11, // Address of the Governance DAO contract for upgrade approval
+    Whitelist = 12,          // (DataKey::Whitelist, project_id, investor) -> bool
+    WhitelistEnabled = 13,   // (DataKey::WhitelistEnabled, project_id) -> bool
 }
 
 #[contract]
@@ -248,6 +251,11 @@ impl ProjectLaunch {
             return Err(Error::DeadlinePass);
         }
 
+        // Check whitelist
+        if whitelist::is_blocked(&env, project_id, &contributor) {
+            return Err(Error::NotWhitelisted);
+        }
+
         // Verify Identity if required
         if let Some(jurisdictions) = env
             .storage()
@@ -346,6 +354,47 @@ impl ProjectLaunch {
     /// Return the current root IPFS CID for a project's RWA legal metadata.
     pub fn get_rwa_metadata(env: Env, project_id: u64) -> Option<String> {
         read_rwa_metadata_cid(&env, project_id)
+    }
+
+    // ---------- Whitelist management ----------
+
+    /// Enable the investor whitelist for a project. Only the project creator may call this.
+    pub fn enable_whitelist(env: Env, project_id: u64, caller: Address) -> Result<(), Error> {
+        caller.require_auth();
+        whitelist::enable_whitelist(&env, project_id, &caller)
+    }
+
+    /// Disable the investor whitelist for a project. Only the project creator may call this.
+    pub fn disable_whitelist(env: Env, project_id: u64, caller: Address) -> Result<(), Error> {
+        caller.require_auth();
+        whitelist::disable_whitelist(&env, project_id, &caller)
+    }
+
+    /// Add an investor to the project whitelist. Only the project creator may call this.
+    pub fn add_investor(
+        env: Env,
+        project_id: u64,
+        caller: Address,
+        investor: Address,
+    ) -> Result<(), Error> {
+        caller.require_auth();
+        whitelist::add_investor(&env, project_id, &caller, &investor)
+    }
+
+    /// Remove an investor from the project whitelist. Only the project creator may call this.
+    pub fn remove_investor(
+        env: Env,
+        project_id: u64,
+        caller: Address,
+        investor: Address,
+    ) -> Result<(), Error> {
+        caller.require_auth();
+        whitelist::remove_investor(&env, project_id, &caller, &investor)
+    }
+
+    /// Returns whether the whitelist is enabled for a project.
+    pub fn is_whitelist_enabled(env: Env, project_id: u64) -> bool {
+        whitelist::is_whitelist_enabled(&env, project_id)
     }
 
     /// Get individual contribution amount for a user
@@ -1503,5 +1552,236 @@ mod tests {
 
         // Tier 2 should have no limit (within project goals)
         client.contribute(&project_id, &contributor_t2, &(KYC_TIER_1_LIMIT + 1));
+    }
+
+    // ---------- Whitelist tests ----------
+
+    fn setup_project(env: &Env, client: &ProjectLaunchClient) -> (Address, Address, Address, u64, u64) {
+        let admin = Address::generate(env);
+        let creator = Address::generate(env);
+        let token = Address::generate(env);
+        let metadata_hash = Bytes::from_slice(env, b"QmHash");
+        client.initialize(&admin);
+        env.ledger().set_timestamp(1_000_000);
+        let deadline = 1_000_000 + MIN_PROJECT_DURATION + 86_400;
+        let project_id = client.create_project(
+            &creator,
+            &MIN_FUNDING_GOAL,
+            &deadline,
+            &token,
+            &metadata_hash,
+            &None,
+        );
+        (admin, creator, token, deadline, project_id)
+    }
+
+    #[test]
+    fn test_whitelist_disabled_by_default_allows_anyone() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let contract_id = env.register_contract(None, ProjectLaunch);
+        let client = ProjectLaunchClient::new(&env, &contract_id);
+        let (_, _, token, _, project_id) = setup_project(&env, &client);
+
+        let token_admin = Address::generate(&env);
+        let (token_addr, _, token_admin_client) = create_token_contract(&env, &token_admin);
+        // Re-create project with a real token so transfer works
+        let creator2 = Address::generate(&env);
+        let metadata_hash = Bytes::from_slice(&env, b"QmHash2");
+        let deadline2 = 1_000_000 + MIN_PROJECT_DURATION + 86_400;
+        let pid2 = client.create_project(
+            &creator2,
+            &MIN_FUNDING_GOAL,
+            &deadline2,
+            &token_addr,
+            &metadata_hash,
+            &None,
+        );
+
+        let investor = Address::generate(&env);
+        token_admin_client.mint(&investor, &MIN_CONTRIBUTION);
+
+        // Whitelist not enabled — anyone can contribute
+        assert!(!client.is_whitelist_enabled(&pid2));
+        client.contribute(&pid2, &investor, &MIN_CONTRIBUTION);
+    }
+
+    #[test]
+    fn test_whitelist_blocks_non_whitelisted_investor() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let contract_id = env.register_contract(None, ProjectLaunch);
+        let client = ProjectLaunchClient::new(&env, &contract_id);
+
+        let admin = Address::generate(&env);
+        let creator = Address::generate(&env);
+        let token_admin = Address::generate(&env);
+        let (token, _, token_admin_client) = create_token_contract(&env, &token_admin);
+        let metadata_hash = Bytes::from_slice(&env, b"QmHash");
+
+        client.initialize(&admin);
+        env.ledger().set_timestamp(1_000_000);
+        let deadline = 1_000_000 + MIN_PROJECT_DURATION + 86_400;
+        let project_id = client.create_project(
+            &creator,
+            &MIN_FUNDING_GOAL,
+            &deadline,
+            &token,
+            &metadata_hash,
+            &None,
+        );
+
+        // Enable whitelist
+        client.enable_whitelist(&project_id, &creator);
+        assert!(client.is_whitelist_enabled(&project_id));
+
+        let investor = Address::generate(&env);
+        token_admin_client.mint(&investor, &MIN_CONTRIBUTION);
+
+        // Not on whitelist — should be blocked
+        let result = client.try_contribute(&project_id, &investor, &MIN_CONTRIBUTION);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_whitelist_allows_whitelisted_investor() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let contract_id = env.register_contract(None, ProjectLaunch);
+        let client = ProjectLaunchClient::new(&env, &contract_id);
+
+        let admin = Address::generate(&env);
+        let creator = Address::generate(&env);
+        let token_admin = Address::generate(&env);
+        let (token, _, token_admin_client) = create_token_contract(&env, &token_admin);
+        let metadata_hash = Bytes::from_slice(&env, b"QmHash");
+
+        client.initialize(&admin);
+        env.ledger().set_timestamp(1_000_000);
+        let deadline = 1_000_000 + MIN_PROJECT_DURATION + 86_400;
+        let project_id = client.create_project(
+            &creator,
+            &MIN_FUNDING_GOAL,
+            &deadline,
+            &token,
+            &metadata_hash,
+            &None,
+        );
+
+        let investor = Address::generate(&env);
+        token_admin_client.mint(&investor, &MIN_CONTRIBUTION);
+
+        // Enable whitelist and add investor
+        client.enable_whitelist(&project_id, &creator);
+        client.add_investor(&project_id, &creator, &investor);
+
+        // Whitelisted investor can contribute
+        client.contribute(&project_id, &investor, &MIN_CONTRIBUTION);
+        assert_eq!(client.get_user_contribution(&project_id, &investor), MIN_CONTRIBUTION);
+    }
+
+    #[test]
+    fn test_remove_investor_blocks_subsequent_contribution() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let contract_id = env.register_contract(None, ProjectLaunch);
+        let client = ProjectLaunchClient::new(&env, &contract_id);
+
+        let admin = Address::generate(&env);
+        let creator = Address::generate(&env);
+        let token_admin = Address::generate(&env);
+        let (token, _, token_admin_client) = create_token_contract(&env, &token_admin);
+        let metadata_hash = Bytes::from_slice(&env, b"QmHash");
+
+        client.initialize(&admin);
+        env.ledger().set_timestamp(1_000_000);
+        let deadline = 1_000_000 + MIN_PROJECT_DURATION + 86_400;
+        let project_id = client.create_project(
+            &creator,
+            &MIN_FUNDING_GOAL,
+            &deadline,
+            &token,
+            &metadata_hash,
+            &None,
+        );
+
+        let investor = Address::generate(&env);
+        token_admin_client.mint(&investor, &(MIN_CONTRIBUTION * 2));
+
+        client.enable_whitelist(&project_id, &creator);
+        client.add_investor(&project_id, &creator, &investor);
+        client.contribute(&project_id, &investor, &MIN_CONTRIBUTION);
+
+        // Remove investor — next contribution should fail
+        client.remove_investor(&project_id, &creator, &investor);
+        let result = client.try_contribute(&project_id, &investor, &MIN_CONTRIBUTION);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_disable_whitelist_re_allows_all() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let contract_id = env.register_contract(None, ProjectLaunch);
+        let client = ProjectLaunchClient::new(&env, &contract_id);
+
+        let admin = Address::generate(&env);
+        let creator = Address::generate(&env);
+        let token_admin = Address::generate(&env);
+        let (token, _, token_admin_client) = create_token_contract(&env, &token_admin);
+        let metadata_hash = Bytes::from_slice(&env, b"QmHash");
+
+        client.initialize(&admin);
+        env.ledger().set_timestamp(1_000_000);
+        let deadline = 1_000_000 + MIN_PROJECT_DURATION + 86_400;
+        let project_id = client.create_project(
+            &creator,
+            &MIN_FUNDING_GOAL,
+            &deadline,
+            &token,
+            &metadata_hash,
+            &None,
+        );
+
+        let investor = Address::generate(&env);
+        token_admin_client.mint(&investor, &MIN_CONTRIBUTION);
+
+        client.enable_whitelist(&project_id, &creator);
+        // Blocked while enabled
+        assert!(client.try_contribute(&project_id, &investor, &MIN_CONTRIBUTION).is_err());
+
+        // Disable — now open to all
+        client.disable_whitelist(&project_id, &creator);
+        assert!(!client.is_whitelist_enabled(&project_id));
+        client.contribute(&project_id, &investor, &MIN_CONTRIBUTION);
+    }
+
+    #[test]
+    fn test_non_creator_cannot_manage_whitelist() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let contract_id = env.register_contract(None, ProjectLaunch);
+        let client = ProjectLaunchClient::new(&env, &contract_id);
+
+        let admin = Address::generate(&env);
+        let creator = Address::generate(&env);
+        let intruder = Address::generate(&env);
+        let token = Address::generate(&env);
+        let metadata_hash = Bytes::from_slice(&env, b"QmHash");
+
+        client.initialize(&admin);
+        env.ledger().set_timestamp(1_000_000);
+        let deadline = 1_000_000 + MIN_PROJECT_DURATION + 86_400;
+        let project_id = client.create_project(
+            &creator,
+            &MIN_FUNDING_GOAL,
+            &deadline,
+            &token,
+            &metadata_hash,
+            &None,
+        );
+
+        assert!(client.try_enable_whitelist(&project_id, &intruder).is_err());
+        assert!(client.try_add_investor(&project_id, &intruder, &intruder).is_err());
     }
 }

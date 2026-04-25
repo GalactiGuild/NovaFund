@@ -86,6 +86,12 @@ pub const UPGRADE_SCHEDULED: Symbol = symbol_short!("upg_sched");
 pub const UPGRADE_EXECUTED: Symbol = symbol_short!("upg_exec");
 pub const UPGRADE_CANCELLED: Symbol = symbol_short!("upg_canc");
 
+// Whitelist events
+pub const WHITELIST_ENABLED: Symbol = symbol_short!("wl_on");
+pub const WHITELIST_DISABLED: Symbol = symbol_short!("wl_off");
+pub const INVESTOR_ADDED: Symbol = symbol_short!("wl_add");
+pub const INVESTOR_REMOVED: Symbol = symbol_short!("wl_rem");
+
 // Oracle events
 pub const ORACLE_FEED_CREATED: Symbol = symbol_short!("or_feed");
 pub const ORACLE_FEED_UPDATED: Symbol = symbol_short!("or_upd");
