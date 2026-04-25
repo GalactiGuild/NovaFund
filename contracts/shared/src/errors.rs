@@ -68,4 +68,8 @@ pub enum Error {
     InsufVote = 48,
     PropExc = 49,
     QuorumNR = 50,
+
+    // Whitelist errors
+    NotWhitelisted = 51,
+    WhitelistEnabled = 52,
 }
