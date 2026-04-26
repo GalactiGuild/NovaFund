@@ -1,40 +1,45 @@
 /**
  * Stellar SDK Wrapper
- * 
+ *
  * This is a placeholder implementation for the Stellar SDK integration.
  * Replace with actual @stellar/stellar-sdk implementation when available.
  */
 
-import { Transaction } from '@stellar/stellar-sdk';
+import { Transaction } from "@stellar/stellar-sdk";
 
 /**
  * Submits a transaction to the backend relay for fee sponsorship
  */
-export async function submitSponsoringTransaction(transaction: Transaction): Promise<{ hash: string; error?: string }> {
+export async function submitSponsoringTransaction(
+  transaction: Transaction,
+): Promise<{ hash: string; error?: string }> {
   try {
     const xdr = transaction.toXDR();
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api/v1';
-    
+    const apiUrl =
+      process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000/api/v1";
+
     const response = await fetch(`${apiUrl}/relay/fee-bump`, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       },
       body: JSON.stringify({ xdr }),
     });
 
     if (!response.ok) {
       const errorData = await response.json();
-      throw new Error(errorData.message || 'Failed to submit sponsoring transaction');
+      throw new Error(
+        errorData.message || "Failed to submit sponsoring transaction",
+      );
     }
 
     const data = await response.json();
     return { hash: data.hash };
   } catch (error) {
-    console.error('Sponsoring transaction failed:', error);
+    console.error("Sponsoring transaction failed:", error);
     return {
-      hash: '',
-      error: error instanceof Error ? error.message : 'Unknown error occurred',
+      hash: "",
+      error: error instanceof Error ? error.message : "Unknown error occurred",
     };
   }
 }
@@ -54,7 +59,7 @@ export interface StellarRecoveryError {
  * Placeholder for SEP-30 magic link recovery
  * TODO: Replace with actual Stellar SDK implementation
  */
-export async function recoverWithMagicLink(token: string, email: string): Promise<StellarRecoveryResult> {
+export async function recoverWithMagicLink(): Promise<StellarRecoveryResult> {
   try {
     // Placeholder implementation
     // In production, this would:
@@ -62,19 +67,19 @@ export async function recoverWithMagicLink(token: string, email: string): Promis
     // 2. Verify the email matches the recovery request
     // 3. Restore wallet access using SEP-30 protocol
     // 4. Return the recovered wallet address
-    
+
     // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+
     // Simulate success for demo
     return {
       success: true,
-      walletAddress: "GDEMOACCOUNTXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+      walletAddress: "GDEMOACCOUNTXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
     };
   } catch (error) {
     return {
       success: false,
-      error: error instanceof Error ? error.message : "Unknown error occurred"
+      error: error instanceof Error ? error.message : "Unknown error occurred",
     };
   }
 }
@@ -83,7 +88,10 @@ export async function recoverWithMagicLink(token: string, email: string): Promis
  * Placeholder for requesting a recovery link
  * TODO: Replace with actual Stellar SDK implementation
  */
-export async function requestRecoveryLink(email: string): Promise<{ success: boolean; error?: string }> {
+export async function requestRecoveryLink(): Promise<{
+  success: boolean;
+  error?: string;
+}> {
   try {
     // Placeholder implementation
     // In production, this would:
@@ -91,15 +99,15 @@ export async function requestRecoveryLink(email: string): Promise<{ success: boo
     // 2. Check if email is associated with a Stellar wallet
     // 3. Generate a secure recovery token
     // 4. Send recovery email with magic link
-    
+
     // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+
     return { success: true };
   } catch (error) {
     return {
       success: false,
-      error: error instanceof Error ? error.message : "Unknown error occurred"
+      error: error instanceof Error ? error.message : "Unknown error occurred",
     };
   }
 }

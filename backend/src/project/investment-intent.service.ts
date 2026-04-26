@@ -2,6 +2,7 @@ import { Injectable, Logger, BadRequestException, NotFoundException } from '@nes
 import { PrismaService } from '../prisma.service';
 import { PathfinderService, PaymentPath, RouteAnalysis } from '../stellar/pathfinder.service';
 import { RedisService } from '../redis/redis.service';
+import { LeaderboardService } from '../reputation/leaderboard.service';
 import {
   InvestmentIntentDto,
   CreateInvestmentIntentInputDto,
@@ -20,6 +21,7 @@ export class InvestmentIntentService {
     private readonly prisma: PrismaService,
     private readonly pathfinder: PathfinderService,
     private readonly redis: RedisService,
+    private readonly leaderboardService: LeaderboardService,
   ) {}
 
   /**
@@ -209,6 +211,9 @@ export class InvestmentIntentService {
 
     // Invalidate cache
     await this.invalidateIntentCache(id);
+
+    // Trigger leaderboard refresh check
+    await this.leaderboardService.handleMassiveInvestment(Number(updated.investmentAmount));
 
     this.logger.log(`Approved investment intent ${id}`);
 

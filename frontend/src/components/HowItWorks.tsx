@@ -3,7 +3,7 @@
 import React from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { Lightbulb, BarChart3, Zap, ArrowRight } from "lucide-react";
+import { Lightbulb, BarChart3, Zap } from "lucide-react";
 import { Button } from "./ui";
 
 const steps = [
@@ -150,10 +150,7 @@ export const HowItWorks: React.FC = () => {
           </div>
 
           {/* Visual Flow Indicator */}
-          <motion.div
-            variants={itemVariants}
-            className="mt-16 text-center"
-          >
+          <motion.div variants={itemVariants} className="mt-16 text-center">
             <div className="mt-8 text-center">
               <p className="text-sm text-gray-400 mb-6">
                 Ready to start your investment journey?
@@ -177,7 +174,11 @@ export const HowItWorks: React.FC = () => {
                 ))}
               </div>
               <Link href="/explore" className="inline-block">
-                <Button variant="primary" size="lg" className="px-8 py-4 text-lg font-semibold">
+                <Button
+                  variant="primary"
+                  size="lg"
+                  className="px-8 py-4 text-lg font-semibold"
+                >
                   Explore Projects
                 </Button>
               </Link>

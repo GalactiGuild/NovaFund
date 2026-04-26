@@ -122,6 +122,10 @@ class EnvironmentVariables {
   @IsNumber()
   PRICE_FETCH_INTERVAL_MINUTES?: number;
 
+  @IsOptional()
+  @IsNumber()
+  GRAPHQL_MAX_QUERY_COST?: number;
+
   // ─── Support / Live Chat Integration ───────────────────────────────
   @IsOptional()
   @IsString()

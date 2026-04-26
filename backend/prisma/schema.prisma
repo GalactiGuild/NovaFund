@@ -69,6 +69,7 @@ model Project {
   contributions Contribution[]
   milestones    Milestone[]
   shortlinks    Shortlink[]
+  payoutTiers   ProjectPayoutTier[]
 
   @@map("projects")
 }
@@ -426,6 +427,69 @@ model YieldEvent {
   @@index([escrowId])
   @@index([isActive])
   @@map("yield_events")
+}
+
+model ProjectPayoutTier {
+  id            String             @id @default(cuid())
+  projectId     String             @map("project_id")
+  project       Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  tierOrder     Int                @map("tier_order")
+  recipientType PayoutRecipientType @map("recipient_type")
+  maxAmount     BigInt?            @map("max_amount")
+  createdAt     DateTime           @default(now()) @map("created_at")
+  updatedAt     DateTime           @updatedAt @map("updated_at")
+
+  @@unique([projectId, tierOrder])
+  @@index([projectId])
+  @@map("project_payout_tiers")
+}
+
+enum PayoutRecipientType {
+  INVESTORS
+  CREATOR
+  PLATFORM
+  RESERVE
+}
+
+model OperationalCost {
+  id               String   @id @default(cuid())
+  date             DateTime @unique
+  totalFeeCharged  BigInt   @default(0) @map("total_fee_charged")
+  eventCount       Int      @default(0) @map("event_count")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  @@index([date])
+  @@map("operational_costs")
+}
+
+model OperationalCostEvent {
+  id               String   @id @default(cuid())
+  txHash           String?  @map("tx_hash")
+  source           String
+  feeCharged       BigInt   @map("fee_charged")
+  ledger           Int?     
+  capturedAt       DateTime @default(now()) @map("captured_at")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  @@index([capturedAt])
+  @@index([source])
+  @@map("operational_cost_events")
+}
+
+model StellarEcosystemSnapshot {
+  id                String   @id @default(cuid())
+  snapshotDate      DateTime @unique @map("snapshot_date")
+  topTradedAssets   Json     @map("top_traded_assets")
+  dexVolume24h      BigInt   @default(0) @map("dex_volume_24h")
+  rwaDexVolume24h   BigInt   @default(0) @map("rwa_dex_volume_24h")
+  source            String   @default("horizon")
+  capturedAt        DateTime @default(now()) @map("captured_at")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  @@index([capturedAt])
+  @@map("stellar_ecosystem_snapshots")
 }
 
 model TokenPrice {

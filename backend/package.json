@@ -55,6 +55,7 @@
     "compromise": "^14.15.0",
     "decimal.js": "^10.6.0",
     "graphql": "^16.13.2",
+    "graphql-query-complexity": "^1.1.0",
     "ioredis": "^5.10.1",
     "ipfs-http-client": "^60.0.1",
     "node-cron": "^4.2.1",

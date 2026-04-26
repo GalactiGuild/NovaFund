@@ -11,7 +11,7 @@ type ForgotPasswordState = "form" | "loading" | "success";
 
 /**
  * Forgot Password Page
- * 
+ *
  * Allows users to request a new recovery link for their SEP-30 email recovery.
  * This is the entry point for the recovery flow.
  */
@@ -50,15 +50,17 @@ export default function ForgotPasswordPage() {
     setIsLoading(true);
 
     try {
-      const result = await requestRecoveryLink(email);
-      
+      const result = await requestRecoveryLink();
+
       if (result.success) {
         setState("success");
       } else {
-        setError(result.error || "Failed to send recovery link. Please try again.");
+        setError(
+          result.error || "Failed to send recovery link. Please try again.",
+        );
         setState("form");
       }
-    } catch (error) {
+    } catch {
       setError("Failed to send recovery link. Please try again.");
       setState("form");
     } finally {
@@ -79,11 +81,11 @@ export default function ForgotPasswordPage() {
               <div className="w-16 h-16 bg-purple-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
                 <Mail className="w-8 h-8 text-purple-500" />
               </div>
-              
+
               <h2 className="text-2xl font-bold text-white mb-2">
                 Recover Your Account
               </h2>
-              
+
               <p className="text-gray-400">
                 Enter your email address and we&apos;ll send you a recovery link
               </p>
@@ -91,7 +93,10 @@ export default function ForgotPasswordPage() {
 
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label htmlFor="email" className="block text-sm font-medium text-gray-300 mb-2">
+                <label
+                  htmlFor="email"
+                  className="block text-sm font-medium text-gray-300 mb-2"
+                >
                   Email Address
                 </label>
                 <input
@@ -103,9 +108,7 @@ export default function ForgotPasswordPage() {
                   className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                   disabled={isLoading}
                 />
-                {error && (
-                  <p className="mt-2 text-sm text-red-400">{error}</p>
-                )}
+                {error && <p className="mt-2 text-sm text-red-400">{error}</p>}
               </div>
 
               <Button
@@ -157,39 +160,35 @@ export default function ForgotPasswordPage() {
             <div className="w-16 h-16 bg-green-500/20 rounded-full flex items-center justify-center mx-auto">
               <CheckCircle2 className="w-8 h-8 text-green-500" />
             </div>
-            
+
             <div>
               <h2 className="text-2xl font-bold text-white mb-2">
                 Recovery Link Sent
               </h2>
-              
+
               <p className="text-gray-400 mb-4">
                 We&apos;ve sent a recovery link to{" "}
                 <span className="font-semibold text-white">{email}</span>
               </p>
-              
+
               <p className="text-gray-500 text-sm">
-                Check your inbox and click the link to recover your account.
-                The link will expire in 24 hours for security reasons.
+                Check your inbox and click the link to recover your account. The
+                link will expire in 24 hours for security reasons.
               </p>
             </div>
 
             <div className="space-y-3">
               <Button
-                onClick={() => window.location.href = "https://gmail.com"}
+                onClick={() => (window.location.href = "https://gmail.com")}
                 variant="secondary"
                 size="lg"
                 className="w-full"
               >
                 Open Email App
               </Button>
-              
+
               <Link href="/" className="block">
-                <Button
-                  variant="secondary"
-                  size="lg"
-                  className="w-full"
-                >
+                <Button variant="secondary" size="lg" className="w-full">
                   Back to Home
                 </Button>
               </Link>
@@ -212,7 +211,7 @@ export default function ForgotPasswordPage() {
         <div className="bg-gray-900/50 backdrop-blur-sm rounded-2xl border border-gray-800 p-8">
           {renderContent()}
         </div>
-        
+
         {/* Security footer */}
         <div className="mt-6 text-center">
           <p className="text-xs text-gray-500">

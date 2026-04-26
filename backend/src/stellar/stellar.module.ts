@@ -9,6 +9,9 @@ import { AssetDiscoveryService } from './asset-discovery.service';
 import { AssetDiscoveryController } from './asset-discovery.controller';
 import { PrismaService } from '../prisma.service';
 import { ScheduleModule } from '@nestjs/schedule';
+import { AccountingService } from './accounting.service';
+import { EcosystemSyncService } from './ecosystem-sync.service';
+import { StellarInsightsResolver } from './stellar-insights.resolver';
 
 @Module({
   imports: [HttpModule, ScheduleModule.forRoot()],
@@ -17,7 +20,10 @@ import { ScheduleModule } from '@nestjs/schedule';
     PathfinderService,
     FederationService,
     AssetDiscoveryService,
-    PrismaService
+    AccountingService,
+    EcosystemSyncService,
+    StellarInsightsResolver,
+    PrismaService,
   ],
   controllers: [
     RpcFallbackController,
@@ -28,7 +34,9 @@ import { ScheduleModule } from '@nestjs/schedule';
     RpcFallbackService,
     PathfinderService,
     FederationService,
-    AssetDiscoveryService
+    AssetDiscoveryService,
+    AccountingService,
+    EcosystemSyncService,
   ],
 })
 export class StellarModule {}

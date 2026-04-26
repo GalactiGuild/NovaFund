@@ -1,13 +1,19 @@
 "use client";
 
-import { ShieldCheck, ExternalLink, ShieldAlert, FileText, CheckCircle2 } from "lucide-react";
+import {
+  ShieldCheck,
+  ExternalLink,
+  ShieldAlert,
+  FileText,
+  CheckCircle2,
+} from "lucide-react";
 import { HoverCard } from "./ui/HoverCard";
 
 interface AuditBadgeProps {
   projectId: string;
 }
 
-export function AuditBadge({ projectId }: AuditBadgeProps) {
+export function AuditBadge({}: AuditBadgeProps) {
   // Mock data for project audit metadata. In reality, you'd fetch this using the projectId
   // from a backend service or smart contract RPC check.
   const auditData = {
@@ -21,7 +27,7 @@ export function AuditBadge({ projectId }: AuditBadgeProps) {
       medium: 1,
       low: 3,
     },
-    url: "#"
+    url: "#",
   };
 
   return (
@@ -42,13 +48,18 @@ export function AuditBadge({ projectId }: AuditBadgeProps) {
               <ShieldCheck className="h-5 w-5 text-emerald-400" />
             </div>
             <div>
-              <h4 className="text-sm font-semibold text-white">Smart Contract Audit</h4>
-              <p className="text-xs text-white/50 mt-0.5">by {auditData.auditor}</p>
+              <h4 className="text-sm font-semibold text-white">
+                Smart Contract Audit
+              </h4>
+              <p className="text-xs text-white/50 mt-0.5">
+                by {auditData.auditor}
+              </p>
             </div>
           </div>
           <div className="flex flex-col items-end">
             <span className="text-xl font-bold text-emerald-400">
-              {auditData.score}<span className="text-sm text-white/40">/100</span>
+              {auditData.score}
+              <span className="text-sm text-white/40">/100</span>
             </span>
             <span className="text-[10px] font-medium uppercase tracking-[0.15em] text-emerald-500/70 mt-0.5">
               Security Score
@@ -60,7 +71,7 @@ export function AuditBadge({ projectId }: AuditBadgeProps) {
         <div className="space-y-3">
           <div className="flex justify-between items-center text-sm text-white/70">
             <span className="flex items-center gap-2">
-              <CheckCircle2 className="h-4 w-4 text-emerald-400" /> 
+              <CheckCircle2 className="h-4 w-4 text-emerald-400" />
               Critical vulnerabilities
             </span>
             <span className="font-semibold text-white bg-white/5 px-2 py-0.5 rounded-md">
@@ -69,7 +80,7 @@ export function AuditBadge({ projectId }: AuditBadgeProps) {
           </div>
           <div className="flex justify-between items-center text-sm text-white/70">
             <span className="flex items-center gap-2">
-              <CheckCircle2 className="h-4 w-4 text-emerald-400" /> 
+              <CheckCircle2 className="h-4 w-4 text-emerald-400" />
               High risk findings
             </span>
             <span className="font-semibold text-white bg-white/5 px-2 py-0.5 rounded-md">
@@ -77,25 +88,28 @@ export function AuditBadge({ projectId }: AuditBadgeProps) {
             </span>
           </div>
           <div className="flex justify-between items-center text-sm text-white/70">
-             <span className="flex items-center gap-2">
-               <ShieldAlert className="h-4 w-4 text-amber-400" /> 
-               Medium risk findings
-             </span>
-             <span className="font-semibold text-white bg-white/5 px-2 py-0.5 rounded-md">
-               {auditData.issues.medium}
-             </span>
+            <span className="flex items-center gap-2">
+              <ShieldAlert className="h-4 w-4 text-amber-400" />
+              Medium risk findings
+            </span>
+            <span className="font-semibold text-white bg-white/5 px-2 py-0.5 rounded-md">
+              {auditData.issues.medium}
+            </span>
           </div>
 
           <div className="mt-3 rounded-xl border border-white/5 bg-black/30 p-3 text-xs leading-relaxed text-white/60">
             <span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wider text-white/40">
               Conclusion
             </span>
-            <p>Contracts align precisely with decentralized best practices. Minor architectural optimizations were acknowledged.</p>
+            <p>
+              Contracts align precisely with decentralized best practices. Minor
+              architectural optimizations were acknowledged.
+            </p>
           </div>
         </div>
 
         {/* Action */}
-        <a 
+        <a
           href={auditData.url}
           target="_blank"
           rel="noopener noreferrer"

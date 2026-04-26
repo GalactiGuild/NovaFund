@@ -25,13 +25,18 @@ export async function POST(request: Request) {
     if (!type || !VALID_TYPES.includes(type)) {
       return NextResponse.json(
         { error: "Invalid or missing type" },
-        { status: 400 }
+        { status: 400 },
       );
     }
-    if (!title || typeof title !== "string" || !message || typeof message !== "string") {
+    if (
+      !title ||
+      typeof title !== "string" ||
+      !message ||
+      typeof message !== "string"
+    ) {
       return NextResponse.json(
         { error: "title and message are required strings" },
-        { status: 400 }
+        { status: 400 },
       );
     }
     const notification = notificationStore.add({
@@ -41,10 +46,10 @@ export async function POST(request: Request) {
       link: typeof link === "string" ? link : undefined,
     });
     return NextResponse.json(notification);
-  } catch (e) {
+  } catch {
     return NextResponse.json(
       { error: "Invalid request body" },
-      { status: 400 }
+      { status: 400 },
     );
   }
 }

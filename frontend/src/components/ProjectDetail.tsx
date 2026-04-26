@@ -6,6 +6,7 @@ import * as Tooltip from "@radix-ui/react-tooltip";
 import { Info, FileText, Download, TrendingUp, Calendar, Lock } from "lucide-react";
 import { AuditBadge } from "./AuditBadge";
 import MilestoneTimeline, { type Milestone } from "./MilestoneTimeline";
+import { Term } from "@/components/ui";
 
 export interface RWAProjectProps {
   id: string;
@@ -50,7 +51,7 @@ export function ProjectDetail({ project }: { project: RWAProjectProps }) {
       <section className="grid grid-cols-1 gap-6 sm:grid-cols-3">
         <div className="flex flex-col justify-between rounded-3xl border border-white/10 bg-gradient-to-b from-white/[0.05] to-transparent p-6 shadow-2xl ring-1 ring-white/5 transition-all hover:bg-white/[0.08]">
           <div className="flex items-center justify-between text-white/50 text-[11px] font-bold uppercase tracking-[0.2em] mb-4">
-            Expected Yield
+            <Term termKey="yield" side="top" />
             <TrendingUp className="h-5 w-5 text-emerald-400/90" />
           </div>
           <div className="text-4xl font-extrabold tracking-tight text-white drop-shadow-md">{project.expectedYield}</div>
@@ -59,7 +60,7 @@ export function ProjectDetail({ project }: { project: RWAProjectProps }) {
 
         <div className="flex flex-col justify-between rounded-3xl border border-white/10 bg-gradient-to-b from-white/[0.05] to-transparent p-6 shadow-2xl ring-1 ring-white/5 transition-all hover:bg-white/[0.08]">
           <div className="flex items-center justify-between text-white/50 text-[11px] font-bold uppercase tracking-[0.2em] mb-4">
-            Underlying Value
+            <Term termKey="tvl" side="top" />
             <Lock className="h-5 w-5 text-blue-400/90" />
           </div>
           <div className="text-4xl font-extrabold tracking-tight text-white drop-shadow-md">{project.totalValueLocked}</div>

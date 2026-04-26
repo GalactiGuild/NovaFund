@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
 import Header from "../components/layout/Header";
 import Footer from "../components/layout/Footer";
 import { NotificationProvider } from "../contexts/NotificationContext";
@@ -8,8 +7,6 @@ import { LiveNotificationToast } from "../components/notifications/LiveNotificat
 import { PageTransition } from "../components/layout/PageTransition";
 import { ThemeProvider } from "../contexts/ThemeProvider";
 import "../styles/globals.css";
-
-const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
   title: "NovaFund | Decentralized Micro-Investment",

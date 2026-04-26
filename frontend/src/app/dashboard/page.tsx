@@ -7,7 +7,6 @@ import PortfolioStats from "@/components/PortfolioStats";
 import PortfolioChart from "@/components/PortfolioChart";
 import LoadingDashboard from "@/components/LoadingDashboard";
 
-
 // Mock data types
 interface Investment {
   id: string;
@@ -128,7 +127,7 @@ export default function DashboardPage() {
       } catch {
         // ignore
       }
-    } catch (error) {
+    } catch {
       setToastMessage("Failed to claim returns. Please try again.");
       setShowToast(true);
       setTimeout(() => setShowToast(false), 3000);
@@ -164,10 +163,14 @@ export default function DashboardPage() {
             Investor Dashboard
           </div>
           <h1 className="text-5xl font-extrabold tracking-tight text-white sm:text-6xl mb-4">
-            <span className="bg-gradient-to-r from-primary via-blue-400 to-purple-500 bg-clip-text text-transparent">Portfolio</span> Overview
+            <span className="bg-gradient-to-r from-primary via-blue-400 to-purple-500 bg-clip-text text-transparent">
+              Portfolio
+            </span>{" "}
+            Overview
           </h1>
           <p className="text-white/50 font-light leading-relaxed max-w-2xl text-lg">
-            Track your investments, monitor returns, and manage your portfolio with real-time insights.
+            Track your investments, monitor returns, and manage your portfolio
+            with real-time insights.
           </p>
         </div>
 
@@ -207,13 +210,27 @@ export default function DashboardPage() {
         ) : (
           <div className="flex flex-col items-center justify-center py-32 text-center rounded-3xl border border-white/5 bg-white/[0.01]">
             <div className="rounded-full border border-white/10 bg-zinc-900/50 p-6 mb-6 shadow-xl backdrop-blur-sm">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-zinc-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                className="h-10 w-10 text-zinc-500"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                />
               </svg>
             </div>
-            <h3 className="text-3xl font-light tracking-tight text-white">No Investments Yet</h3>
+            <h3 className="text-3xl font-light tracking-tight text-white">
+              No Investments Yet
+            </h3>
             <p className="mt-3 text-zinc-500 max-w-sm mx-auto mb-8">
-              Start building your portfolio by exploring and investing in impactful projects.
+              Start building your portfolio by exploring and investing in
+              impactful projects.
             </p>
             <Button
               onClick={() => (window.location.href = "/explore")}

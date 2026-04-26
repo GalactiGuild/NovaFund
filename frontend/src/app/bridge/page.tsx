@@ -11,6 +11,7 @@ import {
   ShieldCheck,
   Wallet,
 } from "lucide-react";
+import { Term } from "@/components/ui";
 
 type SourceChain = {
   id: "ethereum" | "polygon";
@@ -137,11 +138,11 @@ export default function BridgePage() {
           <div className="max-w-2xl">
             <div className="inline-flex items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-400/10 px-4 py-2 text-sm text-cyan-100">
               <ShieldCheck className="h-4 w-4" />
-              Bridge external USDC liquidity into Stellar-native funding
+              Bridge external <Term termKey="usdc" side="bottom" /> liquidity into <Term termKey="stellar" side="bottom" />-native funding
             </div>
 
             <h1 className="mt-6 text-4xl font-semibold tracking-tight text-white sm:text-5xl">
-              Route USDC from Ethereum or Polygon into a NovaFund project
+              Route <Term termKey="usdc" side="bottom" /> from Ethereum or Polygon into a NovaFund project via <Term termKey="bridge" side="bottom" />
             </h1>
 
             <p className="mt-5 max-w-xl text-base leading-7 text-white/70 sm:text-lg">

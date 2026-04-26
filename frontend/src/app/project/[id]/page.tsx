@@ -3,18 +3,18 @@
 import dynamic from "next/dynamic";
 import Image from "next/image";
 import { useMemo, useState } from "react";
-import { Clock8, ShieldCheck, Sparkles, Target, Users } from "lucide-react";
-import MilestoneTimeline, {
-  type Milestone,
-} from "@/components/MilestoneTimeline";
+import { ShieldCheck, Sparkles, Target, Users } from "lucide-react";
+import { type Milestone } from "@/components/MilestoneTimeline";
 import { ShareButton } from "@/components/social/ShareButton";
 import { LikeButton } from "@/components/social/LikeButton";
 import { SocialStats } from "@/components/social/SocialStats";
 import { UserProfileCard } from "@/components/social/UserProfileCard";
 import { BackerAvatars } from "@/components/social/BackerAvatars";
 import { CommentSection } from "@/components/social/CommentSection";
-import { AuditBadge } from "@/components/AuditBadge";
-import { ProjectDetail, type RWAProjectProps } from "@/components/ProjectDetail";
+import {
+  ProjectDetail,
+  type RWAProjectProps,
+} from "@/components/ProjectDetail";
 
 // Lazy-load the chart so it never blocks LCP — the funding progress bar above
 // the fold is rendered inline; the chart loads after the critical content.
@@ -151,15 +151,12 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
     maturityDate: "Q3 2028",
     fundingTarget: fundingTarget,
     fundsCommitted: fundsCommitted,
-    milestones: milestones
+    milestones: milestones,
   };
 
-  const completedCount = milestones.filter(
-    (milestone) => milestone.status === "completed"
-  ).length;
   const activeMilestone = useMemo(
     () => milestones.find((milestone) => milestone.status === "active"),
-    []
+    [],
   );
 
   const estimatedPremium = useMemo(() => {
@@ -202,7 +199,7 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
         setStatusMessage(
           insuranceSelected
             ? "Contribution and insurance coverage successfully sponsored and submitted! Expect the on-chain release window in 2 minutes."
-            : "Contribution successfully sponsored and submitted! Expect the on-chain release window in 2 minutes."
+            : "Contribution successfully sponsored and submitted! Expect the on-chain release window in 2 minutes.",
         );
         setLatestContribution({
           amount: `${amount.toFixed(2)} XLM`,
@@ -210,7 +207,9 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
         });
       } else {
         setContributionStatus("error");
-        setStatusMessage("Network handshake or sponsorship failed. Please try again.");
+        setStatusMessage(
+          "Network handshake or sponsorship failed. Please try again.",
+        );
       }
     }, 2000);
   };
@@ -235,13 +234,16 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
         <div className="mt-4 grid gap-10 lg:grid-cols-[1.65fr_0.9fr]">
           <div className="space-y-10">
             <ProjectDetail project={rwaProjectData} />
-            
+
             {/* Social Stats & Community */}
             <div className="flex flex-wrap items-center justify-between gap-4 rounded-3xl border border-white/10 bg-slate-900/60 px-8 py-6 shadow-2xl">
               <SocialStats projectId={params.id} />
               <div className="flex items-center gap-4">
                 <LikeButton projectId={params.id} />
-                <ShareButton projectId={params.id} projectTitle={projectProfile.name} />
+                <ShareButton
+                  projectId={params.id}
+                  projectTitle={projectProfile.name}
+                />
               </div>
               <BackerAvatars projectId={params.id} />
             </div>
@@ -291,11 +293,15 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
 
             {/* Lazy-loaded chart — does not block LCP */}
             <div className="flex justify-center py-2">
-              <FundingChart fundingTarget={fundingTarget} fundsCommitted={fundsCommitted} />
+              <FundingChart
+                fundingTarget={fundingTarget}
+                fundsCommitted={fundsCommitted}
+              />
             </div>
 
             <div className="space-y-4">
-              {highlightStats.map((stat) => (                <div
+              {highlightStats.map((stat) => (
+                <div
                   key={stat.label}
                   className="flex items-center gap-3 rounded-2xl border border-white/5 bg-white/5 px-4 py-3"
                 >
@@ -466,8 +472,8 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
                   contributionStatus === "success"
                     ? "text-purple-300"
                     : contributionStatus === "error"
-                    ? "text-rose-300"
-                    : "text-white/60"
+                      ? "text-rose-300"
+                      : "text-white/60"
                 }`}
               >
                 {statusMessage}

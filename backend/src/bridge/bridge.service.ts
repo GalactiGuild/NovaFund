@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma.service';
 import { BridgeStatus } from './enums/bridge-status.enum';
 import { RegisterBridgeTxDto, BridgeTxStatusDto } from './dto/bridge.dto';
+import { AccountingService } from '../stellar/accounting.service';
 
 /**
  * Checks a transaction hash against a chain's scanner API.
@@ -22,6 +23,7 @@ export class BridgeService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
+    private readonly accountingService: AccountingService,
   ) {
     this.adapters = this.buildAdapters();
   }
@@ -246,6 +248,13 @@ export class BridgeService {
           if (res.status === 404) return { confirmed: false, failed: false };
 
           const json = (await res.json()) as any;
+
+          await this.accountingService.recordHorizonFee('bridge.pollTransaction', {
+            fee_charged: json.fee_charged,
+            hash: json.hash,
+            ledger: json.ledger,
+          });
+
           if (json.successful === true) return { confirmed: true, failed: false };
           if (json.successful === false) return { confirmed: false, failed: true };
           return { confirmed: false, failed: false };

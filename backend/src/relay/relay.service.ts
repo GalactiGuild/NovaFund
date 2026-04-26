@@ -7,6 +7,7 @@ import {
   Horizon,
   Transaction,
 } from '@stellar/stellar-sdk';
+import { AccountingService } from '../stellar/accounting.service';
 
 @Injectable()
 export class RelayService {
@@ -15,7 +16,10 @@ export class RelayService {
   private readonly server: Horizon.Server;
   private readonly networkPassphrase: string;
 
-  constructor(private readonly config: ConfigService) {
+  constructor(
+    private readonly config: ConfigService,
+    private readonly accountingService: AccountingService,
+  ) {
     const stellarConfig = this.config.get('stellar');
     if (!stellarConfig.sponsorSecretKey) {
       this.logger.error('STELLAR_SPONSOR_SECRET_KEY is not configured');
@@ -64,6 +68,12 @@ export class RelayService {
       // 4. Submit to the network
       this.logger.log(`Submitting fee-bumped transaction ${innerTx.hash().toString('hex')} for source ${innerTx.source}`);
       const response = await this.server.submitTransaction(feeBumpTx);
+
+      await this.accountingService.recordHorizonFee('relay.submitTransaction', {
+        fee_charged: (response as any).fee_charged,
+        hash: response.hash,
+        ledger: response.ledger,
+      });
 
       return {
         hash: response.hash,

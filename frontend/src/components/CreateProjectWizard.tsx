@@ -1,25 +1,35 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import { ProjectFormData, INITIAL_PROJECT_DATA, ValidationErrors } from '@/types/project';
-import { validateBasics, validateFunding, validateMilestones, validateAllSteps } from '@/utils/validation';
-import BasicsStep from './steps/BasicsStep';
-import FundingStep from './steps/FundingStep';
-import MilestonesStep from './steps/MilestonesStep';
-import ReviewStep from './steps/ReviewStep';
-import PreviewCard from './PreviewCard';
-import { ChevronLeft, ChevronRight, Check, Loader2 } from 'lucide-react';
+import { useState, useEffect } from "react";
+import {
+  ProjectFormData,
+  INITIAL_PROJECT_DATA,
+  ValidationErrors,
+} from "@/types/project";
+import {
+  validateBasics,
+  validateFunding,
+  validateMilestones,
+  validateAllSteps,
+} from "@/utils/validation";
+import BasicsStep from "./steps/BasicsStep";
+import FundingStep from "./steps/FundingStep";
+import MilestonesStep from "./steps/MilestonesStep";
+import ReviewStep from "./steps/ReviewStep";
+import PreviewCard from "./PreviewCard";
+import { ChevronLeft, ChevronRight, Check, Loader2 } from "lucide-react";
 
 const STEPS = [
-  { id: 0, title: 'Basics', description: 'Project information' },
-  { id: 1, title: 'Funding', description: 'Financial details' },
-  { id: 2, title: 'Milestones', description: 'Project roadmap' },
-  { id: 3, title: 'Review', description: 'Final check' }
+  { id: 0, title: "Basics", description: "Project information" },
+  { id: 1, title: "Funding", description: "Financial details" },
+  { id: 2, title: "Milestones", description: "Project roadmap" },
+  { id: 3, title: "Review", description: "Final check" },
 ];
 
 export default function CreateProjectWizard() {
   const [currentStep, setCurrentStep] = useState(0);
-  const [formData, setFormData] = useState<ProjectFormData>(INITIAL_PROJECT_DATA);
+  const [formData, setFormData] =
+    useState<ProjectFormData>(INITIAL_PROJECT_DATA);
   const [errors, setErrors] = useState<ValidationErrors>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [visitedSteps, setVisitedSteps] = useState<Set<number>>(new Set([0]));
@@ -27,13 +37,13 @@ export default function CreateProjectWizard() {
 
   // Load persisted data from localStorage on mount
   useEffect(() => {
-    if (typeof window === 'undefined') return;
-    
+    if (typeof window === "undefined") return;
+
     try {
-      const savedData = localStorage.getItem('projectFormData');
-      const savedStep = localStorage.getItem('projectCurrentStep');
-      const savedVisitedSteps = localStorage.getItem('projectVisitedSteps');
-      
+      const savedData = localStorage.getItem("projectFormData");
+      const savedStep = localStorage.getItem("projectCurrentStep");
+      const savedVisitedSteps = localStorage.getItem("projectVisitedSteps");
+
       if (savedData) {
         try {
           const parsed = JSON.parse(savedData);
@@ -45,10 +55,10 @@ export default function CreateProjectWizard() {
           }
           setFormData(mergedData);
         } catch (e) {
-          console.error('Failed to parse saved form data', e);
+          console.error("Failed to parse saved form data", e);
         }
       }
-      
+
       if (savedStep) {
         try {
           const step = parseInt(savedStep, 10);
@@ -56,10 +66,10 @@ export default function CreateProjectWizard() {
             setCurrentStep(step);
           }
         } catch (e) {
-          console.error('Failed to parse saved step', e);
+          console.error("Failed to parse saved step", e);
         }
       }
-      
+
       if (savedVisitedSteps) {
         try {
           const visited = JSON.parse(savedVisitedSteps);
@@ -67,11 +77,11 @@ export default function CreateProjectWizard() {
             setVisitedSteps(new Set(visited));
           }
         } catch (e) {
-          console.error('Failed to parse saved visited steps', e);
+          console.error("Failed to parse saved visited steps", e);
         }
       }
     } catch (e) {
-      console.error('Error accessing localStorage', e);
+      console.error("Error accessing localStorage", e);
     } finally {
       setIsInitialized(true);
     }
@@ -79,39 +89,42 @@ export default function CreateProjectWizard() {
 
   // Persist form data to localStorage (only after initialization)
   useEffect(() => {
-    if (!isInitialized || typeof window === 'undefined') return;
+    if (!isInitialized || typeof window === "undefined") return;
     try {
-      localStorage.setItem('projectFormData', JSON.stringify(formData));
+      localStorage.setItem("projectFormData", JSON.stringify(formData));
     } catch (e) {
-      console.error('Failed to save form data to localStorage', e);
+      console.error("Failed to save form data to localStorage", e);
     }
   }, [formData, isInitialized]);
 
   // Persist current step to localStorage (only after initialization)
   useEffect(() => {
-    if (!isInitialized || typeof window === 'undefined') return;
+    if (!isInitialized || typeof window === "undefined") return;
     try {
-      localStorage.setItem('projectCurrentStep', currentStep.toString());
+      localStorage.setItem("projectCurrentStep", currentStep.toString());
     } catch (e) {
-      console.error('Failed to save current step to localStorage', e);
+      console.error("Failed to save current step to localStorage", e);
     }
   }, [currentStep, isInitialized]);
 
   // Persist visited steps to localStorage (only after initialization)
   useEffect(() => {
-    if (!isInitialized || typeof window === 'undefined') return;
+    if (!isInitialized || typeof window === "undefined") return;
     try {
-      localStorage.setItem('projectVisitedSteps', JSON.stringify(Array.from(visitedSteps)));
+      localStorage.setItem(
+        "projectVisitedSteps",
+        JSON.stringify(Array.from(visitedSteps)),
+      );
     } catch (e) {
-      console.error('Failed to save visited steps to localStorage', e);
+      console.error("Failed to save visited steps to localStorage", e);
     }
   }, [visitedSteps, isInitialized]);
 
-  const updateField = (field: keyof ProjectFormData, value: any) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+  const updateField = (field: keyof ProjectFormData, value: unknown) => {
+    setFormData((prev) => ({ ...prev, [field]: value }));
     // Clear error for this field when user starts typing
     if (errors[field]) {
-      setErrors(prev => {
+      setErrors((prev) => {
         const newErrors = { ...prev };
         delete newErrors[field];
         return newErrors;
@@ -121,7 +134,7 @@ export default function CreateProjectWizard() {
 
   const validateCurrentStep = (): boolean => {
     let stepErrors: ValidationErrors = {};
-    
+
     switch (currentStep) {
       case 0:
         stepErrors = validateBasics(formData);
@@ -143,12 +156,12 @@ export default function CreateProjectWizard() {
 
   const goToStep = (step: number) => {
     setCurrentStep(step);
-    setVisitedSteps(prev => {
+    setVisitedSteps((prev) => {
       const newSet = new Set(prev);
       newSet.add(step);
       return newSet;
     });
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const handleNext = () => {
@@ -171,29 +184,28 @@ export default function CreateProjectWizard() {
     }
 
     setIsSubmitting(true);
-    
+
     try {
       // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      console.log('Submitting project:', formData);
-      
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+
+      console.log("Submitting project:", formData);
+
       // Clear saved data on successful submission
-      localStorage.removeItem('projectFormData');
-      localStorage.removeItem('projectCurrentStep');
-      localStorage.removeItem('projectVisitedSteps');
-      
+      localStorage.removeItem("projectFormData");
+      localStorage.removeItem("projectCurrentStep");
+      localStorage.removeItem("projectVisitedSteps");
+
       // Show success message or redirect
-      alert('Project created successfully! 🎉');
-      
+      alert("Project created successfully! 🎉");
+
       // Reset form
       setFormData(INITIAL_PROJECT_DATA);
       setCurrentStep(0);
       setVisitedSteps(new Set([0]));
-      
     } catch (error) {
-      console.error('Failed to create project:', error);
-      alert('Failed to create project. Please try again.');
+      console.error("Failed to create project:", error);
+      alert("Failed to create project. Please try again.");
     } finally {
       setIsSubmitting(false);
     }
@@ -203,7 +215,7 @@ export default function CreateProjectWizard() {
     const stepProps = {
       data: formData,
       errors,
-      onChange: updateField
+      onChange: updateField,
     };
 
     switch (currentStep) {
@@ -256,8 +268,12 @@ export default function CreateProjectWizard() {
             <button
               type="button"
               onClick={() => {
-                if (confirm('Are you sure you want to exit? Your progress will be saved.')) {
-                  window.location.href = '/';
+                if (
+                  confirm(
+                    "Are you sure you want to exit? Your progress will be saved.",
+                  )
+                ) {
+                  window.location.href = "/";
                 }
               }}
               className="text-muted-foreground hover:text-foreground text-sm font-medium hover:bg-accent px-4 py-2 rounded-md transition-colors"
@@ -273,7 +289,10 @@ export default function CreateProjectWizard() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="flex items-center justify-between relative">
             {STEPS.map((step, index) => (
-              <div key={step.id} className="flex-1 flex items-center relative z-10">
+              <div
+                key={step.id}
+                className="flex-1 flex items-center relative z-10"
+              >
                 <div className="flex flex-col items-center flex-1">
                   {/* Step Circle */}
                   <button
@@ -282,13 +301,13 @@ export default function CreateProjectWizard() {
                     disabled={!visitedSteps.has(index)}
                     className={`w-12 h-12 rounded-full flex items-center justify-center font-bold text-lg transition-all duration-300 transform border shadow-lg ${
                       currentStep === index
-                        ? 'bg-zinc-900 border-primary text-primary ring-4 ring-primary/20 scale-110 shadow-primary/20'
+                        ? "bg-zinc-900 border-primary text-primary ring-4 ring-primary/20 scale-110 shadow-primary/20"
                         : isStepComplete(index)
-                        ? 'bg-primary/20 border-primary/50 text-white shadow-primary/10'
-                        : visitedSteps.has(index)
-                        ? 'bg-zinc-800 border-zinc-700 text-white hover:bg-zinc-700 cursor-pointer'
-                        : 'bg-zinc-900 border-white/5 text-zinc-600'
-                    } ${!visitedSteps.has(index) ? 'cursor-not-allowed' : ''}`}
+                          ? "bg-primary/20 border-primary/50 text-white shadow-primary/10"
+                          : visitedSteps.has(index)
+                            ? "bg-zinc-800 border-zinc-700 text-white hover:bg-zinc-700 cursor-pointer"
+                            : "bg-zinc-900 border-white/5 text-zinc-600"
+                    } ${!visitedSteps.has(index) ? "cursor-not-allowed" : ""}`}
                   >
                     {isStepComplete(index) && currentStep !== index ? (
                       <Check className="w-6 h-6" />
@@ -298,19 +317,29 @@ export default function CreateProjectWizard() {
                   </button>
                   {/* Step Label */}
                   <div className="mt-3 text-center">
-                    <p className={`text-sm font-bold ${
-                      currentStep === index ? 'text-white' : isStepComplete(index) ? 'text-green-400' : 'text-slate-400'
-                    }`}>
+                    <p
+                      className={`text-sm font-bold ${
+                        currentStep === index
+                          ? "text-white"
+                          : isStepComplete(index)
+                            ? "text-green-400"
+                            : "text-slate-400"
+                      }`}
+                    >
                       {step.title}
                     </p>
-                    <p className="text-xs text-slate-500 mt-1 max-w-24 truncate">{step.description}</p>
+                    <p className="text-xs text-slate-500 mt-1 max-w-24 truncate">
+                      {step.description}
+                    </p>
                   </div>
                 </div>
                 {/* Connector Line */}
                 {index < STEPS.length - 1 && (
-                  <div className={`absolute left-1/2 top-6 h-1 w-full -translate-x-1/2 -z-10 transition-colors duration-500 ${
-                    isStepComplete(index) ? 'bg-primary/50' : 'bg-white/5'
-                  }`} />
+                  <div
+                    className={`absolute left-1/2 top-6 h-1 w-full -translate-x-1/2 -z-10 transition-colors duration-500 ${
+                      isStepComplete(index) ? "bg-primary/50" : "bg-white/5"
+                    }`}
+                  />
                 )}
               </div>
             ))}
