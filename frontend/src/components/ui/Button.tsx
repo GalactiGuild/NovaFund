@@ -1,8 +1,8 @@
 import React from "react";
 
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: "primary" | "secondary" | "danger";
-  size?: "sm" | "md" | "lg";
+  variant?: "primary" | "secondary" | "danger" | "ghost" | "outline";
+  size?: "sm" | "md" | "lg" | "icon";
 }
 
 const Button: React.FC<ButtonProps> = ({
@@ -12,17 +12,20 @@ const Button: React.FC<ButtonProps> = ({
   ...props
 }) => {
   const base =
-    "font-semibold rounded transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 inline-flex items-center justify-center";
+    "font-medium rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 inline-flex items-center justify-center disabled:opacity-50 disabled:pointer-events-none active:scale-95";
   const sizes = {
-    sm: "px-3 py-2 text-sm min-h-[44px] md:px-3 md:py-1 md:min-h-0",
-    md: "px-4 py-3 text-base min-h-[48px] md:px-4 md:py-2 md:min-h-0",
-    lg: "px-6 py-4 text-lg min-h-[52px] md:px-6 md:py-3 md:min-h-0",
+    sm: "px-3 py-1.5 text-sm",
+    md: "px-4 py-2 text-sm",
+    lg: "px-6 py-3 text-base",
+    icon: "h-9 w-9",
   };
   const variants = {
     primary:
-      "bg-purple-700 text-white hover:bg-purple-600 focus:ring-purple-500",
-    secondary: "bg-muted text-foreground hover:bg-muted/80 focus:ring-muted",
-    danger: "bg-red-600 text-white hover:bg-red-500 focus:ring-red-400",
+      "bg-primary text-primary-foreground hover:opacity-90 shadow-sm",
+    secondary: "bg-secondary text-secondary-foreground hover:bg-secondary/80",
+    danger: "bg-destructive text-destructive-foreground hover:bg-destructive/90",
+    ghost: "bg-transparent hover:bg-accent hover:text-accent-foreground",
+    outline: "bg-transparent border border-input hover:bg-accent hover:text-accent-foreground",
   };
 
   // Allow custom className to override variants
