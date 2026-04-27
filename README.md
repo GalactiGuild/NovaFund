@@ -558,3 +558,11 @@ Made with ❤️ using Stellar & Soroban
 [Back to Top](#-novafund---decentralized-micro-investment-platform)
 
 </div>
+
+## 💰 Bounty Contribution
+
+- **Task:** Implement 2FA (TOTP/SMS) for Large Payouts
+- **Reward:** $10000
+- **Source:** GitHub-Paid
+- **Date:** 2026-04-27
+
