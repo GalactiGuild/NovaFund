@@ -9,9 +9,14 @@ import {
 import { KycAdminService } from '../services/kyc-admin.service';
 import { KycOverrideDto } from '../dto/kyc-override.dto';
 import { AdminGuard } from '../../guards/admin.guard';
+import { JwtAuthGuard } from '../../guards/jwt-auth.guard';
+import { RolesGuard } from '../../guards/roles.guard';
+import { Roles } from '../../decorators/roles.decorator';
+import { UserRole } from '@prisma/client';
 
 @Controller('admin/kyc')
-@UseGuards(AdminGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles(UserRole.ADMIN)
 export class KycAdminController {
   constructor(private readonly kycService: KycAdminService) {}
 
