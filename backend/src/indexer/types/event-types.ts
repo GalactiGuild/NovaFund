@@ -109,6 +109,8 @@ export interface ParsedContractEvent {
   transactionHash: string;
   data: Record<string, unknown>;
   inSuccessfulContractCall: boolean;
+  pagingToken?: string;
+  
 }
 
 /**

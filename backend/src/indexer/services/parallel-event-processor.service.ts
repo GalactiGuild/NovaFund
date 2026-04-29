@@ -148,7 +148,7 @@ export class ParallelEventProcessorService {
                 inSuccessfulContractCall: true,
                 ledgerClosedAt: event.ledgerClosedAt.toISOString(),
                 type: event.eventType,
-                pagingToken: event.pagingToken,
+                pagingToken: event.pagingToken || '',
               },
               error,
             );
@@ -175,7 +175,7 @@ export class ParallelEventProcessorService {
             inSuccessfulContractCall: true,
             ledgerClosedAt: event.ledgerClosedAt.toISOString(),
             type: event.eventType,
-            pagingToken: event.pagingToken,
+            pagingToken: event.pagingToken || '',
           },
           error,
         );
