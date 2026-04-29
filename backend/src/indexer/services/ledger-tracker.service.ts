@@ -227,7 +227,49 @@ export class LedgerTrackerService {
     transactionHash: string,
   ): Promise<void> {
     await this.prisma.processedEvent.upsert({
-      where: { eventId },
+      where: { 
+        eventId_ledgerSeq: {
+          eventId,
+          ledgerSeq,
+        }
+      },
+      update: {},
+      create: {
+        eventId,
+        network: this.network,
+        ledgerSeq,
+        contractId,
+        eventType,
+        transactionHash,
+      },
+    });
+  }
+
+  /**
+   * Mark an event as processed within an existing transaction
+   * Used for parallel processing to ensure atomicity
+   * @param tx The Prisma transaction client
+   * @param eventId The unique event ID
+   * @param ledgerSeq The ledger sequence
+   * @param contractId The contract ID
+   * @param eventType The event type
+   * @param transactionHash The transaction hash
+   */
+  async markEventProcessedWithTransaction(
+    tx: any,
+    eventId: string,
+    ledgerSeq: number,
+    contractId: string,
+    eventType: string,
+    transactionHash: string,
+  ): Promise<void> {
+    await tx.processedEvent.upsert({
+      where: { 
+        eventId_ledgerSeq: {
+          eventId,
+          ledgerSeq,
+        }
+      },
       update: {},
       create: {
         eventId,
