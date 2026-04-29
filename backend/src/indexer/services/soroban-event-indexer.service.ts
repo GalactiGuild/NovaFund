@@ -218,7 +218,9 @@ export class SorobanEventIndexerService implements OnModuleInit, OnModuleDestroy
   }
 
   private async isEventProcessed(eventId: string): Promise<boolean> {
-    const existing = await this.prisma.processedEvent.findUnique({
+    // Note: This method needs ledgerSeq to use the compound unique constraint
+    // For now, using a query that checks by eventId only
+    const existing = await this.prisma.processedEvent.findFirst({
       where: { eventId },
     });
     return !!existing;
