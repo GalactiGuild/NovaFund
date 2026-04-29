@@ -8,11 +8,15 @@ import {
   removeOutliers,
   movingAverage,
 } from "./apr.utils";
+import { PredictionService, PredictionResult } from "../../src/yield/prediction.service";
 
 const HOURS_IN_YEAR = 24 * 365;
 
 export class AprService {
-  constructor(private readonly repo: AprRepository) {}
+  constructor(
+    private readonly repo: AprRepository,
+    private readonly predictionService?: PredictionService,
+  ) {}
 
   async calculateAPR(config: AprConfig = {}): Promise<AprResult> {
     const {
@@ -53,6 +57,34 @@ export class AprService {
       apr,
       averageHourlyYield: avgHourlyYield,
       projectedAnnualYield,
+    };
+  }
+
+  /**
+   * Get dynamic APR prediction with confidence intervals
+   * This combines historical calculation with ML-based forecasting
+   */
+  async getAPRWithPrediction(
+    config: AprConfig = {},
+    projectId?: string,
+  ): Promise<AprResult & { prediction?: PredictionResult }> {
+    // Calculate historical APR
+    const historicalAPR = await this.calculateAPR(config);
+
+    // Get prediction if service is available
+    let prediction: PredictionResult | undefined;
+    if (this.predictionService) {
+      try {
+        prediction = await this.predictionService.predictAPR(projectId);
+      } catch (error) {
+        // Fallback to historical data only
+        console.warn('APR prediction failed, using historical data only:', error.message);
+      }
+    }
+
+    return {
+      ...historicalAPR,
+      prediction,
     };
   }
 }

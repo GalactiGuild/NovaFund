@@ -10,6 +10,7 @@ import { RpcFallbackService } from '../../stellar/rpc-fallback.service';
 import { SorobanEvent, ParsedContractEvent, ContractEventType } from '../types/event-types';
 import { LedgerInfo } from '../types/ledger.types';
 import { ParserService } from './parser.service';
+import { ParallelEventProcessorService } from './parallel-event-processor.service';
 
 /**
  * Main indexer service that polls Stellar RPC for contract events
@@ -41,6 +42,7 @@ export class IndexerService implements OnModuleInit, OnModuleDestroy {
     private readonly dlqService: DlqService,
     private readonly rpcFallbackService: RpcFallbackService,
     private readonly parserService: ParserService,
+    private readonly parallelProcessor: ParallelEventProcessorService,
   ) {
     this.network = this.configService.get<string>('STELLAR_NETWORK', 'testnet');
     this.pollIntervalMs = this.configService.get<number>('INDEXER_POLL_INTERVAL_MS', 5000);
@@ -133,54 +135,55 @@ export class IndexerService implements OnModuleInit, OnModuleDestroy {
       let totalErrors = 0;
       let totalFound = 0;
 
+      // Collect all events from the stream
+      const allEvents: SorobanEvent[] = [];
       for await (const eventBatch of this.fetchEventsStream(startLedger, latestLedger)) {
-        totalFound += eventBatch.length;
-        
+        allEvents.push(...eventBatch);
+      }
+
+      totalFound = allEvents.length;
+
+      if (totalFound > 0) {
         // OPTIMIZATION: Batch parse XDRs using worker threads
-        const xdrs = eventBatch.map(e => e.value);
+        const xdrs = allEvents.map(e => e.value);
         const parsedDataBatch = await this.parserService.parseBatch(xdrs);
 
-        for (let i = 0; i < eventBatch.length; i++) {
-          const event = eventBatch[i];
+        // Convert to parsed events
+        const parsedEvents: ParsedContractEvent[] = [];
+        for (let i = 0; i < allEvents.length; i++) {
+          const event = allEvents[i];
           const parsedData = parsedDataBatch[i];
 
-          try {
-            if (await this.ledgerTracker.isEventProcessed(event.id)) continue;
+          const eventTypeSymbol = event.topic[0];
+          const eventType = this.parseEventType(eventTypeSymbol);
+          if (!eventType) continue;
 
-            const eventTypeSymbol = event.topic[0];
-            const eventType = this.parseEventType(eventTypeSymbol);
-            if (!eventType) continue;
+          const parsedEvent: ParsedContractEvent = {
+            eventId: event.id,
+            ledgerSeq: event.ledger,
+            ledgerClosedAt: new Date(event.ledgerClosedAt),
+            contractId: event.contractId,
+            eventType,
+            transactionHash: event.txHash,
+            data: { ...parsedData, eventType, rawXdr: event.value },
+            inSuccessfulContractCall: event.inSuccessfulContractCall,
+            pagingToken: event.pagingToken,
+          };
 
-            const parsedEvent: ParsedContractEvent = {
-              eventId: event.id,
-              ledgerSeq: event.ledger,
-              ledgerClosedAt: new Date(event.ledgerClosedAt),
-              contractId: event.contractId,
-              eventType,
-              transactionHash: event.txHash,
-              data: { ...parsedData, eventType, rawXdr: event.value },
-              inSuccessfulContractCall: event.inSuccessfulContractCall,
-            };
-
-            if (await this.eventHandler.processEvent(parsedEvent)) {
-              totalProcessed++;
-              await this.ledgerTracker.markEventProcessed(
-                event.id, event.ledger, event.contractId, eventType, event.txHash
-              );
-            }
-          } catch (error) {
-            totalErrors++;
-            this.logger.error(`Failed to process event ${event.id}: ${error.message}`);
-            await this.dlqService.push(event, error);
-          }
+          parsedEvents.push(parsedEvent);
         }
+
+        // OPTIMIZATION: Process events in parallel using worker pool
+        const stats = await this.parallelProcessor.processEventBatch(parsedEvents);
+        totalProcessed = stats.processed;
+        totalErrors = stats.failed;
       }
 
       await this.ledgerTracker.updateCursor(latestLedger);
       await this.ledgerTracker.logProgress(latestLedger, latestLedger, totalProcessed);
 
       if (totalFound > 0) {
-        this.logger.log(`Processed ${totalProcessed}/${totalFound} events (${totalErrors} errors)`);
+        this.logger.log(`Processed ${totalProcessed}/${totalFound} events (${totalErrors} errors) using parallel processing`);
       }
     } catch (error) {
       this.logger.error(`Error in poll cycle: ${error.message}`, error.stack);
