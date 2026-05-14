@@ -84,7 +84,7 @@ describe('PathfinderService', () => {
         'USDC',
         'GBUQWP3BOUZX34ULNQG23RQ6F4YUSXHTLXASMSTQUCHP7DTLD5QPS3LY',
         '100',
-        'some_issuer',
+        'GCO2IP3UIX4SST2WRE3Y7AIW6YLSW6E27NZ5UHK7D6NMD2QAW3354WYN',
       );
 
       expect(path).toBeDefined();
@@ -304,7 +304,7 @@ describe('PathfinderService', () => {
           'USDC',
           'GBUQWP3BOUZX34ULNQG23RQ6F4YUSXHTLXASMSTQUCHP7DTLD5QPS3LY',
           '100',
-          'GBUQWP3BOUZX34ULNQG23RQ6F4YUSXHTLXASMSTQUCHP7DTLD5QPS3LY',
+          'GCO2IP3UIX4SST2WRE3Y7AIW6YLSW6E27NZ5UHK7D6NMD2QAW3354WYN',
         );
         // Either should return 100% conversion rate or handle gracefully
         expect(path.conversionRate).toBeGreaterThanOrEqual(0.99);

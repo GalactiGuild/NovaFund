@@ -218,8 +218,8 @@ export class SorobanEventIndexerService implements OnModuleInit, OnModuleDestroy
   }
 
   private async isEventProcessed(eventId: string): Promise<boolean> {
-    const existing = await this.prisma.processedEvent.findUnique({
-      where: { eventId },
+    const existing = await this.prisma.processedEvent.findFirst({
+      where: { eventId, network: this.network },
     });
     return !!existing;
   }

@@ -3,6 +3,16 @@ import { SimulatorService } from './simulator.service';
 import { RpcFallbackService } from './rpc-fallback.service';
 import { SorobanRpc, Transaction, Networks } from '@stellar/stellar-sdk';
 
+jest.mock('@stellar/stellar-sdk', () => {
+  const original = jest.requireActual('@stellar/stellar-sdk');
+  return {
+    ...original,
+    Transaction: jest.fn().mockImplementation(() => ({
+      toXDR: () => 'mocked-xdr',
+    })),
+  };
+});
+
 describe('SimulatorService', () => {
   let service: SimulatorService;
   let rpcFallbackService: RpcFallbackService;

@@ -108,7 +108,21 @@ describe('ProjectService', () => {
       expect(redisService.get).toHaveBeenCalledWith(`project:${projectId}`);
       expect(prismaService.project.findUnique).toHaveBeenCalledWith({
         where: { id: projectId },
-        include: {
+        select: {
+          id: true,
+          contractId: true,
+          creatorId: true,
+          title: true,
+          description: true,
+          category: true,
+          tags: true,
+          goal: true,
+          currentFunds: true,
+          deadline: true,
+          ipfsHash: true,
+          status: true,
+          createdAt: true,
+          updatedAt: true,
           _count: {
             select: {
               contributions: true,

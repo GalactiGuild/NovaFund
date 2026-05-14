@@ -71,6 +71,7 @@ model Project {
   milestones    Milestone[]
   shortlinks    Shortlink[]
   payoutTiers   ProjectPayoutTier[]
+  yieldSnapshots YieldSnapshot[]
 
   @@index([status])
   @@index([category])

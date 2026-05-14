@@ -205,12 +205,12 @@ describe('AssetDiscoveryService', () => {
 
       // High volume, high trades, high holders = high score
       const stats1 = {
-        volume: BigInt(100000000000), // 10,000 XLM
-        trades: 200,
+        volume: BigInt(500000000000), // 50,000 XLM
+        trades: 300,
         lastActivity: new Date(),
         holders: new Set(),
       };
-      const score1 = serviceAny.calculateLiquidityScore(stats1, { num_accounts: 2000 });
+      const score1 = serviceAny.calculateLiquidityScore(stats1, { num_accounts: 3000 });
       expect(score1).toBeGreaterThan(8);
 
       // Low volume, low trades, low holders = low score

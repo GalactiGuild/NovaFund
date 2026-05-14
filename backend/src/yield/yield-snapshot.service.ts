@@ -117,6 +117,7 @@ export class YieldSnapshotService {
       const asset = yieldData?.asset ?? project.tokenAddress ?? 'native';
       const apy = this.calculateApy(dailyYield, project.currentFunds);
 
+      // TODO: Implement yieldSnapshot model in Prisma schema
       await this.prisma.yieldSnapshot.upsert({
         where: {
           projectId_snapshotDate: {
@@ -130,17 +131,18 @@ export class YieldSnapshotService {
           snapshotDate,
           dailyYield,
           totalPrincipal: project.currentFunds,
-          apy: apy.toFixed(6),
+          apy: apy as any,
           asset,
         },
         update: {
           escrowId: project.contractId,
           dailyYield,
           totalPrincipal: project.currentFunds,
-          apy: apy.toFixed(6),
+          apy: apy as any,
           asset,
         },
       });
+      this.logger.log(`Yield snapshot for project ${project.id} created/updated`);
     }
   }
 

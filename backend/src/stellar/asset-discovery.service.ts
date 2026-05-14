@@ -554,10 +554,14 @@ export class AssetDiscoveryService {
     if (tomlInfo.CURRENCIES) {
       for (const currency of tomlInfo.CURRENCIES) {
         if (currency.tags) {
-          tags.push(...currency.tags);
+          if (Array.isArray(currency.tags)) {
+            tags.push(...currency.tags);
+          } else if (typeof currency.tags === 'string') {
+            tags.push(...currency.tags.split(',').map(t => t.trim()));
+          }
         }
-        if (currency.name?.toLowerCase().includes('stable')) tags.push('Stable');
-        if (currency.name?.toLowerCase().includes('rwa') || currency.desc?.toLowerCase().includes('real world')) tags.push('RWA');
+        if (currency.name?.toLowerCase().includes('stable') || currency.desc?.toLowerCase().includes('stable')) tags.push('Stable');
+        if (currency.name?.toLowerCase().includes('rwa') || currency.desc?.toLowerCase().includes('rwa') || currency.desc?.toLowerCase().includes('real world')) tags.push('RWA');
       }
     }
 

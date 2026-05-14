@@ -227,7 +227,12 @@ export class LedgerTrackerService {
     transactionHash: string,
   ): Promise<void> {
     await this.prisma.processedEvent.upsert({
-      where: { eventId },
+      where: {
+        eventId_ledgerSeq: {
+          eventId,
+          ledgerSeq,
+        },
+      },
       update: {},
       create: {
         eventId,

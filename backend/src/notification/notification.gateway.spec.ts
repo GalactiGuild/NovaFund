@@ -143,7 +143,7 @@ describe('NotificationGateway', () => {
           type: 'test',
           title: 'Test',
           message: 'Test message',
-          link: undefined,
+          data: {},
           read: false,
         },
       });
@@ -179,7 +179,7 @@ describe('NotificationGateway', () => {
 
       expect(mockPrisma.notification.create).toHaveBeenCalledWith({
         data: expect.objectContaining({
-          link: '/projects/123',
+          data: { link: '/projects/123' },
         }),
       });
     });

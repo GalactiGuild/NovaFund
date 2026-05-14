@@ -50,8 +50,8 @@ describe('ReservesService', () => {
         return {
           rebalanceThreshold: 0.05,
           wallets: [
-            { assetCode: 'XLM', targetRatio: 0.5 },
-            { assetCode: 'USDC', targetRatio: 0.5 },
+            { assetCode: 'XLM', targetRatio: 0.5, walletAddress: 'GBUQWP3BOUZX34ULNQG23RQ6F4YUSXHTLXASMSTQUCHP7DTLD5QPS3LY' },
+            { assetCode: 'USDC', targetRatio: 0.5, walletAddress: 'GBUQWP3BOUZX34ULNQG23RQ6F4YUSXHTLXASMSTQUCHP7DTLD5QPS3LY' },
           ],
         };
       }
@@ -88,8 +88,8 @@ describe('ReservesService', () => {
     configService.get.mockReturnValue({
       rebalanceThreshold: 0.05,
       wallets: [
-        { assetCode: 'XLM', targetRatio: 0.5 },
-        { assetCode: 'USDC', targetRatio: 0.5 },
+        { assetCode: 'XLM', targetRatio: 0.5, walletAddress: 'GBUQWP3BOUZX34ULNQG23RQ6F4YUSXHTLXASMSTQUCHP7DTLD5QPS3LY' },
+        { assetCode: 'USDC', targetRatio: 0.5, walletAddress: 'GBUQWP3BOUZX34ULNQG23RQ6F4YUSXHTLXASMSTQUCHP7DTLD5QPS3LY' },
       ],
     });
 

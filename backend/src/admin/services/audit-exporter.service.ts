@@ -7,7 +7,7 @@ import * as path from 'path';
 import * as crypto from 'crypto';
 import { createReadStream, createWriteStream } from 'fs';
 import { pipeline } from 'stream/promises';
-import * as archiver from 'archiver';
+import archiver from 'archiver';
 
 export interface AuditPackageMetadata {
   id: string;
