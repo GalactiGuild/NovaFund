@@ -18,6 +18,8 @@ import { SimulatorService } from './simulator.service';
 import { StellarService } from './stellar.service';
 import { DynamicFeeService } from './dynamic-fee.service';
 import { ReservesService } from './reserves.service';
+import { MonitorService } from './monitor.service';
+import { MultisigService } from './multisig.service';
 import { OracleModule } from '../oracle/oracle.module';
 
 @Module({
@@ -40,6 +42,8 @@ import { OracleModule } from '../oracle/oracle.module';
     StellarService,
     DynamicFeeService,
     ReservesService,
+    MonitorService,
+    MultisigService,
   ],
   controllers: [
     RpcFallbackController,
@@ -59,6 +63,8 @@ import { OracleModule } from '../oracle/oracle.module';
     StellarService,
     DynamicFeeService,
     ReservesService,
+    MonitorService,
+    MultisigService,
   ],
 })
 export class StellarModule {}

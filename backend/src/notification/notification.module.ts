@@ -9,6 +9,8 @@ import { NotificationGatewayController } from './notification-gateway.controller
 import { DeadlineAlertTask } from './tasks/deadline-alert.task';
 import { EmailRetryTask } from './tasks/email-retry.task';
 import { WeeklyDigestJob } from './tasks/weekly-digest.job';
+import { WatchlistService } from './watchlist.service';
+import { DiscordBotService } from './discord-bot.service';
 import { DatabaseModule } from '../database.module';
 
 @Module({
@@ -23,7 +25,9 @@ import { DatabaseModule } from '../database.module';
     DeadlineAlertTask,
     EmailRetryTask,
     WeeklyDigestJob,
+    WatchlistService,
+    DiscordBotService,
   ],
-  exports: [NotificationService, NotificationGateway, PreferencesService],
+  exports: [NotificationService, NotificationGateway, PreferencesService, WatchlistService, DiscordBotService],
 })
 export class NotificationModule { }

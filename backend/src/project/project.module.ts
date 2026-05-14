@@ -3,6 +3,7 @@ import { ProjectResolver } from './project.resolver';
 import { ProjectRelationsResolver } from './project-relations.resolver';
 import { ProjectService } from './project.service';
 import { ProjectController } from './project.controller';
+import { StatsController } from './stats.controller';
 import { SearchService } from './search.service';
 import { SearchController } from './search.controller';
 import { InvestmentIntentService } from './investment-intent.service';
@@ -22,7 +23,7 @@ import { ReputationModule } from '../reputation/reputation.module';
     InvestmentIntentResolver,
     TaggerService,
   ],
-  controllers: [ProjectController, SearchController],
+  controllers: [ProjectController, StatsController, SearchController],
   exports: [ProjectService, SearchService, InvestmentIntentService, TaggerService],
 })
 export class ProjectModule {}

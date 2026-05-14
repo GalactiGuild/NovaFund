@@ -120,7 +120,7 @@ export class LedgerTrackerService {
       if (hasReorg) {
         this.logger.warn(
           `Re-org detected at ledger ${currentLedger.sequence}. ` +
-            `Expected hash: ${cursor.lastLedgerHash}, Got: ${currentLedger.hash}`,
+          `Expected hash: ${cursor.lastLedgerHash}, Got: ${currentLedger.hash}`,
         );
       }
 
@@ -167,7 +167,7 @@ export class LedgerTrackerService {
 
     this.logger.warn(
       `Handling re-org with depth ${reorgResult.reorgDepth}. ` +
-        `Rolling back to ledger ${reorgResult.lastValidLedger}`,
+      `Rolling back to ledger ${reorgResult.lastValidLedger}`,
     );
 
     // Calculate rollback depth (add buffer for safety)
@@ -289,7 +289,7 @@ export class LedgerTrackerService {
 
     this.logger.log(
       `Progress: Ledger ${currentLedger}/${targetLedger} (${progress}%) | ` +
-        `Events: ${eventsProcessed} | Remaining: ${remaining}`,
+      `Events: ${eventsProcessed} | Remaining: ${remaining}`,
     );
 
     // Store log in database for monitoring

@@ -49,7 +49,7 @@ export class SorobanEventIndexerService implements OnModuleInit, OnModuleDestroy
     if (projectLaunch) contracts.push(projectLaunch);
     const escrow = this.configService.get<string>('ESCROW_CONTRACT_ID');
     if (escrow) contracts.push(escrow);
-    
+
     const sorobanContracts = this.configService.get<string>('SOROBAN_CONTRACT_IDS');
     if (sorobanContracts) {
       contracts.push(...sorobanContracts.split(',').map(id => id.trim()));
@@ -117,7 +117,7 @@ export class SorobanEventIndexerService implements OnModuleInit, OnModuleDestroy
 
       for await (const eventBatch of this.fetchEventsStream(startLedger, latestLedger)) {
         totalFound += eventBatch.length;
-        
+
         // OPTIMIZATION: Batch parse XDRs using worker threads
         const xdrs = eventBatch.map(e => e.value);
         const parsedDataBatch = await this.parserService.parseBatch(xdrs);
@@ -192,7 +192,7 @@ export class SorobanEventIndexerService implements OnModuleInit, OnModuleDestroy
         const batch = response.events
           .filter(event => event.ledger <= endLedger)
           .map(event => this.transformRpcEvent(event));
-        
+
         totalFetched += batch.length;
         yield batch;
       } else break;

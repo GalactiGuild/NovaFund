@@ -43,6 +43,8 @@ model User {
   freezeRequests       AccountFreezeRequest[] @relation("freezeUser")
   webhookSubscriptions WebhookSubscription[]
   supportTickets      SupportTicket[]
+  watchlists          Watchlist[]
+  twoFactorSecret     TwoFactorSecret?
 
   @@map("users")
 }
@@ -71,6 +73,7 @@ model Project {
   milestones    Milestone[]
   shortlinks    Shortlink[]
   payoutTiers   ProjectPayoutTier[]
+  watchlists    Watchlist[]
   yieldSnapshots YieldSnapshot[]
 
   @@index([status])
@@ -809,4 +812,47 @@ enum ProposalStatus {
   QUORUM_REACHED
   EXECUTED
   CANCELLED
+}
+
+// ── Watchlist ─────────────────────────────────────────────────────────────────
+
+model Watchlist {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  projectId String   @map("project_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, projectId])
+  @@index([projectId])
+  @@map("watchlists")
+}
+
+// ── Two-Factor Auth ───────────────────────────────────────────────────────────
+
+model TwoFactorSecret {
+  id        String   @id @default(cuid())
+  userId    String   @unique @map("user_id")
+  secret    String
+  verified  Boolean  @default(false)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("two_factor_secrets")
+}
+
+// ── Discord Governance ────────────────────────────────────────────────────────
+
+model DiscordMapping {
+  id               String   @id @default(cuid())
+  discordId        String   @unique @map("discord_id")
+  stellarAddress   String   @unique @map("stellar_address")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  @@map("discord_mappings")
 }

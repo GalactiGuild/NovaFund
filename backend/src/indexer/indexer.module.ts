@@ -9,6 +9,7 @@ import { SorobanEventIndexerService } from './services/soroban-event-indexer.ser
 import { ParserService } from './services/parser.service';
 import { FundingStreamService } from './services/funding-stream.service';
 import { FundingStreamController } from './controllers/funding-stream.controller';
+import { ParallelEventProcessorService } from './services/parallel-event-processor.service';
 import { DatabaseModule } from '../database.module';
 import { StellarModule } from '../stellar/stellar.module';
 import { EscrowAuditTask } from './tasks/escrow-audit.task';
@@ -47,6 +48,8 @@ import stellarConfig, { indexerConfig } from '../config/stellar.config';
     DlqService,
     // Background XDR Parsing
     ParserService,
+    // Parallel event processing
+    ParallelEventProcessorService,
     // Daily scheduled audit task
     EscrowAuditTask,
   ],
@@ -59,6 +62,7 @@ import stellarConfig, { indexerConfig } from '../config/stellar.config';
     DlqService,
     SorobanEventIndexerService,
     ParserService,
+    ParallelEventProcessorService,
   ],
 })
 export class IndexerModule {}

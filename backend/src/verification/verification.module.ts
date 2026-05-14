@@ -9,6 +9,8 @@ import { GalxeProvider } from './services/providers/galxe.provider';
 import { KycAdminController } from './controllers/kyc-admin.controller';
 import { ZkKycController } from './controllers/zk-kyc.controller';
 import { WebhookHandler } from './webhook-handler';
+import { TwoFactorService } from './two-factor.service';
+import { PrismaService } from '../prisma.service';
 
 @Module({
   imports: [
@@ -21,7 +23,9 @@ import { WebhookHandler } from './webhook-handler';
     VioletProvider,
     GalxeProvider,
     WebhookHandler,
+    TwoFactorService,
+    PrismaService,
   ],
-  exports: [ZkKycService, WebhookHandler],
+  exports: [ZkKycService, WebhookHandler, TwoFactorService],
 })
 export class VerificationModule {}

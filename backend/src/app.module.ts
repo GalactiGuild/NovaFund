@@ -31,6 +31,9 @@ import { ShortlinkModule } from './shortlink/shortlink.module';
 import { AdminModule } from './admin/admin.module';
 import { SupportModule } from './support/support.module';
 import { GovernanceModule } from './governance/governance.module';
+import { ApiModule } from './api/api.module';
+import { APP_GUARD } from '@nestjs/core';
+import { MaintenanceGuard } from './guards/maintenance.guard';
 
 @Module({
   imports: [
@@ -78,8 +81,12 @@ import { GovernanceModule } from './governance/governance.module';
     SupportModule,
     AdminModule,
     GovernanceModule,
+    ApiModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [
+    AppService,
+    { provide: APP_GUARD, useClass: MaintenanceGuard },
+  ],
 })
 export class AppModule {}
