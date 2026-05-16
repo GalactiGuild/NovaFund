@@ -32,6 +32,7 @@ import { AdminModule } from './admin/admin.module';
 import { SupportModule } from './support/support.module';
 import { GovernanceModule } from './governance/governance.module';
 import { ApiModule } from './api/api.module';
+import { AuthModule } from './auth/auth.module';
 import { APP_GUARD } from '@nestjs/core';
 import { MaintenanceGuard } from './guards/maintenance.guard';
 
@@ -82,6 +83,7 @@ import { MaintenanceGuard } from './guards/maintenance.guard';
     AdminModule,
     GovernanceModule,
     ApiModule,
+    AuthModule,
   ],
   controllers: [AppController],
   providers: [

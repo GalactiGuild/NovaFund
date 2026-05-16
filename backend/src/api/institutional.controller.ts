@@ -9,6 +9,10 @@ import {
 } from '@nestjs/common';
 import { Response } from 'express';
 import { AdminGuard } from '../guards/admin.guard';
+import { JwtAuthGuard } from '../guards/jwt-auth.guard';
+import { RolesGuard } from '../guards/roles.guard';
+import { Roles } from '../decorators/roles.decorator';
+import { UserRole } from '@prisma/client';
 import { PrismaService } from '../prisma.service';
 
 type ReportFormat = 'json' | 'csv' | 'xml';

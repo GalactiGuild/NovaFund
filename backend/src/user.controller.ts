@@ -44,7 +44,8 @@ export class UserController {
   }
 
   @Put('freeze-request/:requestId/review')
-  @UseGuards(AdminGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
   async reviewFreezeRequest(
     @Param('requestId') requestId: string,
     @Body() body: { adminId: string; approved: boolean; adminNotes?: string },

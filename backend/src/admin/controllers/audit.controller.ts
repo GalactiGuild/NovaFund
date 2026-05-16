@@ -15,9 +15,14 @@ import { Throttle } from '@nestjs/throttler';
 import { AuditExporterService } from '../services/audit-exporter.service';
 import { GenerateAuditPackageDto, AuditPackageResponseDto } from '../dto/audit-package.dto';
 import { AdminGuard } from '../../guards/admin.guard';
+import { JwtAuthGuard } from '../../guards/jwt-auth.guard';
+import { RolesGuard } from '../../guards/roles.guard';
+import { Roles } from '../../decorators/roles.decorator';
+import { UserRole } from '@prisma/client';
 
 @Controller('admin/audit')
-@UseGuards(AdminGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles(UserRole.ADMIN)
 export class AuditController {
   constructor(private readonly auditService: AuditExporterService) {}
 

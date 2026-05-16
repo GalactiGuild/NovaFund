@@ -16,6 +16,7 @@ model User {
   profileData     Json?    @map("profile_data")
   reputationScore Int      @default(0) @map("reputation_score")
   trustScore      Int      @default(500) @map("trust_score")
+  role            UserRole @default(INVESTOR) @map("role")
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
 
@@ -149,6 +150,12 @@ enum KycStatus {
   VERIFIED
   REJECTED
   EXPIRED
+}
+
+enum UserRole {
+  INVESTOR
+  CREATOR
+  ADMIN
 }
 
 enum EmailDigestMode {
